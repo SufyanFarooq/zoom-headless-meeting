@@ -1,0 +1,70 @@
+services:
+  bot-1:
+    build: ./
+    platform: linux/amd64
+    container_name: zoom-bot-1
+    volumes:
+     - .:/tmp/meeting-sdk-linux-sample
+     - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+     - DISPLAY_NAME=Bot-1-Alice
+     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
+     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false
+    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
+    command:
+      - "--client-id"
+      - "vdPX1q2bSQKip0X17LqXAw"
+      - "--client-secret"
+      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
+      - "--join-url"
+      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
+      - "--display-name"
+      - "Bot-1-Alice"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 150M
+        reservations:
+          cpus: '0.1'
+          memory: 50M
+    restart: unless-stopped
+
+  bot-2:
+    build: ./
+    platform: linux/amd64
+    container_name: zoom-bot-2
+    volumes:
+     - .:/tmp/meeting-sdk-linux-sample
+     - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+     - DISPLAY_NAME=Bot-2-Bob
+     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
+     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false
+    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
+    command:
+      - "--client-id"
+      - "vdPX1q2bSQKip0X17LqXAw"
+      - "--client-secret"
+      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
+      - "--join-url"
+      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
+      - "--display-name"
+      - "Bot-2-Bob"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 150M
+        reservations:
+          cpus: '0.1'
+          memory: 50M
+    restart: unless-stopped
+
+volumes:
+  build-cache:
+

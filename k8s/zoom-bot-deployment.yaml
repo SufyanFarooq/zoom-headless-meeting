@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zoom-bot
+  labels:
+    app: zoom-bot
+spec:
+  replicas: 10  # Number of bots
+  selector:
+    matchLabels:
+      app: zoom-bot
+  template:
+    metadata:
+      labels:
+        app: zoom-bot
+    spec:
+      containers:
+      - name: zoom-bot
+        image: zoom-bot:latest  # Build and push this image
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DISPLAY_NAME
+          value: "Bot-1-Alice"  # Use ConfigMap for different names
+        - name: JOIN_URL
+          value: "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: zoom-credentials
+              key: client-id
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: zoom-credentials
+              key: client-secret
+        - name: QT_LOGGING_RULES
+          value: "*.debug=false;*.warning=false;*.info=false;*.critical=false"
+        - name: QT_QPA_PLATFORM
+          value: "offscreen"
+        - name: G_MESSAGES_DEBUG
+          value: ""
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "500m"
+            memory: "150Mi"
+        volumeMounts:
+        - name: build-cache
+          mountPath: /tmp/meeting-sdk-linux-sample/build
+      volumes:
+      - name: build-cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: zoom-credentials
+type: Opaque
+stringData:
+  client-id: "vdPX1q2bSQKip0X17LqXAw"
+  client-secret: "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zoom-bot-config
+data:
+  join-url: "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
+

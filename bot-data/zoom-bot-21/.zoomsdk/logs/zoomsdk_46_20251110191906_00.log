@@ -1,0 +1,151 @@
+11/10/2025 19:19:06:679	UTIL	[46:46:2007773632]	INFO	thread_mgr_t ::thread_mgr_t(),Mon,10 Nov 2025 19:19:06 GMT, preset_owner_thr = false, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	new_i8_allocator_t::new_i8_allocator_t, m_page_size = 4096, this = 0x000055e860b39f00
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	UTIL_INIT  refer , s_init_times = 1, module_id = 9, description = UTIL has been built on:Sep 19 2025 at 06:33:56 on branch release-client-6.6.x with commit ID 2583f48484aeb604c472d0a89b4ddc1f55, dir = , filename = , pext = log, max_size = 41943040, max_idx = 99
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	set_timer_driver, setup_call = 0x00007f7b933603b0, remove_call = 0x00007f7b93360290
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::spawn, mode = 02000008, w_queue_size = 8192, type = 0, interact_timer = true, thr_name = , bind_mask = 4294967295, use_ext_timer_drv = true, notifier = 0x000055e860b388f0, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t, mode = 02000008, id = 0, type = 0, thr_manager = 0x000055e860b3d0f0, waits = 0, interact_timer = true, m_timer_precision = 50, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	msg_queue_t::msg_queue_t notifier = , notifier = 0x000055e860b388f0, writer = 0x0000000000000000, capacity = 1024, mode = 0, this = 0x000055e860b38b10
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t ctrl queue size = 1024, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::init_tls(), m_thread_manager = 0x000055e860b3d0f0, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::register_tls, thr = 0x000055e860b2b0a0, tls = true, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::start_alive_check() timer = 0x0000000000000000, m_interact_timer = true, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	timer_queue_t::timer_queue_t() , sink = 0x000055e860b2b0d8, min_interval = 204800, this = 0x000055e860b45b00
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::open_notifier, waits = 0, m_notify = 0x000055e860b388f0, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	msg_queue_base_t::open_notifier, m_notifier = 0x000055e860b388f0, notifier = 0x000055e860b388f0, this = 0x000055e860b38b30
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::attach handle = 0x000055e860b2b0a0, thread_id = 140168265478592, owner_thr = 0x000055e860b2b0a0, owner_id = 140168265478592, queue_size = 8192, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860b2b0a0[140168265478592], read_capacity = 8192, write_capacity = 8192, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860b388f0, writer = 0x000055e860b2b0a0[140168265478592], reader = 0x000055e860b2b0a0[140168265478592], capacity = 8192, mode = 0, this = 0x000055e860b39d00
+11/10/2025 19:19:06:680	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860b388f0, writer = 0x000055e860b2b0a0[140168265478592], reader = 0x000055e860b2b0a0[140168265478592], capacity = 8192, mode = 0, this = 0x000055e860b3ce00
+11/10/2025 19:19:06:681	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140168265478592, bind_thr = 0x000055e860b2b0a0[140168265478592], r_queue = 0x000055e860b39d68, w_queue = 0x000055e860b3ce70, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:681	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140168265478592, bind_thr = 0x000055e860b2b0a0[140168265478592], r_queue = 0x000055e860b3ce68, w_queue = 0x000055e860b39d70, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:681	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue bind_thr = 0x000055e860b2b0a0 already be existed, skip it, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:681	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::adjust_timer_precision, m_timer_precision = 50, new_timer_precision = 50, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:681	UTIL	[46:46:2007773632]	INFO	register_logger  module_id = 1057, module_name = zoomtask, max_level = 31, logger = 0x0000000000000000, mode = 3
+11/10/2025 19:19:06:717	UTIL	[46:46:2007773632]	INFO	UTIL_INIT  refer times = 2, module_id = 1057, UTIL has been built on:Sep 19 2025 at 06:33:56 on branch release-client-6.6.x with commit ID 2583f48484aeb604c472d0a89b4ddc1f55
+11/10/2025 19:19:06:717	UTIL	[46:46:2007773632]	INFO	register_logger  module_id = 1057, module_name = ZoomTask, max_level = 31, logger = 0x0000000000000000, mode = 3
+11/10/2025 19:19:06:726	UTIL	[46:46:2007773632]	INFO	UTIL_INIT  refer times = 3, module_id = 2, UTIL has been built on:Sep 19 2025 at 06:33:56 on branch release-client-6.6.x with commit ID 2583f48484aeb604c472d0a89b4ddc1f55
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	timer_it::timer_it id = 0, own_thr = 0x0000000000000000, this = 0x000055e860b3d848
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::spawn, mode = 01000004, w_queue_size = 0, type = 3, interact_timer = true, thr_name = zoom.dns, bind_mask = 0, use_ext_timer_drv = false, notifier = 0x0000000000000000, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t, mode = 01000004, id = 0, type = 3, thr_manager = 0x000055e860b3d0f0, waits = 1, interact_timer = true, m_timer_precision = 50, this = 0x000055e860b86220
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	msg_queue_t::msg_queue_t notifier = , notifier = 0x0000000000000000, writer = 0x0000000000000000, capacity = 1024, mode = 1, this = 0x000055e860b86680
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t ctrl queue size = 1024, this = 0x000055e860b86220
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	thread_io_t::thread_io_t(), mode = 01000004, type = 3, queue size = 0, this = 0x000055e860b861f0
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	thread_io_t::open_notifier, waits = 1, this = 0x000055e860b861f0
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	msg_queue_base_t::open_notifier, m_notifier = 0x0000000000000000, notifier = 0x000055e860b83fa0, this = 0x000055e860b866a0
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	thread_io_t::thread_run(), id = 0, args = 0x0000000000000000, this = 0x000055e860b861f0
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	io_repo_t::io_repo_t, m_working = 0x000055e860b86220, max_io_fds = 1024, this = 0x000055e860b8ac40
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	notifier_handler_t::notifier_handler_t, io_container = 0x000055e860b8ac400x000055e860b83fa0, this = 0x000055e860b92dd0
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	poll_t::poll_t register, fd = 11, es.first = 00000000000000000000000000000011, this = 0x000055e860b8ac40
+11/10/2025 19:19:06:728	UTIL	[46:46:2007773632]	INFO	io_repo_t::start(), m_stop = true, this = 0x000055e860b8ac40
+11/10/2025 19:19:06:735	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::spawn only has control message queue for this thread, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:735	UTIL	[46:46:2007773632]	FATAL	assert: msg[thread_wrapper_t::create_channel bind thread should valid!, bind_thr = 0x0000000000000000] file[/home/jenkins/agent/workspace/Client/Client/DMT/linux/release/tp_util/util/src/thread.cpp], line = [1122]
+11/10/2025 19:19:06:735	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::adjust_timer_precision, m_timer_precision = 50, new_timer_precision = 50, this = 0x000055e860b86220
+11/10/2025 19:19:06:735	UTIL	[46:46:2007773632]	INFO	timer_it::timer_it id = 0, own_thr = 0x0000000000000000, this = 0x000055e860b93890
+11/10/2025 19:19:06:735	UTIL	[46:46:2007773632]	INFO	timer_it::add_timer sink = 0x000055e860b3d720, interval = 100, times = 0, is_exact = true, this = 0x000055e860b93890
+11/10/2025 19:19:06:735	UTIL	[46:52:1975457472]	INFO	poll_t::loop () begin, working = 0x000055e860b86220, this = 0x000055e860b8ac40
+11/10/2025 19:19:06:735	UTIL	[46:52:1975457472]	INFO	thread_io_t::init_tls() thread_id = 140168233162432, this = 0x000055e860b861f0
+11/10/2025 19:19:06:735	UTIL	[46:52:1975457472]	INFO	thread_wrapper_t::init_tls(), m_thread_manager = 0x000055e860b3d0f0, this = 0x000055e860b86220
+11/10/2025 19:19:06:735	UTIL	[46:52:1975457472]	INFO	thread_mgr_t::register_tls, thr = 0x000055e860b86220, tls = true, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:735	UTIL	[46:52:1975457472]	INFO	thread_wrapper_t::start_alive_check() timer = 0x0000000000000000, m_interact_timer = true, this = 0x000055e860b86220
+11/10/2025 19:19:06:735	UTIL	[46:52:1975457472]	INFO	timer_queue_t::timer_queue_t() , sink = 0x000055e860b86258, min_interval = 204800, this = 0x00007f7b6c001070
+11/10/2025 19:19:06:737	UTIL	[46:46:2007773632]	INFO	UTIL_INIT  refer times = 4, module_id = 9, UTIL has been built on:Sep 19 2025 at 06:33:56 on branch release-client-6.6.x with commit ID 2583f48484aeb604c472d0a89b4ddc1f55
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::spawn, mode = 01000004, w_queue_size = 65536, type = 1027, interact_timer = true, thr_name = zoom.db, bind_mask = 4294967295, use_ext_timer_drv = false, notifier = 0x0000000000000000, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t, mode = 01000004, id = 0, type = 1027, thr_manager = 0x000055e860b3d0f0, waits = 1, interact_timer = true, m_timer_precision = 50, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	msg_queue_t::msg_queue_t notifier = , notifier = 0x0000000000000000, writer = 0x0000000000000000, capacity = 1024, mode = 1, this = 0x000055e860bacea0
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t ctrl queue size = 1024, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_io_t::thread_io_t(), mode = 01000004, type = 1027, queue size = 65536, this = 0x000055e860bb8d20
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_io_t::open_notifier, waits = 1, this = 0x000055e860bb8d20
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	msg_queue_base_t::open_notifier, m_notifier = 0x0000000000000000, notifier = 0x000055e860bbd110, this = 0x000055e860bacec0
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_io_t::thread_run(), id = 0, args = 0x0000000000000000, this = 0x000055e860bb8d20
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	io_repo_t::io_repo_t, m_working = 0x000055e860bb8d50, max_io_fds = 1024, this = 0x000055e860bbd310
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	notifier_handler_t::notifier_handler_t, io_container = 0x000055e860bbd3100x000055e860bbd110, this = 0x000055e860bae760
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	poll_t::poll_t register, fd = 21, es.first = 00000000000000000000000000000011, this = 0x000055e860bbd310
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	io_repo_t::start(), m_stop = true, this = 0x000055e860bbd310
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::attach handle = 0x000055e860bb8d50, thread_id = 140167960569536, owner_thr = 0x000055e860b2b0a0, owner_id = 140168265478592, queue_size = 65536, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:738	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860b2b0a0[140168265478592], read_capacity = 65536, write_capacity = 65536, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:738	UTIL	[46:60:1702864576]	INFO	poll_t::loop () begin, working = 0x000055e860bb8d50, this = 0x000055e860bbd310
+11/10/2025 19:19:06:739	UTIL	[46:60:1702864576]	INFO	thread_io_t::init_tls() thread_id = 140167960569536, this = 0x000055e860bb8d20
+11/10/2025 19:19:06:739	UTIL	[46:60:1702864576]	INFO	thread_wrapper_t::init_tls(), m_thread_manager = 0x000055e860b3d0f0, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:739	UTIL	[46:60:1702864576]	INFO	thread_mgr_t::register_tls, thr = 0x000055e860bb8d50, tls = true, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:739	UTIL	[46:60:1702864576]	INFO	thread_wrapper_t::start_alive_check() timer = 0x0000000000000000, m_interact_timer = true, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:739	UTIL	[46:60:1702864576]	INFO	timer_queue_t::timer_queue_t() , sink = 0x000055e860bb8d88, min_interval = 204800, this = 0x00007f7b50001070
+11/10/2025 19:19:06:739	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860b388f0, writer = 0x000055e860bb8d50[140167960569536], reader = 0x000055e860b2b0a0[140168265478592], capacity = 65536, mode = 0, this = 0x000055e860bc5d90
+11/10/2025 19:19:06:739	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bbd110, writer = 0x000055e860b2b0a0[140168265478592], reader = 0x000055e860bb8d50[140167960569536], capacity = 65536, mode = 1, this = 0x000055e860bc5fd0
+11/10/2025 19:19:06:739	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140168265478592, bind_thr = 0x000055e860bb8d50[140167960569536], r_queue = 0x000055e860bc5df8, w_queue = 0x000055e860bc6040, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:739	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167960569536, bind_thr = 0x000055e860b2b0a0[140168265478592], r_queue = 0x000055e860bc6038, w_queue = 0x000055e860bc5e00, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:739	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860b86220[140168233162432], read_capacity = 65536, write_capacity = 65536, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:739	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860b83fa0, writer = 0x000055e860bb8d50[140167960569536], reader = 0x000055e860b86220[140168233162432], capacity = 65536, mode = 1, this = 0x000055e860bc6670
+11/10/2025 19:19:06:740	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bbd110, writer = 0x000055e860b86220[140168233162432], reader = 0x000055e860bb8d50[140167960569536], capacity = 65536, mode = 1, this = 0x000055e860bc68b0
+11/10/2025 19:19:06:740	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::send_ctrl_msg msg = 0x000055e860bc6af0, (uint64_t)m_id = 140167960569536, timeout = -1, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:741	UTIL	[46:60:1702864576]	INFO	thread_wrapper_t::create_ch_msg_t::on_message from = 0x000055e860bb8d50, to = 0x000055e860b86220, this = 0x000055e860bc6af0
+11/10/2025 19:19:06:741	UTIL	[46:60:1702864576]	INFO	thread_wrapper_t::bind_queue  , self_id = 140168233162432, bind_thr = 0x000055e860bb8d50[140167960569536], r_queue = 0x000055e860bc66d8, w_queue = 0x000055e860bc6920, this = 0x000055e860b86220
+11/10/2025 19:19:06:741	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167960569536, bind_thr = 0x000055e860b86220[140168233162432], r_queue = 0x000055e860bc6918, w_queue = 0x000055e860bc66e0, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:741	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860bb8d50[140167960569536], read_capacity = 65536, write_capacity = 65536, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:741	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bbd110, writer = 0x000055e860bb8d50[140167960569536], reader = 0x000055e860bb8d50[140167960569536], capacity = 65536, mode = 1, this = 0x000055e860bc6ef0
+11/10/2025 19:19:06:741	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bbd110, writer = 0x000055e860bb8d50[140167960569536], reader = 0x000055e860bb8d50[140167960569536], capacity = 65536, mode = 1, this = 0x000055e860bc7130
+11/10/2025 19:19:06:741	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::send_ctrl_msg msg = 0x000055e860bc7370, (uint64_t)m_id = 140167960569536, timeout = -1, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:742	UTIL	[46:60:1702864576]	INFO	thread_wrapper_t::create_ch_msg_t::on_message from = 0x000055e860bb8d50, to = 0x000055e860bb8d50, this = 0x000055e860bc7370
+11/10/2025 19:19:06:742	UTIL	[46:60:1702864576]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167960569536, bind_thr = 0x000055e860bb8d50[140167960569536], r_queue = 0x000055e860bc6f58, w_queue = 0x000055e860bc71a0, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167960569536, bind_thr = 0x000055e860bb8d50[140167960569536], r_queue = 0x000055e860bc7198, w_queue = 0x000055e860bc6f60, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue bind_thr = 0x000055e860bb8d50 already be existed, skip it, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::adjust_timer_precision, m_timer_precision = 50, new_timer_precision = 50, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::spawn, mode = 01000004, w_queue_size = 65536, type = 1028, interact_timer = true, thr_name = zoom.im.index, bind_mask = 4294967295, use_ext_timer_drv = false, notifier = 0x0000000000000000, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t, mode = 01000004, id = 0, type = 1028, thr_manager = 0x000055e860b3d0f0, waits = 1, interact_timer = true, m_timer_precision = 50, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	msg_queue_t::msg_queue_t notifier = , notifier = 0x0000000000000000, writer = 0x0000000000000000, capacity = 1024, mode = 1, this = 0x000055e860bc7db0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::thread_wrapper_t ctrl queue size = 1024, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_io_t::thread_io_t(), mode = 01000004, type = 1028, queue size = 65536, this = 0x000055e860bc7ad0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_io_t::open_notifier, waits = 1, this = 0x000055e860bc7ad0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	msg_queue_base_t::open_notifier, m_notifier = 0x0000000000000000, notifier = 0x000055e860bcc260, this = 0x000055e860bc7dd0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_io_t::thread_run(), id = 0, args = 0x0000000000000000, this = 0x000055e860bc7ad0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	io_repo_t::io_repo_t, m_working = 0x000055e860bc7b00, max_io_fds = 1024, this = 0x000055e860bcc4c0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	notifier_handler_t::notifier_handler_t, io_container = 0x000055e860bcc4c00x000055e860bcc260, this = 0x000055e860b94400
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	poll_t::poll_t register, fd = 20, es.first = 00000000000000000000000000000011, this = 0x000055e860bcc4c0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	io_repo_t::start(), m_stop = true, this = 0x000055e860bcc4c0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::attach handle = 0x000055e860bc7b00, thread_id = 140167952176832, owner_thr = 0x000055e860b2b0a0, owner_id = 140168265478592, queue_size = 65536, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:742	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860b2b0a0[140168265478592], read_capacity = 65536, write_capacity = 65536, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:743	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860b388f0, writer = 0x000055e860bc7b00[140167952176832], reader = 0x000055e860b2b0a0[140168265478592], capacity = 65536, mode = 0, this = 0x000055e860bd4f40
+11/10/2025 19:19:06:743	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bcc260, writer = 0x000055e860b2b0a0[140168265478592], reader = 0x000055e860bc7b00[140167952176832], capacity = 65536, mode = 1, this = 0x000055e860bd5180
+11/10/2025 19:19:06:743	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140168265478592, bind_thr = 0x000055e860bc7b00[140167952176832], r_queue = 0x000055e860bd4fa8, w_queue = 0x000055e860bd51f0, this = 0x000055e860b2b0a0
+11/10/2025 19:19:06:743	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167952176832, bind_thr = 0x000055e860b2b0a0[140168265478592], r_queue = 0x000055e860bd51e8, w_queue = 0x000055e860bd4fb0, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:743	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860b86220[140168233162432], read_capacity = 65536, write_capacity = 65536, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:744	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860b83fa0, writer = 0x000055e860bc7b00[140167952176832], reader = 0x000055e860b86220[140168233162432], capacity = 65536, mode = 1, this = 0x000055e860bd5820
+11/10/2025 19:19:06:744	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bcc260, writer = 0x000055e860b86220[140168233162432], reader = 0x000055e860bc7b00[140167952176832], capacity = 65536, mode = 1, this = 0x000055e860bd5a60
+11/10/2025 19:19:06:744	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::send_ctrl_msg msg = 0x000055e860bd5ca0, (uint64_t)m_id = 0, timeout = -1, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:742	UTIL	[46:61:1694471872]	INFO	poll_t::loop () begin, working = 0x000055e860bc7b00, this = 0x000055e860bcc4c0
+11/10/2025 19:19:06:745	UTIL	[46:61:1694471872]	INFO	thread_io_t::init_tls() thread_id = 140167952176832, this = 0x000055e860bc7ad0
+11/10/2025 19:19:06:745	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::init_tls(), m_thread_manager = 0x000055e860b3d0f0, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:745	UTIL	[46:61:1694471872]	INFO	thread_mgr_t::register_tls, thr = 0x000055e860bc7b00, tls = true, this = 0x000055e860b3d0f0
+11/10/2025 19:19:06:745	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::start_alive_check() timer = 0x0000000000000000, m_interact_timer = true, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:745	UTIL	[46:61:1694471872]	INFO	timer_queue_t::timer_queue_t() , sink = 0x000055e860bc7b38, min_interval = 204800, this = 0x00007f7b40001070
+11/10/2025 19:19:06:745	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::create_ch_msg_t::on_message from = 0x000055e860bc7b00, to = 0x000055e860b86220, this = 0x000055e860bd5ca0
+11/10/2025 19:19:06:745	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::bind_queue  , self_id = 140168233162432, bind_thr = 0x000055e860bc7b00[140167952176832], r_queue = 0x000055e860bd5888, w_queue = 0x000055e860bd5ad0, this = 0x000055e860b86220
+11/10/2025 19:19:06:745	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167952176832, bind_thr = 0x000055e860b86220[140168233162432], r_queue = 0x000055e860bd5ac8, w_queue = 0x000055e860bd5890, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:745	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860bb8d50[140167960569536], read_capacity = 65536, write_capacity = 65536, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:745	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bbd110, writer = 0x000055e860bc7b00[140167952176832], reader = 0x000055e860bb8d50[140167960569536], capacity = 65536, mode = 1, this = 0x000055e860bd6160
+11/10/2025 19:19:06:746	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bcc260, writer = 0x000055e860bb8d50[140167960569536], reader = 0x000055e860bc7b00[140167952176832], capacity = 65536, mode = 1, this = 0x000055e860bd63a0
+11/10/2025 19:19:06:746	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::send_ctrl_msg msg = 0x000055e860bd65e0, (uint64_t)m_id = 140167952176832, timeout = -1, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:746	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::create_ch_msg_t::on_message from = 0x000055e860bc7b00, to = 0x000055e860bb8d50, this = 0x000055e860bd65e0
+11/10/2025 19:19:06:746	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167960569536, bind_thr = 0x000055e860bc7b00[140167952176832], r_queue = 0x000055e860bd61c8, w_queue = 0x000055e860bd6410, this = 0x000055e860bb8d50
+11/10/2025 19:19:06:746	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167952176832, bind_thr = 0x000055e860bb8d50[140167960569536], r_queue = 0x000055e860bd6408, w_queue = 0x000055e860bd61d0, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:746	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::create_channel(), bind_thr = 0x000055e860bc7b00[140167952176832], read_capacity = 65536, write_capacity = 65536, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:746	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bcc260, writer = 0x000055e860bc7b00[140167952176832], reader = 0x000055e860bc7b00[140167952176832], capacity = 65536, mode = 1, this = 0x000055e860bd6ab0
+11/10/2025 19:19:06:747	UTIL	[46:46:2007773632]	INFO	o2o_msg_queue_t::o2o_msg_queue_t, notifier = 0x000055e860bcc260, writer = 0x000055e860bc7b00[140167952176832], reader = 0x000055e860bc7b00[140167952176832], capacity = 65536, mode = 1, this = 0x000055e860bd6cf0
+11/10/2025 19:19:06:747	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::send_ctrl_msg msg = 0x000055e860bd6f30, (uint64_t)m_id = 140167952176832, timeout = -1, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:747	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::create_ch_msg_t::on_message from = 0x000055e860bc7b00, to = 0x000055e860bc7b00, this = 0x000055e860bd6f30
+11/10/2025 19:19:06:747	UTIL	[46:61:1694471872]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167952176832, bind_thr = 0x000055e860bc7b00[140167952176832], r_queue = 0x000055e860bd6b18, w_queue = 0x000055e860bd6d60, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:747	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue  , self_id = 140167952176832, bind_thr = 0x000055e860bc7b00[140167952176832], r_queue = 0x000055e860bd6d58, w_queue = 0x000055e860bd6b20, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:747	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::bind_queue bind_thr = 0x000055e860bc7b00 already be existed, skip it, this = 0x000055e860bc7b00
+11/10/2025 19:19:06:747	UTIL	[46:46:2007773632]	INFO	thread_wrapper_t::adjust_timer_precision, m_timer_precision = 50, new_timer_precision = 50, this = 0x000055e860bc7b00
+11/10/2025 19:19:07:144	UTIL	[46:46:2007773632]	INFO	UTIL_INIT  refer times = 5, module_id = 5, UTIL has been built on:Sep 19 2025 at 06:33:56 on branch release-client-6.6.x with commit ID 2583f48484aeb604c472d0a89b4ddc1f55
+11/10/2025 19:19:07:145	UTIL	[46:46:2007773632]	INFO	register_logger  module_id = 5, module_name = MCM, max_level = 31, logger = 0x0000000000000000, mode = 3
+11/10/2025 19:19:07:310	UTIL	[46:46:2007773632]	INFO	register_logger  module_id = 6, module_name = NYDUS, max_level = 31, logger = 0x0000000000000000, mode = 3
+11/10/2025 19:19:07:310	UTIL	[46:46:2007773632]	INFO	timer_it::timer_it id = 0, own_thr = 0x0000000000000000, this = 0x000055e860bda1c0
+11/10/2025 19:19:07:310	UTIL	[46:46:2007773632]	INFO	timer_it::timer_it id = 0, own_thr = 0x0000000000000000, this = 0x000055e860bf2fd0
+11/10/2025 19:19:07:310	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::spawn, mode = 00000008, w_queue_size = 8192, type = 1024, interact_timer = true, thr_name = , bind_mask = 4294967295, use_ext_timer_drv = false, notifier = 0x0000000000000000, this = 0x000055e860b3d0f0
+11/10/2025 19:19:07:310	UTIL	[46:46:2007773632]	INFO	thread_mgr_t::spawn already has an instance for the thread, return it directly, thread id = 140168265478592, this = 0x000055e860b3d0f0
+11/10/2025 19:19:07:540	UTIL	[46:46:2007773632]	INFO	timer_it::add_timer sink = 0x000055e860bfbd18, interval = 12800, times = 0, is_exact = true, this = 0x000055e860bda1c0
+11/10/2025 19:19:07:540	UTIL	[46:46:2007773632]	INFO	timer_it::add_timer sink = 0x000055e860bfbd18, interval = 3840, times = 0, is_exact = true, this = 0x000055e860bf2fd0
+11/10/2025 19:20:08:294	UTIL	[46:46:2007773632]	INFO	mlog_file::init mid:1069 size:1048576 shmem:false ret:0 this:0x000055e860bfc908
+11/10/2025 19:20:12:865	UTIL	[46:46:2007773632]	INFO	mlog_file::init mid:1027 size:1048576 shmem:false ret:0 this:0x000055e860c9dd78
+11/10/2025 19:20:13:127	UTIL	[46:46:2007773632]	INFO	mlog_file::init mid:1008 size:1048576 shmem:false ret:0 this:0x000055e860c9ccb8
+11/10/2025 19:20:13:347	UTIL	[46:46:2007773632]	INFO	mlog_file::init mid:1030 size:1048576 shmem:false ret:0 this:0x000055e860bfc7f8

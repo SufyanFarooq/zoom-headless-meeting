@@ -1,0 +1,8 @@
+services:
+  # Template for bot generation
+  # This file uses x-yaml extension for dynamic generation
+  # Use generate-bots.sh to create actual compose file
+
+volumes:
+  build-cache:
+

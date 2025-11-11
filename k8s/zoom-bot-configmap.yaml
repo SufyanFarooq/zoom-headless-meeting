@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zoom-bot-names
+data:
+  bot-names: |
+    Bot-1-Alice
+    Bot-2-Bob
+    Bot-3-Charlie
+    Bot-4-Diana
+    Bot-5-Eve
+    Bot-6-Frank
+    Bot-7-Grace
+    Bot-8-Henry
+    Bot-9-Iris
+    Bot-10-Jack
+  join-url: "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
+

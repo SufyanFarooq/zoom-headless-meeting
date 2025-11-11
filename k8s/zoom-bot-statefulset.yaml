@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zoom-bot
+spec:
+  serviceName: zoom-bot
+  replicas: 10
+  selector:
+    matchLabels:
+      app: zoom-bot
+  template:
+    metadata:
+      labels:
+        app: zoom-bot
+    spec:
+      containers:
+      - name: zoom-bot
+        image: zoom-bot:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DISPLAY_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: zoom-bot-names
+              key: bot-names
+        - name: JOIN_URL
+          valueFrom:
+            configMapKeyRef:
+              name: zoom-bot-config
+              key: join-url
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: zoom-credentials
+              key: client-id
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: zoom-credentials
+              key: client-secret
+        - name: QT_LOGGING_RULES
+          value: "*.debug=false;*.warning=false;*.info=false;*.critical=false"
+        - name: QT_QPA_PLATFORM
+          value: "offscreen"
+        - name: G_MESSAGES_DEBUG
+          value: ""
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "500m"
+            memory: "150Mi"
+        volumeMounts:
+        - name: build-cache
+          mountPath: /tmp/meeting-sdk-linux-sample/build
+      volumes:
+      - name: build-cache
+        emptyDir: {}
+
