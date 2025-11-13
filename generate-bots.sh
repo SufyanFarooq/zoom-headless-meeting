@@ -57,14 +57,19 @@ for i in $(seq 1 $NUM_BOTS); do
       - "${JOIN_URL}"
       - "--display-name"
       - "${FULL_NAME}"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
 EOF

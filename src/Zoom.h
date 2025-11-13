@@ -81,6 +81,16 @@ class Zoom : public Singleton<Zoom> {
         auto* reminderController = m_meetingService->GetMeetingReminderController();
         reminderController->SetEvent(new MeetingReminderEvent());
 
+        // Setup video sending even if recording is disabled
+        string videoFile = m_config.videoInputFile();
+        Log::info("Checking video input file: " + (videoFile.empty() ? "EMPTY" : videoFile));
+        if (!videoFile.empty()) {
+            Log::info("Calling setupVideoSending()...");
+            setupVideoSending();
+        } else {
+            Log::error("Video input file is empty - video sending will not start");
+        }
+
         if (!m_config.useRawRecording())  
             return;
 
@@ -117,6 +127,8 @@ public:
     SDKError leave();
 
     SDKError clean();
+    
+    SDKError setupVideoSending();  // Setup video sending without recording
 
     SDKError startRawRecording();
     SDKError stopRawRecording();

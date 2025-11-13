@@ -1,4 +1,8 @@
 #include "Zoom.h"
+#include <thread>
+#include <chrono>
+
+using namespace std::chrono;
 
 SDKError Zoom::config(int ac, char** av) {
     auto status = m_config.read(ac, av);
@@ -206,6 +210,13 @@ SDKError Zoom::clean() {
 }
 
 SDKError Zoom::startRawRecording() {
+    // Only start recording if actually needed (useRawRecording checks both audio and video recording)
+    if (!m_config.useRawRecording()) {
+        // Recording not needed, but we still need to handle video sending
+        // Video sending will be handled below without recording
+        return SDKERR_SUCCESS;
+    }
+    
     if (m_meetingService->GetMeetingStatus() != ZOOM_SDK_NAMESPACE::MEETING_STATUS_INMEETING) {
         Log::error("You must be in a meeting to start raw recording");
         return SDKERR_WRONG_USAGE;
@@ -243,29 +254,11 @@ SDKError Zoom::startRawRecording() {
             return err;
 
         Log::info("writing video raw data to " + m_renderDelegate->dir() + "/" + m_renderDelegate->filename());
+    }
 
-  /*      auto* videoSourceHelper = GetRawdataVideoSourceHelper();
-        if (!videoSourceHelper) {
-            Log::error("Initializing Video Source Helper");
-            return SDKERR_UNINITIALIZE;
-        }
-
-        err = videoSourceHelper->setExternalVideoSource(m_videoSource);
-        if (hasError(err, "set video source"))
-            return err;
-
-        auto* videoSettings = m_settingService->GetVideoSettings();
-        videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
-
-       auto* sender = m_videoSource->getSender();
-        SDKError e;
-        do {
-            Log::info("attempting unmute");
-            auto* videoCtl = m_meetingService->GetMeetingVideoController();
-            e = videoCtl->UnmuteVideo();
-            if (hasError(e, "unmute")) sleep(1);
-        } while (hasError(e));*/
-
+    // Send video from file if input file is specified (doesn't require recording)
+    if (!m_config.videoInputFile().empty()) {
+        setupVideoSending();
     }
 
     if (m_config.useRawAudio()) {
@@ -306,6 +299,60 @@ SDKError Zoom::stopRawRecording() {
     hasError(err, "stop raw recording");
 
     return err;
+}
+
+SDKError Zoom::setupVideoSending() {
+    SDKError err{SDKERR_SUCCESS};
+    
+    if (m_config.videoInputFile().empty()) {
+        return SDKERR_SUCCESS;  // No video to send
+    }
+    
+    if (!m_videoSource) {
+        m_videoSource = new ZoomSDKVideoSource();
+    }
+
+    auto* videoSourceHelper = GetRawdataVideoSourceHelper();
+    if (!videoSourceHelper) {
+        Log::error("Failed to get Video Source Helper");
+        return SDKERR_UNINITIALIZE;
+    }
+
+    err = videoSourceHelper->setExternalVideoSource(m_videoSource);
+    if (hasError(err, "set video source"))
+        return err;
+
+    auto* videoSettings = m_settingService->GetVideoSettings();
+    if (videoSettings) {
+        videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
+    }
+
+    // Start sending video from file (will start when onStartSend() is called)
+    // The callback will handle starting the video sending when ready
+    m_videoSource->startSending(m_config.videoInputFile());
+    
+    Log::info("Video source configured, waiting for SDK to initialize...");
+
+    // Unmute video
+    auto* videoCtl = m_meetingService->GetMeetingVideoController();
+    if (videoCtl) {
+        SDKError e;
+        int unmuteRetries = 0;
+        do {
+            Log::info("attempting unmute video");
+            e = videoCtl->UnmuteVideo();
+            if (hasError(e, "unmute")) {
+                this_thread::sleep_for(chrono::milliseconds(1000));
+                unmuteRetries++;
+            }
+        } while (hasError(e) && unmuteRetries < 10);
+        
+        if (!hasError(e)) {
+            Log::success("Video unmuted successfully");
+        }
+    }
+    
+    return SDKERR_SUCCESS;
 }
 
 bool Zoom::isMeetingStart() {

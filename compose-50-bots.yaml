@@ -24,14 +24,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-1-Alice"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-2:
@@ -59,14 +64,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-2-Bob"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-3:
@@ -94,14 +104,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-3-Charlie"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-4:
@@ -129,14 +144,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-4-Diana"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-5:
@@ -164,14 +184,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-5-Eve"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-6:
@@ -199,14 +224,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-6-Frank"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-7:
@@ -234,14 +264,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-7-Grace"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-8:
@@ -269,14 +304,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-8-Henry"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-9:
@@ -304,14 +344,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-9-Iris"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
   bot-10:
@@ -339,1414 +384,19 @@ services:
       - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
       - "--display-name"
       - "Bot-10-Jack"
+      - "--config"
+      - "config.toml"
+      - "RawVideo"
+      - "--input"
+      - "input-video.mp4"
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '0.6'      # Optimized: was 1.0, actual usage ~0.5
+          memory: 256M     # Optimized: was 2G, actual usage ~128MB
         reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-11:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-11
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-11-Kevin
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-11-Kevin"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-12:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-12
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-12-Laura
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-12-Laura"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-13:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-13
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-13-Mike
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-13-Mike"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-14:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-14
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-14-Nancy
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-14-Nancy"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-15:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-15
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-15-Oscar
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-15-Oscar"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-16:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-16
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-16-Patricia
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-16-Patricia"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-17:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-17
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-17-Quinn
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-17-Quinn"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-18:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-18
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-18-Rachel
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-18-Rachel"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-19:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-19
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-19-Steve
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-19-Steve"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-20:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-20
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-20-Tina
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-20-Tina"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-21:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-21
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-21-Uma
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-21-Uma"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-22:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-22
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-22-Victor
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-22-Victor"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-23:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-23
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-23-Wendy
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-23-Wendy"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-24:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-24
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-24-Xavier
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-24-Xavier"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-25:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-25
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-25-Yara
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-25-Yara"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-26:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-26
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-26-Zack
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-26-Zack"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-27:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-27
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-27-Anna
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-27-Anna"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-28:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-28
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-28-Ben
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-28-Ben"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-29:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-29
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-29-Cara
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-29-Cara"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-30:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-30
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-30-David
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-30-David"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-31:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-31
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-31-Emma
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-31-Emma"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-32:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-32
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-32-Felix
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-32-Felix"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-33:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-33
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-33-Gina
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-33-Gina"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-34:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-34
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-34-Hugo
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-34-Hugo"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-35:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-35
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-35-Ivy
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-35-Ivy"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-36:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-36
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-36-Jake
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-36-Jake"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-37:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-37
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-37-Kate
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-37-Kate"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-38:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-38
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-38-Leo
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-38-Leo"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-39:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-39
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-39-Maya
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-39-Maya"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-40:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-40
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-40-Noah
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-40-Noah"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-41:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-41
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-41-Olivia
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-41-Olivia"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-42:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-42
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-42-Paul
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-42-Paul"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-43:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-43
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-43-Quinn
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-43-Quinn"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-44:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-44
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-44-Rose
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-44-Rose"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-45:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-45
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-45-Sam
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-45-Sam"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-46:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-46
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-46-Tara
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-46-Tara"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-47:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-47
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-47-Uma
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-47-Uma"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-48:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-48
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-48-Vince
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-48-Vince"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-49:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-49
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-49-Will
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-49-Will"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
-    restart: no
-
-  bot-50:
-    build: ./
-    platform: linux/amd64
-    container_name: zoom-bot-50
-    volumes:
-     - .:/tmp/meeting-sdk-linux-sample
-     - build-cache:/tmp/meeting-sdk-linux-sample/build
-    environment:
-     - DISPLAY_NAME=Bot-50-Xara
-     - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-     - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-     - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
-     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
-     - QT_QPA_PLATFORM=offscreen
-     - G_MESSAGES_DEBUG=
-    entrypoint: ["/tini", "--", "./bin/entry-bot-optimized.sh"]
-    command:
-      - "--client-id"
-      - "vdPX1q2bSQKip0X17LqXAw"
-      - "--client-secret"
-      - "Te1YdXaBL6IScwdBVlNF0kay75KDMkyz"
-      - "--join-url"
-      - "https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022"
-      - "--display-name"
-      - "Bot-50-Xara"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 2G
-        reservations:
-          cpus: '0.2'
-          memory: 512M
+          cpus: '0.1'      # Optimized: was 0.2
+          memory: 128M     # Optimized: was 512M
     restart: no
 
 volumes:

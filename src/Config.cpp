@@ -29,8 +29,9 @@ Config::Config() :
     m_rawRecordAudioCmd->add_flag("-s, --separate-participants", m_separateParticipantAudio, "Output to separate PCM files for each participant");
     m_rawRecordAudioCmd->add_flag("-t, --transcribe", m_transcribe, "Transcribe audio to text");
 
-    m_rawRecordVideoCmd->add_option("-f, --file", m_videoFile, "Output YUV video file")->required();
+    m_rawRecordVideoCmd->add_option("-f, --file", m_videoFile, "Output YUV video file");
     m_rawRecordVideoCmd->add_option("-d, --dir", m_videoDir, "Video Output Directory");
+    m_rawRecordVideoCmd->add_option("--input", m_videoInputFile, "Input video file to send (MP4, H.264)");
 
 }
 
@@ -45,6 +46,14 @@ int Config::read(int ac, char **av) {
 
     if (!m_joinUrl.empty())
         parseUrl(m_joinUrl);
+
+    // Debug: Check if RawVideo subcommand was activated and input was read
+    if (m_rawRecordVideoCmd->parsed()) {
+        cerr << "RawVideo subcommand activated" << endl;
+        cerr << "Video input file: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
+    } else {
+        cerr << "RawVideo subcommand NOT activated" << endl;
+    }
 
    return 0;
 }
@@ -129,6 +138,10 @@ const string& Config::videoDir() const {
 }
 const string& Config::videoFile() const {
     return m_videoFile;
+}
+
+const string& Config::videoInputFile() const {
+    return m_videoInputFile;
 }
 
 bool Config::separateParticipantAudio() const {

@@ -32,6 +32,7 @@ class Config {
     CLI::App* m_rawRecordVideoCmd;
     string m_videoDir="out";
     string m_videoFile;
+    string m_videoInputFile;
 
     string m_joinUrl;
     string m_meetingId;
@@ -86,6 +87,8 @@ public:
     const string& videoDir() const;
 
     bool separateParticipantAudio() const;
+    
+    const string& videoInputFile() const;
 };
 
 

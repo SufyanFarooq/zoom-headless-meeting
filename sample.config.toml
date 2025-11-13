@@ -12,6 +12,7 @@ join-url=""
 
 [RawVideo]
 file="meeting-video.mp4"
+input="input-video.mp4"
 
 [RawAudio]
 file="meeting-audio.pcm"
