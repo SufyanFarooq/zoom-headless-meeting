@@ -29,4 +29,3 @@ echo ""
 echo "🔍 Docker Containers:"
 docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Size}}" 2>/dev/null | head -20 || echo "Docker not accessible"
 echo ""
-
