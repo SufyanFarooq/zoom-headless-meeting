@@ -39,6 +39,7 @@ class Config {
     string m_password;
     string m_displayName = "Zoom Meeting Client";
     string m_zak;
+    string m_profilePicturePath;  // Path to profile picture image file
 
     string m_clientId;
     string m_clientSecret;
@@ -89,6 +90,8 @@ public:
     bool separateParticipantAudio() const;
     
     const string& videoInputFile() const;
+    
+    const string& profilePicturePath() const;
 };
 
 

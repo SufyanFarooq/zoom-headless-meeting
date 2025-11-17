@@ -1,4 +1,6 @@
 #include <csignal>
+#include <thread>
+#include <chrono>
 #include <glib.h>
 #include "Config.h"
 #include "Zoom.h"
@@ -20,7 +22,12 @@ void onExit() {
  * @param signal type of signal
  */
 void onSignal(int signal) {
-    onExit();
+    Log::info("Received signal " + std::to_string(signal) + ", leaving meeting immediately...");
+    auto* zoom = &Zoom::getInstance();
+    // Leave meeting immediately without waiting
+    zoom->leave();
+    // Minimal cleanup - exit quickly
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     _Exit(signal);
 }
 

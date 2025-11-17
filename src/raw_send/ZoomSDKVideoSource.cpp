@@ -29,11 +29,30 @@ void ZoomSDKVideoSource::onPropertyChange(IList <VideoSourceCapability> *support
                                           VideoSourceCapability suggest_cap) {
     m_width = suggest_cap.width;
     m_height = suggest_cap.height;
+    
+    Log::info("📐 SDK Preferred Video Dimensions: " + to_string(m_width) + "x" + to_string(m_height));
+    Log::info("💡 TIP: Re-encode your videos to this resolution to avoid zoom/crop issues");
+    
+    // If we have video file open, show comparison
+    if (m_videoCapture.isOpened() && m_width > 0 && m_height > 0) {
+        int videoWidth = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_WIDTH));
+        int videoHeight = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_HEIGHT));
+        
+        if (videoWidth != (int)m_width || videoHeight != (int)m_height) {
+            Log::info("⚠️  Current video: " + to_string(videoWidth) + "x" + to_string(videoHeight) + 
+                     " - Re-encode to " + to_string(m_width) + "x" + to_string(m_height) + " for best results");
+        } else {
+            Log::info("✅ Video dimensions match SDK preferred - perfect!");
+        }
+    }
 }
 
 void ZoomSDKVideoSource::onStartSend() {
     Log::info("sender is ready");
     m_isReady = true;
+    
+    // Wait a bit for sender to fully initialize before starting
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Start sending video if file path was set before we were ready
     if (!m_pendingVideoFilePath.empty()) {
@@ -111,12 +130,13 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
     int videoHeight = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_HEIGHT));
     double fps = m_videoCapture.get(CAP_PROP_FPS);
     
-    if (fps <= 0) fps = 30.0; // Default to 30 FPS if not available
+    if (fps <= 0) fps = 15.0; // Default to 15 FPS if not available
     
+    // Log the resolution being read from file (as requested)
     Log::info("Video file opened: " + videoFilePath);
-    Log::info("Resolution: " + to_string(videoWidth) + "x" + to_string(videoHeight) + ", FPS: " + to_string(fps));
+    Log::info("Reading video resolution from file: " + to_string(videoWidth) + "x" + to_string(videoHeight) + ", FPS: " + to_string(fps));
     
-    // Set dimensions
+    // Set dimensions to native resolution (no scaling)
     m_width = videoWidth;
     m_height = videoHeight;
     
@@ -151,13 +171,50 @@ void ZoomSDKVideoSource::sendFramesLoop() {
         return;
     }
     
+    // Wait a bit for video sender to fully initialize
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    
     Mat frame;
-    const int fps = 15; // 15 FPS for optimal resource usage (can be changed to 30 if needed)
+    
+    // Get native FPS from video file (already read in startSending)
+    // For 50 bots optimization: cap at 10 FPS to reduce CPU usage
+    double nativeFps = m_videoCapture.get(CAP_PROP_FPS);
+    if (nativeFps <= 0) nativeFps = 10.0; // Default to 10 FPS for optimization
+    if (nativeFps > 10.0) nativeFps = 10.0; // Cap at 10 FPS for 50 bots
+    
+    const int fps = static_cast<int>(nativeFps);
     const auto frameTime = chrono::milliseconds(1000 / fps);
     
-    Log::info("Starting video frame sending loop at " + to_string(fps) + " FPS");
+    Log::info("Starting video frame sending loop at " + to_string(fps) + " FPS (native from file)");
     
-    while (!m_shouldStop.load() && m_videoSender && m_videoCapture.isOpened()) {
+    // Wait for onPropertyChange to set dimensions, or use file dimensions
+    int waitCount = 0;
+    while ((m_width == 0 || m_height == 0) && waitCount < 20 && !m_shouldStop.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        waitCount++;
+    }
+    
+    if (m_width == 0 || m_height == 0) {
+        // Use file dimensions if SDK hasn't set preferred yet
+        int fileWidth = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_WIDTH));
+        int fileHeight = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_HEIGHT));
+        if (m_width == 0) m_width = fileWidth;
+        if (m_height == 0) m_height = fileHeight;
+        Log::info("⚠️  SDK hasn't called onPropertyChange yet - Using file dimensions: " + to_string(m_width) + "x" + to_string(m_height));
+        Log::info("ℹ️  Will wait for SDK to set preferred dimensions via onPropertyChange callback");
+    } else {
+        Log::info("✅ Using SDK preferred dimensions: " + to_string(m_width) + "x" + to_string(m_height));
+        int fileWidth = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_WIDTH));
+        int fileHeight = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_HEIGHT));
+        if (fileWidth != (int)m_width || fileHeight != (int)m_height) {
+            Log::info("⚠️  File dimensions (" + to_string(fileWidth) + "x" + to_string(fileHeight) + ") differ from SDK preferred - will resize");
+        }
+    }
+    
+    int consecutiveErrors = 0;
+    const int maxConsecutiveErrors = 10;
+    
+    while (!m_shouldStop.load() && m_videoSender && m_videoCapture.isOpened() && m_isReady) {
         auto start = chrono::steady_clock::now();
         
         if (!m_videoCapture.read(frame)) {
@@ -171,25 +228,45 @@ void ZoomSDKVideoSource::sendFramesLoop() {
             continue;
         }
         
-        // Resize to 720p for optimal resource usage (can be changed to 1080p if needed)
-        // 720p = 1280x720 (good balance of quality and resources)
-        if (frame.cols != 1280 || frame.rows != 720) {
-            Mat resizedFrame;
-            resize(frame, resizedFrame, Size(1280, 720), 0, 0, INTER_LINEAR);
-            frame = resizedFrame;
+        // NO RESIZING - Send frames exactly as-is from video file
+        // User will re-encode videos to match SDK preferred dimensions
+        // This reduces CPU load by avoiding runtime resizing
+        unsigned int sendWidth = frame.cols;
+        unsigned int sendHeight = frame.rows;
+        
+        // Log if SDK wants different dimensions (for user to know what to encode videos to)
+        if (m_width > 0 && m_height > 0 && 
+            (m_width != (unsigned int)frame.cols || m_height != (unsigned int)frame.rows)) {
+            // Log once per 100 frames to avoid spam
+            static int logCounter = 0;
+            if (logCounter % 100 == 0) {
+                Log::info("ℹ️  Video file: " + to_string(frame.cols) + "x" + to_string(frame.rows) + 
+                         ", SDK prefers: " + to_string(m_width) + "x" + to_string(m_height) + 
+                         " - Consider re-encoding video to match SDK dimensions");
+            }
+            logCounter++;
         }
         
-        // Convert BGR to I420 (YUV format required by Zoom SDK)
-        int frameLength = frame.cols * frame.rows * 3 / 2; // I420 size
+        // Calculate I420 buffer size: Y plane (full) + U plane (1/4) + V plane (1/4)
+        int frameLength = sendWidth * sendHeight * 3 / 2;
         char* i420Buffer = new char[frameLength];
         
+        // Convert BGR to I420 (required by Zoom SDK)
+        // Note: OpenCV VideoCapture decodes MP4 to BGR, so conversion is necessary
         convertBGRtoI420(frame, i420Buffer, frameLength);
         
-        // Send frame to Zoom SDK
+        // Verify video sender is ready before sending
+        if (!m_videoSender) {
+            Log::error("Video sender not ready, skipping frame");
+            delete[] i420Buffer;
+            continue;
+        }
+        
+        // Send frame to Zoom SDK at native resolution
         SDKError err = m_videoSender->sendVideoFrame(
             i420Buffer,
-            frame.cols,      // width
-            frame.rows,      // height
+            sendWidth,       // width
+            sendHeight,      // height
             frameLength,     // frame length
             0,              // rotation
             FrameDataFormat_I420_FULL
@@ -198,10 +275,21 @@ void ZoomSDKVideoSource::sendFramesLoop() {
         delete[] i420Buffer;
         
         if (err != SDKERR_SUCCESS) {
-            Log::error("Failed to send video frame: " + to_string(err));
+            consecutiveErrors++;
+            if (consecutiveErrors <= 5) {
+                Log::error("Failed to send video frame: " + to_string(err) + " (width: " + to_string(sendWidth) + ", height: " + to_string(sendHeight) + ", length: " + to_string(frameLength) + ", errors: " + to_string(consecutiveErrors) + ")");
+            }
+            // If too many consecutive errors, wait a bit before retrying
+            if (consecutiveErrors >= maxConsecutiveErrors) {
+                Log::error("Too many consecutive errors, waiting before retry...");
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                consecutiveErrors = 0;
+            }
+        } else {
+            consecutiveErrors = 0; // Reset on success
         }
         
-        // Maintain 30 FPS timing
+        // Maintain native FPS timing
         auto elapsed = chrono::steady_clock::now() - start;
         auto sleepTime = frameTime - chrono::duration_cast<chrono::milliseconds>(elapsed);
         if (sleepTime.count() > 0) {

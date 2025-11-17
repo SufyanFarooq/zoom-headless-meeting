@@ -5,6 +5,15 @@ ZoomSDKAudioRawDataDelegate::ZoomSDKAudioRawDataDelegate(bool useMixedAudio = tr
 
 void ZoomSDKAudioRawDataDelegate::onMixedAudioRawDataReceived(AudioRawData *data) {
     if (!m_useMixedAudio) return;
+    
+    // If this is dummy recording (for mic icon), discard data immediately
+    // Check filename or full path for dev-null.pcm
+    if (m_filename == "dev-null.pcm" || 
+        m_filename == "/dev/null" ||
+        (m_dir == "/dev" && m_filename.find("null") != string::npos)) {
+        // Discard audio data - we only need recording enabled for mic icon
+        return;
+    }
 
     // write to socket
     if (m_transcribe) {
@@ -22,7 +31,12 @@ void ZoomSDKAudioRawDataDelegate::onMixedAudioRawDataReceived(AudioRawData *data
 
 
     stringstream path;
-    path << m_dir << "/" << m_filename;
+    // Handle absolute paths - don't prepend directory
+    if (m_filename[0] == '/') {
+        path << m_filename;
+    } else {
+        path << m_dir << "/" << m_filename;
+    }
 
     writeToFile(path.str(), data);
 }
@@ -31,6 +45,13 @@ void ZoomSDKAudioRawDataDelegate::onMixedAudioRawDataReceived(AudioRawData *data
 
 void ZoomSDKAudioRawDataDelegate::onOneWayAudioRawDataReceived(AudioRawData* data, uint32_t node_id) {
     if (m_useMixedAudio) return;
+    
+    // If this is dummy recording (for mic icon), discard data
+    if (m_filename == "dev-null.pcm" || 
+        (m_dir == "/dev" && m_filename.find("null") != string::npos)) {
+        // Discard audio data - we only need recording enabled for mic icon
+        return;
+    }
 
     stringstream path;
     path << m_dir << "/node-" << node_id << ".pcm";

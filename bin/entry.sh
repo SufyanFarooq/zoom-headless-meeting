@@ -52,6 +52,10 @@ build() {
 
 run() {
     export QT_LOGGING_RULES="*.debug=false;*.warning=false"
+    # Set library path for OpenCV and other libraries
+    export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH}
+    # Update library cache
+    ldconfig 2>/dev/null || true
     exec ./"$BUILD"/zoomsdk
 }
 

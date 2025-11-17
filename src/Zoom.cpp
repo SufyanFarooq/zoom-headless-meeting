@@ -133,7 +133,7 @@ SDKError Zoom::join() {
     param.customer_key = nullptr;
     param.webinarToken = nullptr;
     param.isVideoOff = false;
-    param.isAudioOff = false;
+    param.isAudioOff = true;  // Join muted
 
     if (!m_config.zak().empty()) {
         Log::success("used ZAK token");
@@ -150,11 +150,11 @@ SDKError Zoom::join() {
         param.onBehalfToken = m_config.onBehalfToken().c_str();
     }
 
-    if (m_config.useRawAudio()) {
-        auto* audioSettings = m_settingService->GetAudioSettings();
-        if (!audioSettings) return SDKERR_INTERNAL_ERROR;
-
-        audioSettings->EnableAutoJoinAudio(true);
+    // Always disable auto-join audio to keep bots muted
+    // We'll join VoIP manually if needed for raw audio
+    auto* audioSettings = m_settingService->GetAudioSettings();
+    if (audioSettings) {
+        audioSettings->EnableAutoJoinAudio(false);
     }
 
     return m_meetingService->Join(joinParam);
@@ -169,7 +169,7 @@ SDKError Zoom::start() {
     StartParam4NormalUser  normalUser;
     normalUser.vanityID = nullptr;
     normalUser.customer_key = nullptr;
-    normalUser.isAudioOff = false;
+    normalUser.isAudioOff = true;  // Start muted
     normalUser.isVideoOff = false;
 
     err = m_meetingService->Start(startParam);
@@ -179,14 +179,28 @@ SDKError Zoom::start() {
 }
 
 SDKError Zoom::leave() {
-    if (!m_meetingService) 
+    if (!m_meetingService) {
+        Log::info("Meeting service not available, skipping leave");
         return SDKERR_UNINITIALIZE;
+    }
 
     auto status = m_meetingService->GetMeetingStatus();
-    if (status == MEETING_STATUS_IDLE)
+    if (status == MEETING_STATUS_IDLE) {
+        Log::info("Meeting already idle, skipping leave");
         return SDKERR_WRONG_USAGE;
+    }
 
-    return  m_meetingService->Leave(LEAVE_MEETING);
+    Log::info("Leaving meeting...");
+    SDKError err = m_meetingService->Leave(LEAVE_MEETING);
+    if (!hasError(err)) {
+        Log::success("Left meeting successfully");
+        // Minimal wait for SDK to process leave - exit quickly
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } else {
+        Log::error("Failed to leave meeting: " + std::to_string(err));
+    }
+    
+    return err;
 }
 
 SDKError Zoom::clean() {
@@ -210,10 +224,10 @@ SDKError Zoom::clean() {
 }
 
 SDKError Zoom::startRawRecording() {
-    // Only start recording if actually needed (useRawRecording checks both audio and video recording)
-    if (!m_config.useRawRecording()) {
-        // Recording not needed, but we still need to handle video sending
-        // Video sending will be handled below without recording
+    // Audio subscription is already done in onJoin callback (without permission)
+    // Only start actual recording if VIDEO recording is needed
+    if (!m_config.useRawVideo()) {
+        // Video recording not needed - audio already subscribed in onJoin
         return SDKERR_SUCCESS;
     }
     
@@ -261,34 +275,6 @@ SDKError Zoom::startRawRecording() {
         setupVideoSending();
     }
 
-    if (m_config.useRawAudio()) {
-        auto* audioController = m_meetingService->GetMeetingAudioController();
-        if (audioController) {
-            auto voipErr = audioController->JoinVoip();
-            if (hasError(voipErr, "join VoIP")) {
-                Log::error("Failed to join VoIP audio");
-            }
-        }
-
-        m_audioHelper = GetAudioRawdataHelper();
-        if (!m_audioHelper)
-            return SDKERR_UNINITIALIZE;
-
-        if (!m_audioSource) {
-            auto mixedAudio = !m_config.separateParticipantAudio();
-            auto transcribe = m_config.transcribe();
-
-            m_audioSource = new ZoomSDKAudioRawDataDelegate(mixedAudio, transcribe);
-            m_audioSource->setDir(m_config.audioDir());
-            m_audioSource->setFilename(m_config.audioFile());
-        }
-
-        err = m_audioHelper->subscribe(m_audioSource);
-        if (hasError(err, "subscribe to raw audio"))
-            return err;
-
-        Log::info("writing audio raw data to " + m_audioSource->dir() + "/" + m_audioSource->filename());
-    }
 
     return SDKERR_SUCCESS;
 }

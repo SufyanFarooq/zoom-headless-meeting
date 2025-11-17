@@ -24,6 +24,31 @@ lib/zoomsdk/release_info
 # YUV files
 *.yuv
 
+# Sensitive files
+bot-zak-tokens.env
+created-users.txt
+user-list.txt
+*.backup.*
+*.backup
+
+# Test files
+compose-test-audio.yaml
+test-*.sh
+*-test-*.yaml
+
+# Old/unused compose files
+compose-multiple-bots.yaml
+compose-optimized.yaml
+compose-smart-bots.yaml
+compose-50-bots-with-zak.yaml.example
+
+# Bot data directories
+bot-data/
+
+# Temporary files
+/tmp/
+*.tmp
+
 # MacOS
 .DS_Store
 
@@ -136,3 +161,28 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 
+# Sensitive files (already in .gitignore, but ensure they're there)
+bot-zak-tokens.env
+created-users.txt
+user-list.txt
+
+# Backup files
+*.backup.*
+*.backup
+
+# Test files  
+compose-test-audio.yaml
+test-*.sh
+
+# Old compose files
+compose-multiple-bots.yaml
+compose-optimized.yaml
+compose-smart-bots.yaml
+compose-50-bots-with-zak.yaml.example
+
+# Bot data
+bot-data/
+
+# Temporary
+/tmp/
+*.tmp

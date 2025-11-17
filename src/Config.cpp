@@ -10,6 +10,8 @@ Config::Config() :
     m_app.add_option("-m, --meeting-id", m_meetingId,"Meeting ID of the meeting");
     m_app.add_option("-p, --password", m_password,"Password of the meeting");
     m_app.add_option("-n, --display-name", m_displayName,"Display Name for the meeting")->capture_default_str();
+    
+    m_app.add_option("--profile-picture", m_profilePicturePath, "Path to profile picture image file (JPG/PNG)");
 
     m_app.add_option("-z,--zak", m_zak, "ZAK Token to join the meeting");
 
@@ -142,6 +144,10 @@ const string& Config::videoFile() const {
 
 const string& Config::videoInputFile() const {
     return m_videoInputFile;
+}
+
+const string& Config::profilePicturePath() const {
+    return m_profilePicturePath;
 }
 
 bool Config::separateParticipantAudio() const {
