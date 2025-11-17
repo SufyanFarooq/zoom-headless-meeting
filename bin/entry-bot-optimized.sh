@@ -159,7 +159,18 @@ run() {
     export G_MESSAGES_DEBUG=""
     
     # Set library path for OpenCV and other libraries
-    export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH}
+    # Include all possible OpenCV library locations
+    export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH}
+    
+    # Find and add OpenCV library path if it exists
+    if [ -d "/usr/lib/x86_64-linux-gnu" ]; then
+        # Check for OpenCV libraries and add their directory
+        OPENCV_LIB_DIR=$(find /usr/lib/x86_64-linux-gnu -name "libopencv_*.so*" -type f 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+        if [ -n "$OPENCV_LIB_DIR" ] && [ -d "$OPENCV_LIB_DIR" ]; then
+            export LD_LIBRARY_PATH="${OPENCV_LIB_DIR}:${LD_LIBRARY_PATH}"
+        fi
+    fi
+    
     # Update library cache
     ldconfig 2>/dev/null || true
     

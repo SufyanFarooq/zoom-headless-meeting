@@ -31,6 +31,7 @@ RUN echo 'Acquire::AllowInsecureRepositories "true";' > /etc/apt/apt.conf.d/99al
     gfortran \
     util-linux \
     libopencv-dev \
+    libcli11-dev \
     libdbus-1-3 \
     libgbm1 \
     libgl1 \

@@ -11,7 +11,21 @@ set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
 set(ZOOM_SDK lib/zoomsdk)
 
-find_package(CLI11 REQUIRED)
+# Try to find CLI11 via vcpkg first, fallback to system package
+find_package(CLI11 QUIET)
+if(NOT CLI11_FOUND)
+    # If vcpkg fails, try pkg-config or header-only installation
+    find_path(CLI11_INCLUDE_DIRS "CLI/CLI.hpp" PATHS /usr/include /usr/local/include)
+    if(CLI11_INCLUDE_DIRS)
+        message(STATUS "Found CLI11 via header-only: ${CLI11_INCLUDE_DIRS}")
+        add_library(CLI11::CLI11 INTERFACE IMPORTED)
+        set_target_properties(CLI11::CLI11 PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${CLI11_INCLUDE_DIRS}"
+        )
+    else()
+        message(FATAL_ERROR "CLI11 not found. Please install via: apt-get install libcli11-dev or ensure vcpkg is working")
+    endif()
+endif()
 
 find_path(PICOJSON_INCLUDE_DIRS "picojson/picojson.h")
 find_path(JWT_CPP_INCLUDE_DIRS "jwt-cpp/base.h")
@@ -58,7 +72,14 @@ add_executable(zoomsdk src/main.cpp
 )
 
 target_include_directories(zoomsdk PRIVATE ${JWT_CPP_INCLUDE_DIRS} ${PICOJSON_INCLUDE_DIRS})
-target_link_libraries(zoomsdk PRIVATE meetingsdk OpenSSL::SSL OpenSSL::Crypto CLI11::CLI11 PkgConfig::deps ${OpenCV_LIBS} ${X11_LIBRARIES})
+
+# Link CLI11 conditionally - use vcpkg if available, otherwise header-only
+if(TARGET CLI11::CLI11)
+    target_link_libraries(zoomsdk PRIVATE meetingsdk OpenSSL::SSL OpenSSL::Crypto CLI11::CLI11 PkgConfig::deps ${OpenCV_LIBS} ${X11_LIBRARIES})
+else()
+    # Fallback: header-only CLI11 (already included via INTERFACE target)
+    target_link_libraries(zoomsdk PRIVATE meetingsdk OpenSSL::SSL OpenSSL::Crypto PkgConfig::deps ${OpenCV_LIBS} ${X11_LIBRARIES})
+endif()
 
 
 
