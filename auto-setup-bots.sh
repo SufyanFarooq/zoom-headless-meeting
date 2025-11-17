@@ -50,15 +50,16 @@ echo "# ZAK Tokens for bots (auto-generated on $(date))" > "$TOKENS_FILE"
 echo "" >> "$TOKENS_FILE"
 
 BOT_NUM=1
-declare -a EMAILS=()
-declare -a ZAK_TOKENS=()
+# Use associative arrays to track bot_num -> token/email mapping
+# This prevents array misalignment when token generation fails
+declare -A BOT_TOKENS=()
+declare -A BOT_EMAILS=()
 
 while IFS= read -r USER_EMAIL || [ -n "$USER_EMAIL" ]; do
     # Skip empty lines and comments
     [[ -z "$USER_EMAIL" || "$USER_EMAIL" =~ ^# ]] && continue
     
     EMAIL=$(echo "$USER_EMAIL" | awk '{print $1}')  # Get email (first word)
-    EMAILS+=("$EMAIL")
     
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Bot $BOT_NUM: $EMAIL"
@@ -71,10 +72,15 @@ while IFS= read -r USER_EMAIL || [ -n "$USER_EMAIL" ]; do
     if [ -z "$ZAK_TOKEN" ] || [ ${#ZAK_TOKEN} -lt 50 ]; then
         echo "❌ Failed to generate ZAK token for $EMAIL"
         echo "$ZAK_OUTPUT" | tail -3
+        echo "⚠️  Skipping bot-$BOT_NUM (will not be added to compose file)"
+        echo ""
+        BOT_NUM=$((BOT_NUM + 1))
         continue
     fi
     
-    ZAK_TOKENS+=("$ZAK_TOKEN")
+    # Only add to arrays if token generation succeeded
+    BOT_TOKENS[$BOT_NUM]="$ZAK_TOKEN"
+    BOT_EMAILS[$BOT_NUM]="$EMAIL"
     
     echo "✅ ZAK token generated"
     echo ""
@@ -88,14 +94,15 @@ while IFS= read -r USER_EMAIL || [ -n "$USER_EMAIL" ]; do
 done < "$USERS_FILE"
 
 TOTAL_BOTS=$((BOT_NUM - 1))
+SUCCESSFUL_BOTS=${#BOT_TOKENS[@]}
 
-if [ $TOTAL_BOTS -eq 0 ]; then
-    echo "❌ No valid users found in $USERS_FILE"
+if [ $SUCCESSFUL_BOTS -eq 0 ]; then
+    echo "❌ No ZAK tokens generated successfully"
     exit 1
 fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Generated ZAK tokens for $TOTAL_BOTS bots"
+echo "✅ Generated ZAK tokens for $SUCCESSFUL_BOTS bots (out of $TOTAL_BOTS total)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -113,41 +120,53 @@ cp "$COMPOSE_FILE" "${COMPOSE_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
 echo "✅ Backup created: ${COMPOSE_FILE}.backup.*"
 
 # Update each bot in compose file
-for i in $(seq 1 $TOTAL_BOTS); do
-    BOT_INDEX=$((i - 1))
-    EMAIL="${EMAILS[$BOT_INDEX]}"
-    ZAK_TOKEN="${ZAK_TOKENS[$BOT_INDEX]}"
+# Iterate over bots that successfully got tokens
+for BOT_NUM in $(printf '%s\n' "${!BOT_TOKENS[@]}" | sort -n); do
+    ZAK_TOKEN="${BOT_TOKENS[$BOT_NUM]}"
+    EMAIL="${BOT_EMAILS[$BOT_NUM]}"
     
     if [ -z "$ZAK_TOKEN" ]; then
-        echo "⚠️  Skipping bot-$i (no ZAK token)"
+        echo "⚠️  Skipping bot-${BOT_NUM} (no ZAK token)"
         continue
     fi
     
-    # Find bot section and add/update ZAK token
-    # Look for pattern: bot-${i}: ... --display-name ... --config ... config.toml
-    # Add --zak and token after --config config.toml
-    
-    # Use sed to add ZAK token after --config config.toml
-    # First, check if ZAK already exists
-    if grep -A 10 "bot-${i}:" "$COMPOSE_FILE" | grep -q "\"--zak\""; then
+    # Check if ZAK already exists in compose file
+    if grep -A 15 "bot-${BOT_NUM}:" "$COMPOSE_FILE" | grep -q "\"--zak\""; then
         # Update existing ZAK token
-        echo "🔄 Updating ZAK token for bot-${i}..."
-        # This is complex with sed, so we'll use a Python/perl script or manual instruction
-        # For now, we'll create a helper script
+        echo "🔄 Updating ZAK token for bot-${BOT_NUM}..."
+        
+        # Find the line with --zak and replace the token on the next line
+        # Pattern: --zak followed by token on next line
+        # Use sed to replace the token value while keeping --zak flag
+        sed -i.bak "/bot-${BOT_NUM}:/,/stop_grace_period:/ {
+            /--zak/,+1 {
+                /--zak/! {
+                    s|^\\(      - \\)\".*\"|\\1\"${ZAK_TOKEN}\"|
+                }
+            }
+        }" "$COMPOSE_FILE" 2>/dev/null || {
+            # Fallback: Use Python script if sed fails
+            echo "   Using Python script for update..."
+            python3 update-compose-zak.py 2>/dev/null || {
+                echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
+                echo "   Manual update needed:"
+                echo "   Bot-${BOT_NUM}: Update --zak token to \"${ZAK_TOKEN}\""
+            }
+        }
     else
         # Add new ZAK token
-        echo "➕ Adding ZAK token for bot-${i}..."
+        echo "➕ Adding ZAK token for bot-${BOT_NUM}..."
         # Use sed to insert after --config config.toml
-        sed -i.bak "/bot-${i}:/,/stop_grace_period:/ {
+        sed -i.bak "/bot-${BOT_NUM}:/,/stop_grace_period:/ {
             /--config/,/config.toml/ {
                 /config.toml/a\\
       - \"--zak\"\\
       - \"${ZAK_TOKEN}\"
             }
         }" "$COMPOSE_FILE" 2>/dev/null || {
-            echo "⚠️  Could not auto-update bot-${i} in compose file"
+            echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
             echo "   Manual update needed:"
-            echo "   Bot-${i}: Add --zak \"${ZAK_TOKEN}\" after --config config.toml"
+            echo "   Bot-${BOT_NUM}: Add --zak \"${ZAK_TOKEN}\" after --config config.toml"
         }
     fi
 done
@@ -158,7 +177,7 @@ echo "✅ Setup Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "📝 Summary:"
-echo "   - ZAK tokens generated: $TOTAL_BOTS"
+echo "   - ZAK tokens generated: $SUCCESSFUL_BOTS (out of $TOTAL_BOTS bots)"
 echo "   - Tokens saved to: $TOKENS_FILE"
 echo "   - Compose file: $COMPOSE_FILE (backup created)"
 echo ""

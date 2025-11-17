@@ -27,6 +27,7 @@ setup-pulseaudio() {
   rm -rf /var/run/pulse /var/lib/pulse /root/.config/pulse/ 2>/dev/null
   mkdir -p ~/.config/pulse/ && cp -r /etc/pulse/* "$_" 2>/dev/null
 
+
   # Load ALSA dummy module for virtual audio device
   # This ensures Zoom SDK can detect an audio device
   # Note: modprobe might not work in containers without --privileged
@@ -184,11 +185,14 @@ run() {
     
     while [ $retry_count -lt $max_retries ]; do
         # Try to run the executable
-        if ./"$BUILD"/zoomsdk "$@" 2>&1 | tee -a "$ERROR_LOG"; then
+        # Use PIPESTATUS to capture the actual application exit code, not tee's exit code
+        ./"$BUILD"/zoomsdk "$@" 2>&1 | tee -a "$ERROR_LOG"
+        EXIT_CODE=${PIPESTATUS[0]}
+        
+        # If application succeeded, exit successfully
+        if [ $EXIT_CODE -eq 0 ]; then
             exit 0
         fi
-        
-        EXIT_CODE=$?
         
         # Check if it's a "Text file busy" error (exit code 126 or 127, or check stderr)
         if [ $retry_count -lt $((max_retries - 1)) ]; then
