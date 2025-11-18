@@ -123,6 +123,24 @@ build() {
     fi
   else
     echo "Build directory exists, skipping cmake..." >&2
+    # Check if executable exists and was built on a different system (GLIBC mismatch)
+    if [ -f "$BUILD/zoomsdk" ]; then
+      # Check if executable requires newer GLIBC than available
+      if ldd "$BUILD/zoomsdk" 2>&1 | grep -q "version.*not found"; then
+        echo "⚠️  Executable was built on a different system (GLIBC mismatch)" >&2
+        echo "⚠️  Rebuilding to match container's GLIBC version..." >&2
+        # Force rebuild by removing executable and build artifacts
+        rm -f "$BUILD/zoomsdk" "$BUILD/CMakeCache.txt" 2>/dev/null || true
+        # Re-run cmake configuration
+        cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log || {
+          cmake -B "$BUILD" -S . \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log
+        }
+      fi
+    fi
   fi
 
   # Rename the shared library (only once)
@@ -140,6 +158,10 @@ build() {
   # This ensures JoinVoip changes are compiled
   NEED_REBUILD=false
   if [[ ! -f "$BUILD/zoomsdk" ]]; then
+    NEED_REBUILD=true
+  # Check if executable was built on a different system (GLIBC mismatch)
+  elif ldd "$BUILD/zoomsdk" 2>&1 | grep -q "version.*not found"; then
+    echo "⚠️  Executable GLIBC mismatch detected, rebuilding..." >&2
     NEED_REBUILD=true
   elif [[ "src/Zoom.h" -nt "$BUILD/zoomsdk" ]] || [[ "src/Zoom.cpp" -nt "$BUILD/zoomsdk" ]]; then
     echo "Source files changed, rebuilding..." >&2
