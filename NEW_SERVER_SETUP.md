@@ -57,6 +57,102 @@ cd ~/zoom-headless-meeting
 
 ---
 
+## 📚 Step 2.5: Upload Zoom SDK Library
+
+**Important**: The Zoom SDK library folder is not included in git (it's in `.gitignore`). You must manually upload it.
+
+### 2.5.1 Create lib Directory
+```bash
+# On server
+cd ~/zoom-headless-meeting
+mkdir -p lib/zoomsdk
+```
+
+### 2.5.2 Upload SDK Files
+From your local machine, upload the entire `lib/zoomsdk` folder:
+
+```bash
+# On your local machine
+scp -r lib/zoomsdk user@server:/home/user/zoom-headless-meeting/lib/
+```
+
+Or using rsync (recommended for large folders):
+```bash
+# On your local machine
+rsync -avz --progress lib/zoomsdk/ user@server:/home/user/zoom-headless-meeting/lib/zoomsdk/
+```
+
+### 2.5.3 Verify SDK Files
+```bash
+# On server
+cd ~/zoom-headless-meeting
+ls -la lib/zoomsdk/
+
+# Should see files like:
+# - libmeetingsdk.so
+# - libmeetingsdk.so.1
+# - h/ (header files directory)
+# - qt_libs/ (Qt libraries)
+# - images/ (image resources)
+# - json/ (JSON files)
+```
+
+**Required files**:
+- `libmeetingsdk.so` and `libmeetingsdk.so.1` (main SDK library)
+- `h/` directory (header files)
+- `qt_libs/` directory (Qt dependencies)
+- `images/` directory (default avatars)
+- `json/` directory (translations)
+
+---
+
+## ⚙️ Step 2.6: Create config.toml File
+
+The `config.toml` file contains Zoom SDK credentials and meeting configuration.
+
+### 2.6.1 Create config.toml
+```bash
+# On server
+cd ~/zoom-headless-meeting
+
+cat > config.toml << 'EOF'
+#### !! Do not store plain text credentials in production environments !!
+#### File Format: https://cliutils.github.io/CLI11/book/chapters/config.html#configure-file-format
+
+# Zoom Meeting SDK Client ID
+client-id="YOUR_CLIENT_ID"
+
+# Zoom Meeting SDK Client Secret
+client-secret="YOUR_CLIENT_SECRET"
+
+# Use a join-url or a meeting-id and password
+join-url="https://zoom.us/j/YOUR_MEETING_ID?pwd=YOUR_PASSWORD"
+
+[RawVideo]
+# file="meeting-video.mp4"  # Disabled to save resources
+input="videos/video-1.mp4"  # Video file path
+
+# [RawAudio]
+# file="meeting-audio.pcm"  # Disabled to save resources
+EOF
+```
+
+### 2.6.2 Update config.toml with Your Credentials
+Edit `config.toml` and replace:
+- `YOUR_CLIENT_ID` with your Zoom Meeting SDK Client ID
+- `YOUR_CLIENT_SECRET` with your Zoom Meeting SDK Client Secret
+- `YOUR_MEETING_ID` with your meeting ID
+- `YOUR_PASSWORD` with your meeting password
+
+**Note**: You can also use environment variables in compose file instead of hardcoding in `config.toml`.
+
+### 2.6.3 Verify config.toml
+```bash
+cat config.toml
+```
+
+---
+
 ## 🔑 Step 3: Setup Zoom API Credentials
 
 ### 3.1 Get API Credentials
@@ -428,6 +524,8 @@ docker compose -f compose-50-bots.yaml restart bot-1
 - [ ] Server with Ubuntu 22.04
 - [ ] Docker and Docker Compose installed
 - [ ] Project code copied to server
+- [ ] **Zoom SDK lib/zoomsdk folder uploaded**
+- [ ] **config.toml file created and configured**
 - [ ] Zoom API credentials obtained
 - [ ] API scopes enabled
 - [ ] Zoom users created and activated
