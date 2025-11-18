@@ -149,7 +149,9 @@ build() {
   # Build only if needed
   if [[ "$NEED_REBUILD" == "true" ]]; then
     echo "Building application..." >&2
-    cmake --build "$BUILD" 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/build.log || {
+    # Reduce parallelism to avoid OOM (use 1 job to minimize memory usage)
+    # This prevents "Killed signal terminated program cc1plus" errors
+    cmake --build "$BUILD" -j1 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/build.log || {
       echo "ERROR: Build failed" >&2
       cat /tmp/meeting-sdk-linux-sample/out/build.log >&2
       exit 1
@@ -217,6 +219,42 @@ run() {
     if [ -n "$OPENCV_LIB_DIR" ] && [ -d "$OPENCV_LIB_DIR" ]; then
         export LD_LIBRARY_PATH="${OPENCV_LIB_DIR}:${LD_LIBRARY_PATH}"
         echo "Found OpenCV libraries in: $OPENCV_LIB_DIR" >&2
+        
+        # Fix version mismatch: Create symlinks for common version mismatches
+        # The binary may expect specific versions (.406, .4.5) but system has different versions (4.6.x, 4.8.x, etc.)
+        # Create symlinks to bridge these mismatches for any OpenCV 4.x version
+        echo "Checking OpenCV library versions..." >&2
+        for lib_name in opencv_videoio opencv_core opencv_imgproc opencv_imgcodecs; do
+            # Find all versions of this library and get the highest (most recent) version
+            # Use sort -rV (reverse version sort) to get highest version first
+            ACTUAL_VERSION=$(find "$OPENCV_LIB_DIR" -name "lib${lib_name}.so.*" -type f 2>/dev/null | sed "s|.*\.so\.||" | sort -rV | head -1)
+            
+            if [ -n "$ACTUAL_VERSION" ]; then
+                echo "Found lib${lib_name}.so.${ACTUAL_VERSION}" >&2
+                
+                # Extract major.minor version (e.g., "4.6" from "4.6.1" or "4.8" from "4.8.0")
+                # This helps identify OpenCV 4.x versions generically
+                MAJOR_MINOR=$(echo "$ACTUAL_VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
+                MAJOR_ONLY=$(echo "$ACTUAL_VERSION" | sed -E 's/^([0-9]+).*/\1/')
+                
+                # Create symlinks for common required versions that binaries might expect
+                # These are the versions searched in Method 2 (line 202): 406, 4.5, 4.8, 4.6, 4.0
+                REQUIRED_VERSIONS="406 4.5 4.8 4.6 4.0"
+                
+                # If we have any OpenCV 4.x version, create symlinks to common required versions
+                if [ "$MAJOR_ONLY" = "4" ]; then
+                    for req_version in $REQUIRED_VERSIONS; do
+                        # Skip if the required version is the same as actual (or very close)
+                        if [ "$req_version" != "$ACTUAL_VERSION" ] && [ "$req_version" != "$MAJOR_MINOR" ]; then
+                            if [ ! -f "$OPENCV_LIB_DIR/lib${lib_name}.so.${req_version}" ]; then
+                                echo "Creating symlink: lib${lib_name}.so.${req_version} -> lib${lib_name}.so.${ACTUAL_VERSION}" >&2
+                                ln -sf "lib${lib_name}.so.${ACTUAL_VERSION}" "$OPENCV_LIB_DIR/lib${lib_name}.so.${req_version}" 2>/dev/null || true
+                            fi
+                        fi
+                    done
+                fi
+            fi
+        done
     else
         echo "Warning: Could not find OpenCV library directory, using default paths" >&2
         # Try to find any opencv library and show what we found
