@@ -174,7 +174,10 @@ build() {
     # Reduce parallelism to avoid OOM (use 1 job to minimize memory usage)
     # This prevents "Killed signal terminated program cc1plus" errors
     # Also limit compiler memory usage with flags to reduce memory footprint
-    export CXXFLAGS="${CXXFLAGS} -fno-var-tracking -fno-var-tracking-assignments"
+    # Use CMAKE_CXX_FLAGS to ensure flags are passed to all compilation units
+    export CXXFLAGS="${CXXFLAGS} -fno-var-tracking -fno-var-tracking-assignments -Os"
+    # Set CMAKE_CXX_FLAGS via cmake to ensure it's used
+    cmake -B "$BUILD" -DCMAKE_CXX_FLAGS="${CXXFLAGS}" 2>/dev/null || true
     cmake --build "$BUILD" -j1 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/build.log || {
       echo "ERROR: Build failed" >&2
       cat /tmp/meeting-sdk-linux-sample/out/build.log >&2
@@ -183,9 +186,12 @@ build() {
         echo "" >&2
         echo "⚠️  Build failed due to out of memory (OOM)." >&2
         echo "💡 Solutions:" >&2
-        echo "   1. Increase container memory limit (e.g., 512M or 1G for build)" >&2
+        echo "   1. Increase container memory limit in compose-50-bots.yaml:" >&2
+        echo "      memory: 512M  # or 1G (change from 256M)" >&2
         echo "   2. Build outside container and copy executable" >&2
         echo "   3. Use a build service with more memory" >&2
+        echo "" >&2
+        echo "Current memory limit: 256M (too low for compilation)" >&2
       fi
       unset CXXFLAGS
       exit 1
@@ -330,6 +336,19 @@ run() {
     # Retry mechanism for "Text file busy" error
     max_retries=5
     retry_count=0
+    
+    # Debug: Log command arguments to help diagnose ZAK token issues
+    if echo "$@" | grep -q "\--zak"; then
+        echo "🔍 DEBUG: Command arguments (showing --zak occurrences):" >&2
+        zak_count=0
+        for arg in "$@"; do
+            if [ "$arg" = "--zak" ] || [ "$arg" = "-z" ]; then
+                zak_count=$((zak_count + 1))
+                echo "  Found --zak at position (count: $zak_count)" >&2
+            fi
+        done
+        echo "  Total --zak count: $zak_count" >&2
+    fi
     
     while [ $retry_count -lt $max_retries ]; do
         # Try to run the executable
