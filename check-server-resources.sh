@@ -86,35 +86,74 @@ echo ""
 
 if [ "$CPU_CORES" != "unknown" ] && [ "$MEM_AVAIL_MB" -gt 0 ]; then
     # Calculate based on limits (more conservative)
-    MAX_BOTS_CPU_LIMIT=$(echo "$CPU_CORES / $BOT_CPU_LIMIT" | bc 2>/dev/null | cut -d. -f1)
-    MAX_BOTS_MEM_LIMIT=$(echo "$MEM_AVAIL_MB / $BOT_MEMORY_LIMIT" | bc 2>/dev/null | cut -d. -f1)
+    # Use awk for floating point division if bc is not available
+    if command -v bc > /dev/null 2>&1; then
+        MAX_BOTS_CPU_LIMIT=$(echo "scale=0; $CPU_CORES / $BOT_CPU_LIMIT" | bc 2>/dev/null | cut -d. -f1)
+        MAX_BOTS_MEM_LIMIT=$(echo "scale=0; $MEM_AVAIL_MB / $BOT_MEMORY_LIMIT" | bc 2>/dev/null | cut -d. -f1)
+        MAX_BOTS_CPU_RES=$(echo "scale=0; $CPU_CORES / $BOT_CPU_RESERVATION" | bc 2>/dev/null | cut -d. -f1)
+        MAX_BOTS_MEM_RES=$(echo "scale=0; $MEM_AVAIL_MB / $BOT_MEMORY_RESERVATION" | bc 2>/dev/null | cut -d. -f1)
+    else
+        # Fallback to awk for division
+        MAX_BOTS_CPU_LIMIT=$(awk "BEGIN {printf \"%.0f\", $CPU_CORES / $BOT_CPU_LIMIT}")
+        MAX_BOTS_MEM_LIMIT=$(awk "BEGIN {printf \"%.0f\", $MEM_AVAIL_MB / $BOT_MEMORY_LIMIT}")
+        MAX_BOTS_CPU_RES=$(awk "BEGIN {printf \"%.0f\", $CPU_CORES / $BOT_CPU_RESERVATION}")
+        MAX_BOTS_MEM_RES=$(awk "BEGIN {printf \"%.0f\", $MEM_AVAIL_MB / $BOT_MEMORY_RESERVATION}")
+    fi
     
-    # Calculate based on reservations (more optimistic)
-    MAX_BOTS_CPU_RES=$(echo "$CPU_CORES / $BOT_CPU_RESERVATION" | bc 2>/dev/null | cut -d. -f1)
-    MAX_BOTS_MEM_RES=$(echo "$MEM_AVAIL_MB / $BOT_MEMORY_RESERVATION" | bc 2>/dev/null | cut -d. -f1)
+    # Ensure we have valid numbers
+    MAX_BOTS_CPU_LIMIT=${MAX_BOTS_CPU_LIMIT:-0}
+    MAX_BOTS_MEM_LIMIT=${MAX_BOTS_MEM_LIMIT:-0}
+    MAX_BOTS_CPU_RES=${MAX_BOTS_CPU_RES:-0}
+    MAX_BOTS_MEM_RES=${MAX_BOTS_MEM_RES:-0}
     
     # Take the minimum of limit-based calculations (safest)
-    MAX_BOTS_SAFE=$((MAX_BOTS_CPU_LIMIT < MAX_BOTS_MEM_LIMIT ? MAX_BOTS_CPU_LIMIT : MAX_BOTS_MEM_LIMIT))
+    if [ "$MAX_BOTS_CPU_LIMIT" -lt "$MAX_BOTS_MEM_LIMIT" ]; then
+        MAX_BOTS_SAFE=$MAX_BOTS_CPU_LIMIT
+    else
+        MAX_BOTS_SAFE=$MAX_BOTS_MEM_LIMIT
+    fi
     
     # Take the minimum of reservation-based calculations (optimistic)
-    MAX_BOTS_OPTIMISTIC=$((MAX_BOTS_CPU_RES < MAX_BOTS_MEM_RES ? MAX_BOTS_CPU_RES : MAX_BOTS_MEM_RES))
+    if [ "$MAX_BOTS_CPU_RES" -lt "$MAX_BOTS_MEM_RES" ]; then
+        MAX_BOTS_OPTIMISTIC=$MAX_BOTS_CPU_RES
+    else
+        MAX_BOTS_OPTIMISTIC=$MAX_BOTS_MEM_RES
+    fi
     
     echo "Estimated Bot Capacity:"
     echo "  Based on Limits (conservative): $MAX_BOTS_SAFE bots"
     echo "  Based on Reservations (optimistic): $MAX_BOTS_OPTIMISTIC bots"
     echo ""
+    echo "📊 Detailed Breakdown:"
+    echo "  CPU Limit: $MAX_BOTS_CPU_LIMIT bots ($CPU_CORES cores / $BOT_CPU_LIMIT per bot)"
+    echo "  Memory Limit: $MAX_BOTS_MEM_LIMIT bots ($MEM_AVAIL_MB MB / $BOT_MEMORY_LIMIT MB per bot)"
+    echo "  CPU Reservation: $MAX_BOTS_CPU_RES bots ($CPU_CORES cores / $BOT_CPU_RESERVATION per bot)"
+    echo "  Memory Reservation: $MAX_BOTS_MEM_RES bots ($MEM_AVAIL_MB MB / $BOT_MEMORY_RESERVATION MB per bot)"
+    echo ""
     echo "💡 Recommendation:"
+    CURRENT_BOTS=$(docker ps --format "{{.Names}}" | grep -c "zoom-bot" || echo "0")
+    REMAINING_SAFE=$((MAX_BOTS_SAFE - CURRENT_BOTS))
+    REMAINING_OPTIMISTIC=$((MAX_BOTS_OPTIMISTIC - CURRENT_BOTS))
+    
     if [ "$MAX_BOTS_SAFE" -lt 10 ]; then
         echo "  ⚠️  Limited capacity. Consider:"
         echo "     - Reducing bot memory limit (if possible)"
         echo "     - Reducing bot CPU limit (if acceptable)"
         echo "     - Using a larger server"
     elif [ "$MAX_BOTS_SAFE" -lt 50 ]; then
-        echo "  ✅ Can run $MAX_BOTS_SAFE bots safely"
+        echo "  ✅ Can run $MAX_BOTS_SAFE bots safely (currently: $CURRENT_BOTS)"
+        echo "  💡 Can add $REMAINING_SAFE more bots safely"
         echo "  💡 Can potentially run up to $MAX_BOTS_OPTIMISTIC bots with reservations"
+        if [ "$REMAINING_OPTIMISTIC" -gt 0 ]; then
+            echo "  💡 Can add $REMAINING_OPTIMISTIC more bots with reservations"
+        fi
     else
-        echo "  ✅ Excellent capacity! Can run $MAX_BOTS_SAFE+ bots"
+        echo "  ✅ Excellent capacity! Can run $MAX_BOTS_SAFE+ bots (currently: $CURRENT_BOTS)"
+        echo "  💡 Can add $REMAINING_SAFE more bots safely"
         echo "  💡 Can potentially run up to $MAX_BOTS_OPTIMISTIC bots with reservations"
+        if [ "$REMAINING_OPTIMISTIC" -gt 0 ]; then
+            echo "  💡 Can add $REMAINING_OPTIMISTIC more bots with reservations"
+        fi
     fi
 else
     echo "  ⚠️  Cannot calculate capacity (missing CPU or memory info)"
