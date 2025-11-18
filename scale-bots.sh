@@ -131,17 +131,82 @@ while [ $BOT_NUM -le $TARGET_BOTS ]; do
     fi
 done
 
-# Insert all new bots before volumes section
+# Insert all new bots before volumes section (but still under services:)
 if [ -f /tmp/new_bots_$$.yaml ] && [ -s /tmp/new_bots_$$.yaml ]; then
     echo "Inserting $ADDED bots into compose file..."
-    if grep -q "^volumes:" "$COMPOSE_FILE"; then
-        # Insert before volumes section using sed
-        sed -i.bak "/^volumes:/r /tmp/new_bots_$$.yaml" "$COMPOSE_FILE"
-    else
-        # Append at end of file
-        cat /tmp/new_bots_$$.yaml >> "$COMPOSE_FILE"
-    fi
+    
+    # Use Python for reliable YAML insertion
+    python3 << PYTHON_SCRIPT
+import re
+
+with open("$COMPOSE_FILE", 'r') as f:
+    lines = f.readlines()
+
+# Find the line number where volumes: starts
+volumes_line = None
+for i, line in enumerate(lines):
+    if re.match(r'^volumes:', line):
+        volumes_line = i
+        break
+
+# Find the last bot entry (before volumes:)
+last_bot_line = None
+for i in range(len(lines) - 1, -1, -1):
+    if re.match(r'^  bot-\d+:', lines[i]):
+        last_bot_line = i
+        # Find the end of this bot (next blank line or start of volumes)
+        end_line = i + 1
+        while end_line < len(lines):
+            # Stop at blank line (end of bot) or volumes: (start of volumes section)
+            if not lines[end_line].strip() or re.match(r'^volumes:', lines[end_line]):
+                break
+            # Stop if we hit another bot (shouldn't happen, but safety check)
+            if re.match(r'^  bot-\d+:', lines[end_line]):
+                break
+            end_line += 1
+        last_bot_line = end_line
+        break
+
+# Read new bots
+with open("/tmp/new_bots_$$.yaml", 'r') as f:
+    new_bots = f.read()
+
+# Insert new bots after last bot, before volumes
+if volumes_line is not None and last_bot_line is not None:
+    # Insert before volumes section, after last bot
+    insert_pos = min(last_bot_line, volumes_line)
+elif volumes_line is not None:
+    # Insert right before volumes
+    insert_pos = volumes_line
+elif last_bot_line is not None:
+    # Insert after last bot
+    insert_pos = last_bot_line
+else:
+    # Append at end
+    insert_pos = len(lines)
+
+# Ensure we add a newline before inserting if needed
+if insert_pos > 0 and lines[insert_pos - 1].strip() and not lines[insert_pos - 1].endswith('\n'):
+    new_bots = '\n' + new_bots
+elif insert_pos > 0 and lines[insert_pos - 1].strip():
+    # Previous line has content, add newline
+    new_bots = '\n' + new_bots
+
+# Insert new bots
+lines.insert(insert_pos, new_bots)
+
+with open("$COMPOSE_FILE", 'w') as f:
+    f.writelines(lines)
+PYTHON_SCRIPT
+
     rm -f /tmp/new_bots_$$.yaml
+    
+    # Verify the insertion
+    if grep -q "^  bot-${TARGET_BOTS}:" "$COMPOSE_FILE"; then
+        echo "✅ Verified: bot-${TARGET_BOTS} found in compose file"
+    else
+        echo "⚠️  Warning: Could not verify bot insertion. Please check the file manually."
+    fi
 fi
 
 echo ""
