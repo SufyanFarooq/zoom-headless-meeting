@@ -186,3 +186,7 @@ bot-data/
 # Temporary
 /tmp/
 *.tmp
+
+# Video files (too large for git, should be uploaded separately to server)
+videos/*.mp4
+!videos/.gitkeep
