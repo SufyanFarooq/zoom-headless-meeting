@@ -65,11 +65,12 @@ while [ $BOT_NUM -le $TARGET_BOTS ]; do
     
     # Generate display name (cycle through names if needed)
     NAMES=("Alice" "Bob" "Charlie" "Diana" "Eve" "Frank" "Grace" "Henry" "Iris" "Jack")
-    NAME_INDEX=$(((BOT_NUM - 1) % 10))
+    # Use arithmetic expansion for modulo
+    NAME_INDEX=$(( (BOT_NUM - 1) % 10 ))
     DISPLAY_NAME="Bot-${BOT_NUM}-${NAMES[$NAME_INDEX]}"
     
     # Generate video file number (cycle through 1-10)
-    VIDEO_NUM=$(((BOT_NUM - 1) % 10) + 1)
+    VIDEO_NUM=$(( (BOT_NUM - 1) % 10 + 1 ))
     
     # Create bot configuration
     BOT_CONFIG="  ${BOT_NAME}:
