@@ -11,19 +11,38 @@ set(CMAKE_SYSTEM_PROCESSOR x86_64)
 
 set(ZOOM_SDK lib/zoomsdk)
 
-# Try to find CLI11 via vcpkg first, fallback to system package
-find_package(CLI11 QUIET)
-if(NOT CLI11_FOUND)
-    # If vcpkg fails, try pkg-config or header-only installation
-    find_path(CLI11_INCLUDE_DIRS "CLI/CLI.hpp" PATHS /usr/include /usr/local/include)
-    if(CLI11_INCLUDE_DIRS)
-        message(STATUS "Found CLI11 via header-only: ${CLI11_INCLUDE_DIRS}")
-        add_library(CLI11::CLI11 INTERFACE IMPORTED)
-        set_target_properties(CLI11::CLI11 PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${CLI11_INCLUDE_DIRS}"
-        )
-    else()
-        message(FATAL_ERROR "CLI11 not found. Please install via: apt-get install libcli11-dev or ensure vcpkg is working")
+# Try to find CLI11 - prefer system package, fallback to vcpkg
+# Check for system CLI11 first (from libcli11-dev)
+find_path(CLI11_INCLUDE_DIRS "CLI/CLI.hpp" 
+    PATHS 
+        /usr/include 
+        /usr/local/include
+        /usr/include/x86_64-linux-gnu
+    NO_DEFAULT_PATH
+)
+if(CLI11_INCLUDE_DIRS)
+    message(STATUS "Found CLI11 via system package: ${CLI11_INCLUDE_DIRS}")
+    add_library(CLI11::CLI11 INTERFACE IMPORTED)
+    set_target_properties(CLI11::CLI11 PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${CLI11_INCLUDE_DIRS}"
+    )
+else()
+    # Fallback to vcpkg (but don't fail if it doesn't work)
+    find_package(CLI11 QUIET)
+    if(NOT CLI11_FOUND)
+        # Last resort: try default paths
+        # Unset cached value first to force a new search
+        unset(CLI11_INCLUDE_DIRS CACHE)
+        find_path(CLI11_INCLUDE_DIRS "CLI/CLI.hpp")
+        if(CLI11_INCLUDE_DIRS)
+            message(STATUS "Found CLI11 via default search: ${CLI11_INCLUDE_DIRS}")
+            add_library(CLI11::CLI11 INTERFACE IMPORTED)
+            set_target_properties(CLI11::CLI11 PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${CLI11_INCLUDE_DIRS}"
+            )
+        else()
+            message(FATAL_ERROR "CLI11 not found. Please install: apt-get install libcli11-dev")
+        endif()
     endif()
 endif()
 

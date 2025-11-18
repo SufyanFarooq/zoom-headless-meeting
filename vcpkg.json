@@ -2,7 +2,6 @@
   "name": "meeting-sdk-linux-sample",
   "version": "1",
   "dependencies": [
-    "cli11",
     "jwt-cpp",
     "picojson"
   ]

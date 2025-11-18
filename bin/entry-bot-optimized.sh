@@ -97,11 +97,30 @@ build() {
   # Only build if build directory doesn't exist or is empty
   if [[ ! -d "$BUILD" ]] || [[ -z "$(ls -A $BUILD 2>/dev/null)" ]] || [[ ! -f "$BUILD/CMakeCache.txt" ]]; then
     echo "Running cmake configuration..." >&2
-    cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log || {
-      echo "ERROR: CMake configuration failed" >&2
-      cat /tmp/meeting-sdk-linux-sample/out/cmake.log >&2
-      exit 1
-    }
+    # Ensure log directory exists before writing to it
+    mkdir -p /tmp/meeting-sdk-linux-sample/out
+    
+    # Try preset first, but if it fails due to vcpkg, try without preset
+    # Use PIPESTATUS to capture cmake's exit code, not tee's
+    cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log
+    CMAKE_EXIT_CODE=${PIPESTATUS[0]}
+    
+    if [ $CMAKE_EXIT_CODE -ne 0 ]; then
+      echo "CMake with preset failed, trying without vcpkg toolchain..." >&2
+      # Configure without vcpkg toolchain (system packages only)
+      cmake -B "$BUILD" -S . \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_CXX_STANDARD=20 \
+        -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+        2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log
+      CMAKE_EXIT_CODE=${PIPESTATUS[0]}
+      
+      if [ $CMAKE_EXIT_CODE -ne 0 ]; then
+        echo "ERROR: CMake configuration failed" >&2
+        cat /tmp/meeting-sdk-linux-sample/out/cmake.log >&2
+        exit 1
+      fi
+    fi
   else
     echo "Build directory exists, skipping cmake..." >&2
   fi
@@ -162,13 +181,47 @@ run() {
     # Include all possible OpenCV library locations
     export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH}
     
-    # Find and add OpenCV library path if it exists
-    if [ -d "/usr/lib/x86_64-linux-gnu" ]; then
-        # Check for OpenCV libraries and add their directory
-        OPENCV_LIB_DIR=$(find /usr/lib/x86_64-linux-gnu -name "libopencv_*.so*" -type f 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
-        if [ -n "$OPENCV_LIB_DIR" ] && [ -d "$OPENCV_LIB_DIR" ]; then
-            export LD_LIBRARY_PATH="${OPENCV_LIB_DIR}:${LD_LIBRARY_PATH}"
+    # Find and add OpenCV library path - check multiple locations
+    OPENCV_LIB_DIR=""
+    
+    # Method 1: Find any libopencv_*.so* file and get its directory
+    for search_dir in /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib; do
+        if [ -d "$search_dir" ]; then
+            OPENCV_LIB=$(find "$search_dir" -name "libopencv_*.so*" -type f 2>/dev/null | head -1)
+            if [ -n "$OPENCV_LIB" ]; then
+                OPENCV_LIB_DIR=$(dirname "$OPENCV_LIB")
+                break
+            fi
         fi
+    done
+    
+    # Method 2: Check for specific version (4.06 or 4.5 or 4.8)
+    if [ -z "$OPENCV_LIB_DIR" ]; then
+        for version in 406 4.5 4.8 4.6 4.0; do
+            for search_dir in /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib; do
+                # Check for both version formats: .406 and .4.5
+                if [ -f "$search_dir/libopencv_videoio.so.$version" ] || [ -f "$search_dir/libopencv_core.so.$version" ]; then
+                    OPENCV_LIB_DIR="$search_dir"
+                    break 2
+                fi
+            done
+        done
+    fi
+    
+    # Method 3: Use pkg-config to find OpenCV libdir
+    if [ -z "$OPENCV_LIB_DIR" ] && command -v pkg-config > /dev/null 2>&1; then
+        OPENCV_LIB_DIR=$(pkg-config --variable=libdir opencv4 2>/dev/null || pkg-config --variable=libdir opencv 2>/dev/null)
+    fi
+    
+    # Add found directory to LD_LIBRARY_PATH
+    if [ -n "$OPENCV_LIB_DIR" ] && [ -d "$OPENCV_LIB_DIR" ]; then
+        export LD_LIBRARY_PATH="${OPENCV_LIB_DIR}:${LD_LIBRARY_PATH}"
+        echo "Found OpenCV libraries in: $OPENCV_LIB_DIR" >&2
+    else
+        echo "Warning: Could not find OpenCV library directory, using default paths" >&2
+        # Try to find any opencv library and show what we found
+        echo "Searching for OpenCV libraries..." >&2
+        find /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib -name "*opencv*" -type f 2>/dev/null | head -5 >&2 || true
     fi
     
     # Update library cache
