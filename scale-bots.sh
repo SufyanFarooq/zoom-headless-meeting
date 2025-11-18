@@ -5,19 +5,28 @@
 set -e
 
 COMPOSE_FILE="compose-50-bots.yaml"
-CURRENT_BOTS=50
+
+# Detect current number of bots in compose file
+if [ -f "$COMPOSE_FILE" ]; then
+    CURRENT_BOTS=$(grep -c "^  bot-" "$COMPOSE_FILE" 2>/dev/null || echo "0")
+else
+    CURRENT_BOTS=0
+fi
+
 TARGET_BOTS=${1:-100}
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <number_of_bots>"
     echo "Example: $0 100  # Scale to 100 bots"
     echo ""
-    echo "Current bots: $CURRENT_BOTS"
+    echo "Current bots in compose file: $CURRENT_BOTS"
     exit 1
 fi
 
 if [ "$TARGET_BOTS" -le "$CURRENT_BOTS" ]; then
     echo "❌ Target bots ($TARGET_BOTS) must be greater than current ($CURRENT_BOTS)"
+    echo "💡 Current compose file has $CURRENT_BOTS bots defined"
+    echo "💡 To scale down, manually edit the compose file"
     exit 1
 fi
 
