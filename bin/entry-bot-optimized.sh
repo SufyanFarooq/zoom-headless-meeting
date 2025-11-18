@@ -151,11 +151,24 @@ build() {
     echo "Building application..." >&2
     # Reduce parallelism to avoid OOM (use 1 job to minimize memory usage)
     # This prevents "Killed signal terminated program cc1plus" errors
+    # Also limit compiler memory usage with flags to reduce memory footprint
+    export CXXFLAGS="${CXXFLAGS} -fno-var-tracking -fno-var-tracking-assignments"
     cmake --build "$BUILD" -j1 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/build.log || {
       echo "ERROR: Build failed" >&2
       cat /tmp/meeting-sdk-linux-sample/out/build.log >&2
+      # If build failed due to OOM, suggest increasing memory or building outside container
+      if grep -q "Killed\|signal terminated\|out of memory" /tmp/meeting-sdk-linux-sample/out/build.log 2>/dev/null; then
+        echo "" >&2
+        echo "⚠️  Build failed due to out of memory (OOM)." >&2
+        echo "💡 Solutions:" >&2
+        echo "   1. Increase container memory limit (e.g., 512M or 1G for build)" >&2
+        echo "   2. Build outside container and copy executable" >&2
+        echo "   3. Use a build service with more memory" >&2
+      fi
+      unset CXXFLAGS
       exit 1
     }
+    unset CXXFLAGS
   else
     echo "Executable exists and up to date, skipping build..." >&2
   fi
@@ -223,14 +236,25 @@ run() {
         # Fix version mismatch: Create symlinks for common version mismatches
         # The binary may expect specific versions (.406, .4.5) but system has different versions (4.6.x, 4.8.x, etc.)
         # Create symlinks to bridge these mismatches for any OpenCV 4.x version
+        # Find ALL OpenCV libraries (not just a hardcoded list) to handle any dependencies
         echo "Checking OpenCV library versions..." >&2
-        for lib_name in opencv_videoio opencv_core opencv_imgproc opencv_imgcodecs; do
+        
+        # Get list of all OpenCV libraries found in the directory
+        ALL_OPENCV_LIBS=$(find "$OPENCV_LIB_DIR" -name "libopencv_*.so.*" -type f 2>/dev/null | sed 's|.*/libopencv_||' | sed 's|\.so\..*||' | sort -u)
+        
+        # Also include common libraries that might be needed
+        COMMON_LIBS="videoio core imgproc imgcodecs objdetect calib3d features2d flann highgui ml photo stitching video"
+        
+        # Combine and deduplicate
+        ALL_LIBS=$(echo "$ALL_OPENCV_LIBS $COMMON_LIBS" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+        
+        for lib_name in $ALL_LIBS; do
             # Find all versions of this library and get the highest (most recent) version
             # Use sort -rV (reverse version sort) to get highest version first
-            ACTUAL_VERSION=$(find "$OPENCV_LIB_DIR" -name "lib${lib_name}.so.*" -type f 2>/dev/null | sed "s|.*\.so\.||" | sort -rV | head -1)
+            ACTUAL_VERSION=$(find "$OPENCV_LIB_DIR" -name "libopencv_${lib_name}.so.*" -type f 2>/dev/null | sed "s|.*\.so\.||" | sort -rV | head -1)
             
             if [ -n "$ACTUAL_VERSION" ]; then
-                echo "Found lib${lib_name}.so.${ACTUAL_VERSION}" >&2
+                echo "Found libopencv_${lib_name}.so.${ACTUAL_VERSION}" >&2
                 
                 # Extract major.minor version (e.g., "4.6" from "4.6.1" or "4.8" from "4.8.0")
                 # This helps identify OpenCV 4.x versions generically
@@ -246,9 +270,9 @@ run() {
                     for req_version in $REQUIRED_VERSIONS; do
                         # Skip if the required version is the same as actual (or very close)
                         if [ "$req_version" != "$ACTUAL_VERSION" ] && [ "$req_version" != "$MAJOR_MINOR" ]; then
-                            if [ ! -f "$OPENCV_LIB_DIR/lib${lib_name}.so.${req_version}" ]; then
-                                echo "Creating symlink: lib${lib_name}.so.${req_version} -> lib${lib_name}.so.${ACTUAL_VERSION}" >&2
-                                ln -sf "lib${lib_name}.so.${ACTUAL_VERSION}" "$OPENCV_LIB_DIR/lib${lib_name}.so.${req_version}" 2>/dev/null || true
+                            if [ ! -f "$OPENCV_LIB_DIR/libopencv_${lib_name}.so.${req_version}" ]; then
+                                echo "Creating symlink: libopencv_${lib_name}.so.${req_version} -> libopencv_${lib_name}.so.${ACTUAL_VERSION}" >&2
+                                ln -sf "libopencv_${lib_name}.so.${ACTUAL_VERSION}" "$OPENCV_LIB_DIR/libopencv_${lib_name}.so.${req_version}" 2>/dev/null || true
                             fi
                         fi
                     done
