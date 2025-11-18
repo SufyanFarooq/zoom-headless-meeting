@@ -132,27 +132,70 @@ for BOT_NUM in $(printf '%s\n' "${!BOT_TOKENS[@]}" | sort -n); do
     
     # Check if ZAK already exists in compose file
     if grep -A 15 "bot-${BOT_NUM}:" "$COMPOSE_FILE" | grep -q "\"--zak\""; then
-        # Update existing ZAK token
+        # Update existing ZAK token (remove all duplicates first, then add one)
         echo "🔄 Updating ZAK token for bot-${BOT_NUM}..."
         
-        # Find the line with --zak and replace the token on the next line
-        # Pattern: --zak followed by token on next line
-        # Use sed to replace the token value while keeping --zak flag
-        sed -i.bak "/bot-${BOT_NUM}:/,/stop_grace_period:/ {
-            /--zak/,+1 {
-                /--zak/! {
-                    s|^\\(      - \\)\".*\"|\\1\"${ZAK_TOKEN}\"|
-                }
-            }
-        }" "$COMPOSE_FILE" 2>/dev/null || {
-            # Fallback: Use Python script if sed fails
-            echo "   Using Python script for update..."
+        # First, use Python script to remove all duplicates and update
+        python3 << PYTHON_UPDATE_SCRIPT
+import yaml
+import sys
+
+COMPOSE_FILE = "$COMPOSE_FILE"
+BOT_NUM = $BOT_NUM
+ZAK_TOKEN = "$ZAK_TOKEN"
+
+try:
+    with open(COMPOSE_FILE, 'r') as f:
+        compose_data = yaml.safe_load(f)
+    
+    service_name = f"bot-{BOT_NUM}"
+    if service_name not in compose_data.get('services', {}):
+        sys.exit(1)
+    
+    command_list = compose_data['services'][service_name].get('command', [])
+    
+    # Remove all existing --zak entries and their tokens
+    new_command = []
+    i = 0
+    while i < len(command_list):
+        if command_list[i] == "--zak":
+            # Skip --zak and the token after it
+            i += 2
+            continue
+        new_command.append(command_list[i])
+        i += 1
+    
+    # Find position to insert --zak (after --config config.toml)
+    insert_idx = -1
+    for i, item in enumerate(new_command):
+        if "config.toml" in str(item):
+            insert_idx = i + 1
+            break
+    
+    if insert_idx != -1:
+        new_command.insert(insert_idx, ZAK_TOKEN)
+        new_command.insert(insert_idx, "--zak")
+        compose_data['services'][service_name]['command'] = new_command
+        
+        with open(COMPOSE_FILE, 'w') as f:
+            yaml.dump(compose_data, f, sort_keys=False, indent=2, default_flow_style=False)
+        
+        print("   ✅ Updated ZAK token (removed duplicates)")
+    else:
+        sys.exit(1)
+except Exception as e:
+    sys.exit(1)
+PYTHON_UPDATE_SCRIPT
+        
+        if [ $? -ne 0 ]; then
+            # Fallback: Use update-compose-zak.py script
+            echo "   Using update-compose-zak.py script..."
             python3 update-compose-zak.py 2>/dev/null || {
                 echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
                 echo "   Manual update needed:"
                 echo "   Bot-${BOT_NUM}: Update --zak token to \"${ZAK_TOKEN}\""
             }
-        }
+        fi
     else
         # Add new ZAK token
         echo "➕ Adding ZAK token for bot-${BOT_NUM}..."
