@@ -61,25 +61,57 @@ cd ~/zoom-headless-meeting
 
 **Important**: The Zoom SDK library folder is not included in git (it's in `.gitignore`). You must manually upload it.
 
-### 2.5.1 Create lib Directory
+### 2.5.1 Create Directory on Server
+**First, create the directory on the server** (if it doesn't exist):
+
 ```bash
-# On server
-cd ~/zoom-headless-meeting
-mkdir -p lib/zoomsdk
+# SSH to server
+ssh USERNAME@SERVER_IP
+
+# Create directory structure
+mkdir -p ~/zoom-headless-meeting/lib/zoomsdk
+
+# Exit SSH
+exit
+```
+
+**Example**:
+```bash
+ssh skylark@165.101.248.18
+mkdir -p ~/zoom-headless-meeting/lib/zoomsdk
+exit
 ```
 
 ### 2.5.2 Upload SDK Files
 From your local machine, upload the entire `lib/zoomsdk` folder:
 
+**Important**: Run this command from your **project root directory** (where `lib/zoomsdk` folder exists).
+
 ```bash
-# On your local machine
-scp -r lib/zoomsdk user@server:/home/user/zoom-headless-meeting/lib/
+# On your local machine - navigate to project root first
+cd /path/to/your/project/zoom-headless-meeting
+
+# Then upload SDK files (replace USERNAME and SERVER_IP with your details)
+scp -r lib/zoomsdk USERNAME@SERVER_IP:/home/USERNAME/zoom-headless-meeting/lib/
+```
+
+**Example**:
+```bash
+# If your project is at: /Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample
+cd "/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample"
+
+# Upload to server using ~ (home directory - recommended)
+scp -r lib/zoomsdk skylark@165.101.248.18:~/zoom-headless-meeting/lib/
+
+# OR using full path
+scp -r lib/zoomsdk skylark@165.101.248.18:/home/skylark/zoom-headless-meeting/lib/
 ```
 
 Or using rsync (recommended for large folders):
 ```bash
-# On your local machine
-rsync -avz --progress lib/zoomsdk/ user@server:/home/user/zoom-headless-meeting/lib/zoomsdk/
+# On your local machine - from project root
+cd /path/to/your/project/zoom-headless-meeting
+rsync -avz --progress lib/zoomsdk/ USERNAME@SERVER_IP:/home/USERNAME/zoom-headless-meeting/lib/zoomsdk/
 ```
 
 ### 2.5.3 Verify SDK Files
