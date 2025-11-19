@@ -27,7 +27,7 @@ services:
       - "--config"
       - "config.toml"
       - "--zak"
-      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI4YjdjMmE1MDFlMmM0YTdkYjA5YmUxY2FmMDhhMDQ0MCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNSIsImNsdCI6MCwiZXhwIjoxNzYzNDE5ODc1LCJpYXQiOjE3NjM0MTI2NzUsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.Y5KN3BGckD0RbvSAoATZi-e-2Kq9J8maZtos1dGwhoc"
+      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI2NmM2NjYwZWNhMTI0ZWQ3YTU3NTM0N2JmZmU0YmZjNCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTY3ODkyLCJpYXQiOjE3NjM1NjA2OTIsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.io1AoT7uOUU99K1-mveesAhDms-R9vc2PKJKRPo4IXA"
       - "RawVideo"
       - "--input"
       - "videos/video-1.mp4"
@@ -35,7 +35,8 @@ services:
       - "--file"
       - "dev-null.pcm"
       - "--dir"
-      - "/dev"
+      - "--zak"
+      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI2NmM2NjYwZWNhMTI0ZWQ3YTU3NTM0N2JmZmU0YmZjNCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTY3ODkyLCJpYXQiOjE3NjM1NjA2OTIsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.io1AoT7uOUU99K1-mveesAhDms-R9vc2PKJKRPo4IXA"
     deploy:
       resources:
         limits:
@@ -45,7 +46,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-2:
     build: ./
@@ -91,7 +92,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-3:
     build: ./
@@ -132,7 +133,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-4:
     build: ./
@@ -173,7 +174,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-5:
     build: ./
@@ -214,7 +215,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-6:
     build: ./
@@ -255,7 +256,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-7:
     build: ./
@@ -296,7 +297,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-8:
     build: ./
@@ -337,7 +338,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-9:
     build: ./
@@ -378,7 +379,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-10:
     build: ./
@@ -419,7 +420,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
 volumes:
   build-cache:

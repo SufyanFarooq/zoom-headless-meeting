@@ -177,12 +177,32 @@ try:
         new_command.append(command_list[i])
         i += 1
     
-    # Find position to insert --zak (after --config config.toml)
+    # Find position to insert --zak (AFTER RawVideo and RawAudio subcommands)
+    # Correct order: --config config.toml -> RawVideo -> RawAudio -> --zak
     insert_idx = -1
+    
+    # Strategy: Find the end of RawAudio section (--dir /dev) OR end of RawVideo (if no RawAudio)
     for i, item in enumerate(new_command):
-        if "config.toml" in str(item):
-            insert_idx = i + 1
+        # Check if this is --dir with /dev value (end of RawAudio)
+        if item == "--dir" and i + 1 < len(new_command) and new_command[i + 1] == "/dev":
+            insert_idx = i + 2  # Insert after /dev
             break
+        # Check if this is video file and next is deploy (no RawAudio)
+        elif "video-" in str(item) and item.endswith(".mp4"):
+            # Check if next non-empty item is deploy or another section
+            j = i + 1
+            while j < len(new_command) and not new_command[j].strip():
+                j += 1
+            if j >= len(new_command) or new_command[j] in ["deploy", "volumes", "environment", "entrypoint"]:
+                insert_idx = i + 1  # Insert after video file
+                break
+    
+    # Fallback: If RawVideo/RawAudio not found, insert after config.toml
+    if insert_idx == -1:
+        for i, item in enumerate(new_command):
+            if "config.toml" in str(item):
+                insert_idx = i + 1
+                break
     
     if insert_idx != -1:
         new_command.insert(insert_idx, ZAK_TOKEN)
