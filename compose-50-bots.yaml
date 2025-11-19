@@ -37,7 +37,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-2:
     build: ./
@@ -83,7 +83,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-3:
     build: ./
@@ -124,7 +124,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-4:
     build: ./
@@ -165,7 +165,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-5:
     build: ./
@@ -206,7 +206,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-6:
     build: ./
@@ -247,7 +247,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-7:
     build: ./
@@ -288,7 +288,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-8:
     build: ./
@@ -329,7 +329,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-9:
     build: ./
@@ -370,7 +370,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
   bot-10:
     build: ./
@@ -411,7 +411,7 @@ services:
           cpus: '0.05'     # Minimal reservation for 50 bots
           memory: 128M     # Optimized: was 512M
     stop_grace_period: 2s  # Quick shutdown - leave meeting immediately
-    restart: no
+    restart: "no"
 
 volumes:
   build-cache:
