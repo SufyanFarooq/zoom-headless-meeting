@@ -63,21 +63,23 @@ def update_compose_file(tokens):
             i += 1
             continue
         
-        # In bot section, look for --config config.toml
+        # In bot section, look for correct insertion point
+        # ZAK token should be placed AFTER RawVideo and RawAudio subcommands
+        # Correct order: --config config.toml -> RawVideo -> RawAudio -> --zak
         if current_bot and tokens.get(current_bot):
-            # Check if this is the config.toml line
-            if re.search(r'config\.toml', line):
+            # Strategy: Find the last video/audio argument, then insert ZAK token
+            # Look for end of RawAudio section (--dir /dev) OR end of RawVideo (if no RawAudio)
+            if re.search(r'"/dev"', line) or (re.search(r'--dir', line) and i + 1 < len(lines) and re.search(r'"/dev"', lines[i + 1])):
+                # Found RawAudio end - insert ZAK after this
                 new_lines.append(line)
                 i += 1
                 
                 # Remove ALL existing --zak entries first (skip them)
                 j = i
-                zak_removed = False
                 # Look ahead up to 15 lines for ALL --zak entries and remove them
                 while j < min(i + 15, len(lines)):
                     # Check for --zak flag
                     if '--zak' in lines[j]:
-                        zak_removed = True
                         # Skip --zak line
                         j += 1
                         # Skip token line (long JWT token > 100 chars)
@@ -96,11 +98,41 @@ def update_compose_file(tokens):
                         break
                     j += 1
                 
-                # After removing all existing --zak, add the new one
+                # After removing all existing --zak, add the new one AFTER RawAudio
                 new_lines.append('      - "--zak"')
                 new_lines.append(f'      - "{tokens[current_bot]}"')
                 i = j
                 continue
+            # Fallback: If no RawAudio, insert after RawVideo video file line
+            elif re.search(r'video-\d+\.mp4', line):
+                # Check if this is the video file line (not --input)
+                # And next significant line is deploy (no RawAudio)
+                next_non_empty = i + 1
+                while next_non_empty < len(lines) and not lines[next_non_empty].strip():
+                    next_non_empty += 1
+                
+                if next_non_empty < len(lines) and re.match(r'^\s+deploy:', lines[next_non_empty]):
+                    # This is video file line, next is deploy - insert ZAK here
+                    new_lines.append(line)
+                    i += 1
+                    
+                    # Remove ALL existing --zak entries
+                    j = i
+                    while j < min(i + 10, len(lines)):
+                        if '--zak' in lines[j]:
+                            j += 1
+                            if j < len(lines) and re.match(r'^\s+- "', lines[j]) and len(lines[j]) > 100:
+                                j += 1
+                            continue
+                        elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[j]):
+                            break
+                        j += 1
+                    
+                    # Insert ZAK token
+                    new_lines.append('      - "--zak"')
+                    new_lines.append(f'      - "{tokens[current_bot]}"')
+                    i = j
+                    continue
         
         new_lines.append(line)
         i += 1
