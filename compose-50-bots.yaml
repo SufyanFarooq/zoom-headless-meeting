@@ -27,15 +27,7 @@ services:
       - "--config"
       - "config.toml"
       - "--zak"
-      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI4YjdjMmE1MDFlMmM0YTdkYjA5YmUxY2FmMDhhMDQ0MCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNSIsImNsdCI6MCwiZXhwIjoxNzYzNDE5ODc1LCJpYXQiOjE3NjM0MTI2NzUsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.Y5KN3BGckD0RbvSAoATZi-e-2Kq9J8maZtos1dGwhoc"
-      - "RawVideo"
-      - "--input"
-      - "videos/video-1.mp4"
-      - "RawAudio"
-      - "--file"
-      - "dev-null.pcm"
-      - "--dir"
-      - "/dev"
+      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI2ZWNiZmE5MWNlMDE0ZTQ4YjBlOTk2Y2Y2YThkMjU2OCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTE3NzI4LCJpYXQiOjE3NjM1MTA1MjgsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.61TgZn6O-_zoyPYOpVeaaxn-AFInJOA5d34lm3LjoVc"
     deploy:
       resources:
         limits:

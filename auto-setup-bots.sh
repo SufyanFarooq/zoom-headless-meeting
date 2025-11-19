@@ -50,10 +50,11 @@ echo "# ZAK Tokens for bots (auto-generated on $(date))" > "$TOKENS_FILE"
 echo "" >> "$TOKENS_FILE"
 
 BOT_NUM=1
-# Use associative arrays to track bot_num -> token/email mapping
-# This prevents array misalignment when token generation fails
-declare -A BOT_TOKENS=()
-declare -A BOT_EMAILS=()
+# Use regular arrays (bash 3.2 compatible)
+# Track successful bots separately to prevent misalignment
+BOT_TOKENS=()
+BOT_EMAILS=()
+BOT_NUMS=()  # Track which bot numbers succeeded
 
 while IFS= read -r USER_EMAIL || [ -n "$USER_EMAIL" ]; do
     # Skip empty lines and comments
@@ -79,8 +80,9 @@ while IFS= read -r USER_EMAIL || [ -n "$USER_EMAIL" ]; do
     fi
     
     # Only add to arrays if token generation succeeded
-    BOT_TOKENS[$BOT_NUM]="$ZAK_TOKEN"
-    BOT_EMAILS[$BOT_NUM]="$EMAIL"
+    BOT_TOKENS+=("$ZAK_TOKEN")
+    BOT_EMAILS+=("$EMAIL")
+    BOT_NUMS+=("$BOT_NUM")
     
     echo "✅ ZAK token generated"
     echo ""
@@ -121,12 +123,15 @@ echo "✅ Backup created: ${COMPOSE_FILE}.backup.*"
 
 # Update each bot in compose file
 # Iterate over bots that successfully got tokens
-for BOT_NUM in $(printf '%s\n' "${!BOT_TOKENS[@]}" | sort -n); do
-    ZAK_TOKEN="${BOT_TOKENS[$BOT_NUM]}"
-    EMAIL="${BOT_EMAILS[$BOT_NUM]}"
+i=0
+while [ $i -lt $SUCCESSFUL_BOTS ]; do
+    BOT_NUM="${BOT_NUMS[$i]}"
+    ZAK_TOKEN="${BOT_TOKENS[$i]}"
+    EMAIL="${BOT_EMAILS[$i]}"
     
     if [ -z "$ZAK_TOKEN" ]; then
         echo "⚠️  Skipping bot-${BOT_NUM} (no ZAK token)"
+        i=$((i + 1))
         continue
     fi
     
@@ -136,25 +141,32 @@ for BOT_NUM in $(printf '%s\n' "${!BOT_TOKENS[@]}" | sort -n); do
         echo "🔄 Updating ZAK token for bot-${BOT_NUM}..."
         
         # First, use Python script to remove all duplicates and update
-        python3 << PYTHON_UPDATE_SCRIPT
+        COMPOSE_FILE="$COMPOSE_FILE" BOT_NUM=$BOT_NUM ZAK_TOKEN="$ZAK_TOKEN" python3 << 'PYTHON_UPDATE_SCRIPT'
 import yaml
 import sys
+import os
 
-COMPOSE_FILE = "$COMPOSE_FILE"
-BOT_NUM = $BOT_NUM
-ZAK_TOKEN = "$ZAK_TOKEN"
+COMPOSE_FILE = os.environ.get('COMPOSE_FILE', 'compose-50-bots.yaml')
+BOT_NUM = int(os.environ.get('BOT_NUM', '0'))
+ZAK_TOKEN = os.environ.get('ZAK_TOKEN', '')
+
+if not ZAK_TOKEN or BOT_NUM == 0:
+    sys.exit(1)
 
 try:
     with open(COMPOSE_FILE, 'r') as f:
         compose_data = yaml.safe_load(f)
     
+    if not compose_data or 'services' not in compose_data:
+        sys.exit(1)
+    
     service_name = f"bot-{BOT_NUM}"
-    if service_name not in compose_data.get('services', {}):
+    if service_name not in compose_data['services']:
         sys.exit(1)
     
     command_list = compose_data['services'][service_name].get('command', [])
     
-    # Remove all existing --zak entries and their tokens
+    # Remove ALL existing --zak entries and their tokens
     new_command = []
     i = 0
     while i < len(command_list):
@@ -184,6 +196,7 @@ try:
     else:
         sys.exit(1)
 except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
     sys.exit(1)
 PYTHON_UPDATE_SCRIPT
         
@@ -212,6 +225,8 @@ PYTHON_UPDATE_SCRIPT
             echo "   Bot-${BOT_NUM}: Add --zak \"${ZAK_TOKEN}\" after --config config.toml"
         }
     fi
+    
+    i=$((i + 1))
 done
 
 echo ""

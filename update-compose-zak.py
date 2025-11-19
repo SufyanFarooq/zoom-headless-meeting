@@ -70,45 +70,36 @@ def update_compose_file(tokens):
                 new_lines.append(line)
                 i += 1
                 
-                # Check if ZAK already exists in next few lines
-                zak_found = False
+                # Remove ALL existing --zak entries first (skip them)
                 j = i
-                # Look ahead up to 10 lines for --zak or long JWT tokens
-                while j < min(i + 10, len(lines)) and not zak_found:
+                zak_removed = False
+                # Look ahead up to 15 lines for ALL --zak entries and remove them
+                while j < min(i + 15, len(lines)):
                     # Check for --zak flag
                     if '--zak' in lines[j]:
-                        zak_found = True
+                        zak_removed = True
                         # Skip --zak line
                         j += 1
                         # Skip token line (long JWT token > 100 chars)
                         if j < len(lines) and re.match(r'^\s+- "', lines[j]) and len(lines[j]) > 100:
                             j += 1
-                        # Now insert correct ZAK token
-                        new_lines.append('      - "--zak"')
-                        new_lines.append(f'      - "{tokens[current_bot]}"')
-                        i = j
                         continue
-                    # Check for orphaned JWT tokens (long tokens without --zak flag)
+                    # Check for orphaned JWT tokens (long tokens without --zak flag before them)
                     elif re.match(r'^\s+- "', lines[j]) and len(lines[j]) > 100:
-                        # This is likely an orphaned token, skip it
-                        j += 1
-                        # Check if there's another token after it (duplicate)
-                        if j < len(lines) and re.match(r'^\s+- "', lines[j]) and len(lines[j]) > 100:
-                            j += 1  # Skip duplicate too
-                        # Insert correct ZAK token
-                        new_lines.append('      - "--zak"')
-                        new_lines.append(f'      - "{tokens[current_bot]}"')
-                        i = j
-                        continue
+                        # Check if previous line was --zak (should have been skipped already)
+                        # If not, this might be orphaned, skip it
+                        if j > 0 and '--zak' not in lines[j-1]:
+                            j += 1
+                            continue
                     # If we hit deploy or another section, stop looking
                     elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[j]):
                         break
                     j += 1
                 
-                if not zak_found:
-                    # Add ZAK token after config.toml
-                    new_lines.append('      - "--zak"')
-                    new_lines.append(f'      - "{tokens[current_bot]}"')
+                # After removing all existing --zak, add the new one
+                new_lines.append('      - "--zak"')
+                new_lines.append(f'      - "{tokens[current_bot]}"')
+                i = j
                 continue
         
         new_lines.append(line)
