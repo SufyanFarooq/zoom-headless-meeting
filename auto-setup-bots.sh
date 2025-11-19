@@ -135,16 +135,34 @@ while [ $i -lt $SUCCESSFUL_BOTS ]; do
         continue
     fi
     
-    # Check if ZAK already exists in compose file
-    if grep -A 15 "bot-${BOT_NUM}:" "$COMPOSE_FILE" | grep -q "\"--zak\""; then
-        # Update existing ZAK token (remove all duplicates first, then add one)
-        echo "🔄 Updating ZAK token for bot-${BOT_NUM}..."
-        
-        # First, use Python script to remove all duplicates and update
-        COMPOSE_FILE="$COMPOSE_FILE" BOT_NUM=$BOT_NUM ZAK_TOKEN="$ZAK_TOKEN" python3 << 'PYTHON_UPDATE_SCRIPT'
+    # Always use Python script for reliable YAML manipulation
+    echo "🔄 Updating ZAK token for bot-${BOT_NUM}..."
+    
+    # Check if yaml module is available
+    if ! python3 -c "import yaml" 2>/dev/null; then
+        echo "⚠️  Python yaml module not found. Installing PyYAML..."
+        pip3 install PyYAML >/dev/null 2>&1 || {
+            echo "❌ Failed to install PyYAML. Please install manually:"
+            echo "   pip3 install PyYAML"
+            echo "   OR: python3 -m pip install PyYAML"
+            echo ""
+            echo "   Falling back to update-compose-zak.py script..."
+            python3 update-compose-zak.py 2>/dev/null || {
+                echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
+                echo "   Manual update needed:"
+                echo "   Bot-${BOT_NUM}: Update --zak token to \"${ZAK_TOKEN}\""
+            }
+            i=$((i + 1))
+            continue
+        }
+    fi
+    
+    # Use Python script to remove all duplicates and update
+    COMPOSE_FILE="$COMPOSE_FILE" BOT_NUM=$BOT_NUM ZAK_TOKEN="$ZAK_TOKEN" python3 << 'PYTHON_UPDATE_SCRIPT'
 import yaml
 import sys
 import os
+import re
 
 COMPOSE_FILE = os.environ.get('COMPOSE_FILE', 'compose-50-bots.yaml')
 BOT_NUM = int(os.environ.get('BOT_NUM', '0'))
@@ -166,7 +184,8 @@ try:
     
     command_list = compose_data['services'][service_name].get('command', [])
     
-    # Remove ALL existing --zak entries and their tokens
+    # Remove ALL existing --zak entries and their tokens (including orphaned tokens)
+    # Also preserve config.toml - never remove it!
     new_command = []
     i = 0
     while i < len(command_list):
@@ -174,43 +193,162 @@ try:
             # Skip --zak and the token after it
             i += 2
             continue
+        # Check for orphaned JWT tokens (long tokens starting with eyJ without --zak flag)
+        # BUT: Skip only if it's NOT config.toml (config.toml must be preserved)
+        elif isinstance(command_list[i], str) and len(command_list[i]) > 100 and command_list[i].startswith("eyJ"):
+            # This is likely an orphaned ZAK token, skip it
+            # BUT check: if previous item was --config, this might be a corrupted entry
+            if i > 0 and command_list[i-1] == "--config":
+                # This is a corrupted entry where ZAK token replaced config.toml
+                # Restore config.toml
+                new_command.append("config.toml")
+                i += 1
+                continue
+            # Otherwise, skip the orphaned token
+            i += 1
+            continue
         new_command.append(command_list[i])
         i += 1
     
-    # Find position to insert --zak (AFTER RawVideo and RawAudio subcommands)
-    # Correct order: --config config.toml -> RawVideo -> RawAudio -> --zak
+    # Find position to insert --zak (BEFORE RawVideo/RawAudio subcommands)
+    # IMPORTANT: --zak is a global option, must come BEFORE subcommands
+    # Correct order: --config config.toml -> --zak -> RawVideo -> RawAudio
     insert_idx = -1
     
-    # Strategy: Find the end of RawAudio section (--dir /dev) OR end of RawVideo (if no RawAudio)
-    for i, item in enumerate(new_command):
-        # Check if this is --dir with /dev value (end of RawAudio)
-        if item == "--dir" and i + 1 < len(new_command) and new_command[i + 1] == "/dev":
-            insert_idx = i + 2  # Insert after /dev
+    # Strategy: Find config.toml and insert --zak right after it (BEFORE any subcommands)
+    # IMPORTANT: config.toml MUST exist - if not found, something is wrong
+    config_toml_idx = -1
+    for idx, item in enumerate(new_command):
+        if item == "config.toml":
+            config_toml_idx = idx
+            insert_idx = idx + 1
             break
-        # Check if this is video file and next is deploy (no RawAudio)
-        elif "video-" in str(item) and item.endswith(".mp4"):
-            # Check if next non-empty item is deploy or another section
-            j = i + 1
-            while j < len(new_command) and not new_command[j].strip():
-                j += 1
-            if j >= len(new_command) or new_command[j] in ["deploy", "volumes", "environment", "entrypoint"]:
-                insert_idx = i + 1  # Insert after video file
+    
+    # If config.toml not found, try to find --config and add config.toml after it
+    if config_toml_idx == -1:
+        for idx, item in enumerate(new_command):
+            if item == "--config":
+                # Insert config.toml after --config
+                new_command.insert(idx + 1, "config.toml")
+                insert_idx = idx + 2
                 break
     
-    # Fallback: If RawVideo/RawAudio not found, insert after config.toml
-    if insert_idx == -1:
-        for i, item in enumerate(new_command):
-            if "config.toml" in str(item):
-                insert_idx = i + 1
-                break
+    # Also ensure --dir /dev exists for RawAudio (if RawAudio is present)
+    # But do this AFTER inserting --zak to avoid duplicates
+    # We'll handle this separately after --zak insertion
     
     if insert_idx != -1:
-        new_command.insert(insert_idx, ZAK_TOKEN)
+        # Insert --zak flag first, then token
         new_command.insert(insert_idx, "--zak")
-        compose_data['services'][service_name]['command'] = new_command
+        new_command.insert(insert_idx + 1, ZAK_TOKEN)
         
+        # Now ensure --dir /dev exists for RawAudio (if present)
+        if "RawAudio" in new_command:
+            raw_audio_idx = -1
+            for idx, item in enumerate(new_command):
+                if item == "RawAudio":
+                    raw_audio_idx = idx
+                    break
+            
+            if raw_audio_idx >= 0:
+                # Remove ALL duplicate --dir entries first
+                # Find all --dir entries after RawAudio
+                dir_indices = []
+                for idx in range(raw_audio_idx, len(new_command)):
+                    if new_command[idx] == "--dir":
+                        dir_indices.append(idx)
+                
+                # Remove all duplicate --dir entries (keep only the first one)
+                # Remove from end to start to preserve indices
+                for dir_idx in reversed(dir_indices[1:]):
+                    # Remove --dir and its value
+                    if dir_idx + 1 < len(new_command):
+                        new_command.pop(dir_idx + 1)  # Remove value
+                    new_command.pop(dir_idx)  # Remove --dir
+                
+                # Now check if --dir exists (after removing duplicates)
+                dir_found = False
+                dir_idx = -1
+                for idx in range(raw_audio_idx, len(new_command)):
+                    if new_command[idx] == "--dir":
+                        dir_found = True
+                        dir_idx = idx
+                        break
+                
+                if dir_found and dir_idx >= 0:
+                    # --dir found, check if /dev exists
+                    if dir_idx + 1 >= len(new_command) or new_command[dir_idx + 1] != "/dev":
+                        # /dev missing, add it
+                        new_command.insert(dir_idx + 1, "/dev")
+                elif not dir_found:
+                    # --dir not found, find dev-null.pcm and add --dir /dev after it
+                    for idx in range(raw_audio_idx, len(new_command)):
+                        if new_command[idx] == "dev-null.pcm":
+                            new_command.insert(idx + 1, "--dir")
+                            new_command.insert(idx + 2, "/dev")
+                            break
+        
+        # Instead of using yaml.dump() which creates nested structures,
+        # use line-by-line replacement like update-compose-zak.py does
+        with open(COMPOSE_FILE, 'r') as f:
+            lines = f.readlines()
+        
+        new_lines = []
+        i = 0
+        in_bot_section = False
+        in_command_section = False
+        
+        while i < len(lines):
+            line = lines[i]
+            
+            # Detect bot service start
+            if re.match(r'^\s*bot-' + str(BOT_NUM) + r':', line):
+                in_bot_section = True
+                new_lines.append(line)
+                i += 1
+                continue
+            
+            # Detect end of bot service
+            if in_bot_section and re.match(r'^\s+(bot-|\w+):', line) and not line.strip().startswith('bot-' + str(BOT_NUM) + ':'):
+                in_bot_section = False
+                in_command_section = False
+            
+            # Detect command section
+            if in_bot_section and re.match(r'^\s+command:', line):
+                in_command_section = True
+                new_lines.append(line)
+                i += 1
+
+                # Detect indentation of next line
+                if i < len(lines) and re.match(r'^(\s+)- ', lines[i]):
+                    indent_str = re.match(r'^(\s+)- ', lines[i]).group(1)
+                else:
+                    indent_str = '      '  # fallback: 6 spaces
+
+                # Write new command list
+                for cmd_item in new_command:
+                    cmd_str = str(cmd_item)
+                    if '"' in cmd_str or (' ' in cmd_str and not cmd_str.startswith('--')):
+                        escaped = cmd_str.replace('"', '\\"')
+                        new_lines.append(indent_str + '- "' + escaped + '"\n')
+                    else:
+                        new_lines.append(indent_str + '- ' + cmd_str + '\n')
+
+                # Skip old commands
+                while i < len(lines):
+                    if re.match(r'^\s+(deploy|volumes|environment|entrypoint|restart|stop_grace_period):', lines[i]):
+                        break
+                    i += 1
+                continue
+            
+            if not in_command_section:
+                new_lines.append(line)
+            
+            i += 1
+        
+        # Write the updated file
         with open(COMPOSE_FILE, 'w') as f:
-            yaml.dump(compose_data, f, sort_keys=False, indent=2, default_flow_style=False)
+            f.writelines(new_lines)
         
         print("   ✅ Updated ZAK token (removed duplicates)")
     else:
@@ -219,30 +357,14 @@ except Exception as e:
     print(f"Error: {e}", file=sys.stderr)
     sys.exit(1)
 PYTHON_UPDATE_SCRIPT
-        
-        if [ $? -ne 0 ]; then
-            # Fallback: Use update-compose-zak.py script
-            echo "   Using update-compose-zak.py script..."
-            python3 update-compose-zak.py 2>/dev/null || {
-                echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
-                echo "   Manual update needed:"
-                echo "   Bot-${BOT_NUM}: Update --zak token to \"${ZAK_TOKEN}\""
-            }
-        fi
-    else
-        # Add new ZAK token
-        echo "➕ Adding ZAK token for bot-${BOT_NUM}..."
-        # Use sed to insert after --config config.toml
-        sed -i.bak "/bot-${BOT_NUM}:/,/stop_grace_period:/ {
-            /--config/,/config.toml/ {
-                /config.toml/a\\
-      - \"--zak\"\\
-      - \"${ZAK_TOKEN}\"
-            }
-        }" "$COMPOSE_FILE" 2>/dev/null || {
+    
+    if [ $? -ne 0 ]; then
+        # Fallback: Use update-compose-zak.py script
+        echo "   Using update-compose-zak.py script..."
+        python3 update-compose-zak.py 2>/dev/null || {
             echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
             echo "   Manual update needed:"
-            echo "   Bot-${BOT_NUM}: Add --zak \"${ZAK_TOKEN}\" after --config config.toml"
+            echo "   Bot-${BOT_NUM}: Update --zak token to \"${ZAK_TOKEN}\""
         }
     fi
     

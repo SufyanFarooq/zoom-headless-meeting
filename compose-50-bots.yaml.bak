@@ -33,9 +33,8 @@ services:
       - "--file"
       - "dev-null.pcm"
       - "--dir"
-      - "/dev"
       - "--zak"
-      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiJkYWMwMDM0ZTY4MWU0YmFmYWZmMWVjOGMzZDg4MTcyNyIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTY4NzE3LCJpYXQiOjE3NjM1NjE1MTcsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.8q5RBiR6WAHEbi76xfXTHwYJyCFP4HNj0INK0vrG1gA"
+      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI3MzdlMWFkNDI2NjM0OTQ5ODAzOTQzMmUxNTRlNzc0MSIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTY4OTc3LCJpYXQiOjE3NjM1NjE3NzcsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.w7KpL1m6Kn2-qehymzVwTBF7WLe3zCtef1jQAdH4VDA"
     deploy:
       resources:
         limits:

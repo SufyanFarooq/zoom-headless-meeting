@@ -64,8 +64,9 @@ def update_compose_file(tokens):
             continue
         
         # In bot section, FIRST remove ALL existing --zak entries, THEN insert at correct position
-        # ZAK token should be placed AFTER RawVideo and RawAudio subcommands
-        # Correct order: --config config.toml -> RawVideo -> RawAudio -> --zak
+        # ZAK token should be placed BEFORE RawVideo/RawAudio subcommands
+        # IMPORTANT: --zak is a global option, must come BEFORE subcommands
+        # Correct order: --config config.toml -> --zak -> RawVideo -> RawAudio
         if current_bot and tokens.get(current_bot):
             # Skip ALL existing --zak entries and their tokens (remove them)
             if '--zak' in line:
@@ -82,55 +83,57 @@ def update_compose_file(tokens):
                     i += 1
                     continue
             
-            # Strategy: Find the end of RawAudio section (--dir /dev) OR end of RawVideo (if no RawAudio)
-            if re.search(r'"/dev"', line) or (re.search(r'--dir', line) and i + 1 < len(lines) and re.search(r'"/dev"', lines[i + 1])):
-                # Found RawAudio end - insert ZAK after this
+            # Strategy: Find config.toml and insert --zak right after it (BEFORE subcommands)
+            if re.search(r'config\.toml', line):
+                # Found config.toml, insert --zak after it (BEFORE RawVideo/RawAudio)
                 new_lines.append(line)
                 i += 1
                 
-                # Skip any remaining --zak entries before inserting
+                # Skip any existing --zak entries
                 while i < len(lines):
                     if '--zak' in lines[i]:
                         i += 1
                         if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
                             i += 1
                         continue
+                    # Stop if we hit RawVideo or RawAudio (subcommands)
+                    elif re.search(r'RawVideo|RawAudio', lines[i]):
+                        break
+                    # Stop if we hit deploy or other sections
                     elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[i]):
                         break
                     i += 1
                 
-                # After removing all existing --zak, add the new one AFTER RawAudio
-                new_lines.append('      - "--zak"')
-                new_lines.append(f'      - "{tokens[current_bot]}"')
+                # Detect indentation from config.toml line
+                config_indent = re.match(r'^(\s+)-\s+config\.toml', line)
+                if config_indent:
+                    base_indent = config_indent.group(1)  # exact spaces before "- config.toml"
+                else:
+                    base_indent = "    "  # fallback to 4 spaces (correct format)
+
+                item_indent = base_indent  # same indent as other list items
+
+                # write zak
+                new_lines.append(f'{item_indent}- "--zak"')
+                new_lines.append(f'{item_indent}- "{tokens[current_bot]}"')
+                # end write zak
+                # end of zak insertion
                 continue
-            # Fallback: If no RawAudio, insert after RawVideo video file line
-            elif re.search(r'video-\d+\.mp4', line):
-                # Check if this is the video file line (not --input)
-                # And next significant line is deploy (no RawAudio)
-                next_non_empty = i + 1
-                while next_non_empty < len(lines) and not lines[next_non_empty].strip():
-                    next_non_empty += 1
+            
+            # Also ensure --dir /dev exists for RawAudio
+            if re.search(r'--dir', line):
+                # Found --dir, check if /dev exists
+                new_lines.append(line)
+                i += 1
                 
-                if next_non_empty < len(lines) and re.match(r'^\s+deploy:', lines[next_non_empty]):
-                    # This is video file line, next is deploy - insert ZAK here
-                    new_lines.append(line)
+                if i < len(lines) and re.search(r'"/dev"', lines[i]):
+                    # /dev exists
+                    new_lines.append(lines[i])
                     i += 1
-                    
-                    # Skip any remaining --zak entries before inserting
-                    while i < len(lines):
-                        if '--zak' in lines[i]:
-                            i += 1
-                            if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
-                                i += 1
-                            continue
-                        elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[i]):
-                            break
-                        i += 1
-                    
-                    # Insert ZAK token
-                    new_lines.append('      - "--zak"')
-                    new_lines.append(f'      - "{tokens[current_bot]}"')
-                    continue
+                else:
+                    # /dev missing, add it
+                    new_lines.append('      - "/dev"')
+                continue
         
         new_lines.append(line)
         i += 1
