@@ -213,6 +213,19 @@ build() {
 }
 
 run() {
+    # Ensure we're in the correct working directory
+    cd /tmp/meeting-sdk-linux-sample || {
+        echo "❌ Failed to change to working directory: /tmp/meeting-sdk-linux-sample" >&2
+        exit 1
+    }
+    
+    # Debug: Verify videos folder exists
+    if [ ! -d "videos" ]; then
+        echo "⚠️  Warning: videos folder not found in $(pwd)" >&2
+        echo "   Creating videos directory..." >&2
+        mkdir -p videos
+    fi
+    
     # Disable most logging but keep errors visible
     export QT_LOGGING_RULES="*.debug=false;*.warning=false;*.info=false"
     export QT_QPA_PLATFORM=offscreen

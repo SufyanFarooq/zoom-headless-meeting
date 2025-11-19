@@ -3,6 +3,8 @@
 #include <vector>
 #include <algorithm>
 #include <cctype>
+#include <unistd.h>
+#include <cstdlib>
 
 ZoomSDKVideoSource::ZoomSDKVideoSource() : m_isSending(false), m_shouldStop(false), m_isReady(false) {}
 
@@ -103,14 +105,34 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
         transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
     }
     
-    // Try to open video file
-    m_videoCapture.open(videoFilePath);
+    // Resolve path: if relative, make it absolute based on working directory
+    string resolvedPath = videoFilePath;
+    if (videoFilePath[0] != '/') {
+        // Relative path - resolve to absolute
+        char* cwd = getcwd(nullptr, 0);
+        if (cwd) {
+            resolvedPath = string(cwd) + "/" + videoFilePath;
+            free(cwd);
+        }
+    }
+    
+    // Try to open video file with resolved path
+    // Log the resolved path for debugging
+    Log::info("Attempting to open video file: " + resolvedPath);
+    
+    m_videoCapture.open(resolvedPath);
+    
+    // If default backend fails, try FFmpeg backend (more reliable for MP4)
+    if (!m_videoCapture.isOpened()) {
+        Log::info("Default backend failed, trying FFmpeg backend...");
+        m_videoCapture.open(resolvedPath, CAP_FFMPEG);
+    }
     
     // If .H264 or .h264 file fails, try with different backend
     if (!m_videoCapture.isOpened() && (extension == "h264" || extension == "264")) {
         Log::info("Raw H.264 file detected, trying with FFmpeg backend...");
         // Try with explicit backend (FFmpeg)
-        m_videoCapture.open(videoFilePath, CAP_FFMPEG);
+        m_videoCapture.open(resolvedPath, CAP_FFMPEG);
         
         if (!m_videoCapture.isOpened()) {
             Log::error("Failed to open H.264 file. Raw H.264 streams may not be supported.");
@@ -120,8 +142,13 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
         }
     } else if (!m_videoCapture.isOpened()) {
         Log::error("Failed to open video file: " + videoFilePath);
+        Log::error("Resolved path: " + resolvedPath);
         Log::error("Supported formats: MP4, AVI, MOV, MKV");
         Log::error("For H.264 codec, use MP4 container: input-video.mp4");
+        Log::error("Troubleshooting:");
+        Log::error("  1. Check if file exists: ls -la " + resolvedPath);
+        Log::error("  2. Check file permissions");
+        Log::error("  3. Verify video format: ffprobe " + resolvedPath);
         return;
     }
     
