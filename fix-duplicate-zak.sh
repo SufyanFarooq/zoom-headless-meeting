@@ -60,16 +60,16 @@ try:
         if len(zak_indices) > 1:
             print(f"🔧 Fixing {service_name}: Found {len(zak_indices)} --zak entries")
             
-            # Keep only the first --zak entry, remove all others
-            # Remove from end to start to preserve indices
-            for idx in reversed(zak_indices[1:]):
+            # Keep only the LAST --zak entry (after RawAudio), remove all others
+            # Remove from start to end (keep the last one)
+            for idx in reversed(zak_indices[:-1]):  # All except the last one
                 # Remove both --zak and the token after it
                 if idx + 1 < len(command_list):
                     command_list.pop(idx + 1)  # Remove token
                 command_list.pop(idx)  # Remove --zak
             
             fixed_count += 1
-            print(f"   ✅ Removed {len(zak_indices) - 1} duplicate(s), kept first one")
+            print(f"   ✅ Removed {len(zak_indices) - 1} duplicate(s), kept last one (after RawAudio)")
     
     if fixed_count == 0:
         print("✅ No duplicate --zak entries found")
