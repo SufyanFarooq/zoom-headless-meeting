@@ -63,45 +63,45 @@ def update_compose_file(tokens):
             i += 1
             continue
         
-        # In bot section, look for correct insertion point
+        # In bot section, FIRST remove ALL existing --zak entries, THEN insert at correct position
         # ZAK token should be placed AFTER RawVideo and RawAudio subcommands
         # Correct order: --config config.toml -> RawVideo -> RawAudio -> --zak
         if current_bot and tokens.get(current_bot):
-            # Strategy: Find the last video/audio argument, then insert ZAK token
-            # Look for end of RawAudio section (--dir /dev) OR end of RawVideo (if no RawAudio)
+            # Skip ALL existing --zak entries and their tokens (remove them)
+            if '--zak' in line:
+                # Skip --zak line
+                i += 1
+                # Skip token line (long JWT token > 100 chars)
+                if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
+                    i += 1
+                continue
+            # Skip orphaned JWT tokens (long tokens without --zak flag before them)
+            elif re.match(r'^\s+- "', line) and len(line) > 100 and i > 0 and '--zak' not in lines[i-1]:
+                # Check if this is a JWT token (starts with eyJ)
+                if 'eyJ' in line:
+                    i += 1
+                    continue
+            
+            # Strategy: Find the end of RawAudio section (--dir /dev) OR end of RawVideo (if no RawAudio)
             if re.search(r'"/dev"', line) or (re.search(r'--dir', line) and i + 1 < len(lines) and re.search(r'"/dev"', lines[i + 1])):
                 # Found RawAudio end - insert ZAK after this
                 new_lines.append(line)
                 i += 1
                 
-                # Remove ALL existing --zak entries first (skip them)
-                j = i
-                # Look ahead up to 15 lines for ALL --zak entries and remove them
-                while j < min(i + 15, len(lines)):
-                    # Check for --zak flag
-                    if '--zak' in lines[j]:
-                        # Skip --zak line
-                        j += 1
-                        # Skip token line (long JWT token > 100 chars)
-                        if j < len(lines) and re.match(r'^\s+- "', lines[j]) and len(lines[j]) > 100:
-                            j += 1
+                # Skip any remaining --zak entries before inserting
+                while i < len(lines):
+                    if '--zak' in lines[i]:
+                        i += 1
+                        if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
+                            i += 1
                         continue
-                    # Check for orphaned JWT tokens (long tokens without --zak flag before them)
-                    elif re.match(r'^\s+- "', lines[j]) and len(lines[j]) > 100:
-                        # Check if previous line was --zak (should have been skipped already)
-                        # If not, this might be orphaned, skip it
-                        if j > 0 and '--zak' not in lines[j-1]:
-                            j += 1
-                            continue
-                    # If we hit deploy or another section, stop looking
-                    elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[j]):
+                    elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[i]):
                         break
-                    j += 1
+                    i += 1
                 
                 # After removing all existing --zak, add the new one AFTER RawAudio
                 new_lines.append('      - "--zak"')
                 new_lines.append(f'      - "{tokens[current_bot]}"')
-                i = j
                 continue
             # Fallback: If no RawAudio, insert after RawVideo video file line
             elif re.search(r'video-\d+\.mp4', line):
@@ -116,22 +116,20 @@ def update_compose_file(tokens):
                     new_lines.append(line)
                     i += 1
                     
-                    # Remove ALL existing --zak entries
-                    j = i
-                    while j < min(i + 10, len(lines)):
-                        if '--zak' in lines[j]:
-                            j += 1
-                            if j < len(lines) and re.match(r'^\s+- "', lines[j]) and len(lines[j]) > 100:
-                                j += 1
+                    # Skip any remaining --zak entries before inserting
+                    while i < len(lines):
+                        if '--zak' in lines[i]:
+                            i += 1
+                            if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
+                                i += 1
                             continue
-                        elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[j]):
+                        elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[i]):
                             break
-                        j += 1
+                        i += 1
                     
                     # Insert ZAK token
                     new_lines.append('      - "--zak"')
                     new_lines.append(f'      - "{tokens[current_bot]}"')
-                    i = j
                     continue
         
         new_lines.append(line)

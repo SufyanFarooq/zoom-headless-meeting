@@ -26,8 +26,6 @@ services:
       - "Bot-1-Alice"
       - "--config"
       - "config.toml"
-      - "--zak"
-      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI2NmM2NjYwZWNhMTI0ZWQ3YTU3NTM0N2JmZmU0YmZjNCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTY3ODkyLCJpYXQiOjE3NjM1NjA2OTIsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.io1AoT7uOUU99K1-mveesAhDms-R9vc2PKJKRPo4IXA"
       - "RawVideo"
       - "--input"
       - "videos/video-1.mp4"
@@ -35,8 +33,9 @@ services:
       - "--file"
       - "dev-null.pcm"
       - "--dir"
+      - "/dev"
       - "--zak"
-      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI2NmM2NjYwZWNhMTI0ZWQ3YTU3NTM0N2JmZmU0YmZjNCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTY3ODkyLCJpYXQiOjE3NjM1NjA2OTIsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.io1AoT7uOUU99K1-mveesAhDms-R9vc2PKJKRPo4IXA"
+      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiJkYWMwMDM0ZTY4MWU0YmFmYWZmMWVjOGMzZDg4MTcyNyIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNTY4NzE3LCJpYXQiOjE3NjM1NjE1MTcsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.8q5RBiR6WAHEbi76xfXTHwYJyCFP4HNj0INK0vrG1gA"
     deploy:
       resources:
         limits:
