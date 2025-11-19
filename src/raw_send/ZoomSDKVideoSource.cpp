@@ -5,6 +5,7 @@
 #include <cctype>
 #include <unistd.h>
 #include <cstdlib>
+#include <fstream>
 
 ZoomSDKVideoSource::ZoomSDKVideoSource() : m_isSending(false), m_shouldStop(false), m_isReady(false) {}
 
@@ -105,20 +106,47 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
         transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
     }
     
-    // Resolve path: if relative, make it absolute based on working directory
+    // Resolve path: if relative, make it absolute
+    // Always use /tmp/meeting-sdk-linux-sample as base (Docker container working directory)
     string resolvedPath = videoFilePath;
     if (videoFilePath[0] != '/') {
-        // Relative path - resolve to absolute
+        // Relative path - resolve to absolute using known container directory
+        resolvedPath = "/tmp/meeting-sdk-linux-sample/" + videoFilePath;
+        
+        // Remove double slashes (in case videoFilePath starts with /)
+        size_t pos;
+        while ((pos = resolvedPath.find("//")) != string::npos) {
+            resolvedPath.replace(pos, 2, "/");
+        }
+        
+        // Also try getcwd() as fallback for debugging
         char* cwd = getcwd(nullptr, 0);
         if (cwd) {
-            resolvedPath = string(cwd) + "/" + videoFilePath;
+            string cwdPath = string(cwd) + "/" + videoFilePath;
+            // Remove double slashes
+            while ((pos = cwdPath.find("//")) != string::npos) {
+                cwdPath.replace(pos, 2, "/");
+            }
+            Log::info("Current working directory: " + string(cwd));
+            Log::info("Alternative path (from getcwd): " + cwdPath);
             free(cwd);
         }
     }
     
     // Try to open video file with resolved path
-    // Log the resolved path for debugging
+    // Log the resolved path for debugging (IMPORTANT: Use resolved path)
+    Log::info("Video input file (original): " + videoFilePath);
+    Log::info("Video input file (resolved): " + resolvedPath);
     Log::info("Attempting to open video file: " + resolvedPath);
+    
+    // Check if file exists before trying to open
+    ifstream fileCheck(resolvedPath);
+    if (!fileCheck.good()) {
+        Log::error("Video file does not exist: " + resolvedPath);
+        Log::error("Please verify the file exists on the server");
+        return;
+    }
+    fileCheck.close();
     
     m_videoCapture.open(resolvedPath);
     
