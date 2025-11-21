@@ -37,14 +37,9 @@ def update_compose_file(tokens):
         print(f"❌ Compose file not found: {COMPOSE_FILE}")
         return False
     
-    # Create backup
-    backup_file = f"{COMPOSE_FILE}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    # Read compose file
     with open(COMPOSE_FILE, 'r') as f:
         content = f.read()
-    
-    with open(backup_file, 'w') as f:
-        f.write(content)
-    print(f"✅ Backup created: {backup_file}")
     
     # Process each bot
     lines = content.split('\n')

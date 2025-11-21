@@ -117,10 +117,6 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
-# Create backup
-cp "$COMPOSE_FILE" "${COMPOSE_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
-echo "✅ Backup created: ${COMPOSE_FILE}.backup.*"
-
 # Update each bot in compose file
 # Iterate over bots that successfully got tokens
 i=0
@@ -379,7 +375,7 @@ echo ""
 echo "📝 Summary:"
 echo "   - ZAK tokens generated: $SUCCESSFUL_BOTS (out of $TOTAL_BOTS bots)"
 echo "   - Tokens saved to: $TOKENS_FILE"
-echo "   - Compose file: $COMPOSE_FILE (backup created)"
+echo "   - Compose file: $COMPOSE_FILE (updated)"
 echo ""
 echo "💡 Next: Review compose file and test:"
 echo "   docker compose -f $COMPOSE_FILE up --build bot-1"

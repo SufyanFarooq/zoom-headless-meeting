@@ -32,12 +32,6 @@ fi
 # Fallback to bash/sed method
 echo "Using bash script..."
 
-# Create backup
-BACKUP_FILE="${COMPOSE_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
-cp "$COMPOSE_FILE" "$BACKUP_FILE"
-echo "✅ Backup created: $BACKUP_FILE"
-echo ""
-
 # Read tokens from file
 source "$TOKENS_FILE" 2>/dev/null || true
 
