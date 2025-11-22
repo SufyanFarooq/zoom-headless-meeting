@@ -1,0 +1,192 @@
+#!/bin/bash
+
+# Generate flexible bots compose file
+# Usage: ./generate-flexible-bots.sh <video_count> <audio_count> <join_url> <display_name_prefix>
+
+set -e
+
+VIDEO_ONLY_COUNT=${1:-0}
+AUDIO_ONLY_COUNT=${2:-0}
+JOIN_URL=${3:-""}
+DISPLAY_NAME_PREFIX=${4:-"Bot"}
+
+USERS_FILE="${5:-profile-pics/users.txt}"
+NAMES_FILE="profile-pics/names.txt"
+
+# Function to get display name from names.txt
+get_display_name() {
+    local bot_num=$1
+    local name=""
+    
+    # Read name from names.txt (line number = bot number)
+    if [ -f "$NAMES_FILE" ]; then
+        name=$(sed -n "${bot_num}p" "$NAMES_FILE" 2>/dev/null | xargs)
+        
+        # Skip empty lines and comments
+        if [ -z "$name" ] || [[ "$name" =~ ^# ]]; then
+            name=""
+        fi
+    fi
+    
+    # Fallback: If no name found, try to extract from users.txt email
+    if [ -z "$name" ] && [ -f "$USERS_FILE" ]; then
+        local line=$(sed -n "${bot_num}p" "$USERS_FILE" 2>/dev/null)
+        if [ -n "$line" ] && [[ "$line" =~ @ ]]; then
+            local email=$(echo "$line" | awk '{print $1}')
+            name=$(echo "$email" | cut -d'@' -f1)
+            # Capitalize first letter
+            name=$(echo "$name" | sed 's/^./\U&/')
+        fi
+    fi
+    
+    # Final fallback to prefix-number
+    if [ -z "$name" ]; then
+        name="${DISPLAY_NAME_PREFIX}-${bot_num}"
+    fi
+    
+    echo "$name"
+}
+
+COMPOSE_FILE="compose-50-bots.yaml"
+TEMP_FILE="${COMPOSE_FILE}.tmp"
+
+if [ -z "$JOIN_URL" ]; then
+    echo "❌ Error: Join URL is required"
+    exit 1
+fi
+
+# Calculate total bots
+TOTAL_BOTS=$((VIDEO_ONLY_COUNT + AUDIO_ONLY_COUNT))
+
+if [ $TOTAL_BOTS -eq 0 ]; then
+    echo "❌ Error: At least one bot type must be specified"
+    exit 1
+fi
+
+echo "📝 Generating compose file with:"
+echo "   - Video-only bots: $VIDEO_ONLY_COUNT"
+echo "   - Audio-only bots: $AUDIO_ONLY_COUNT"
+echo "   - Total bots: $TOTAL_BOTS"
+
+# Start compose file
+cat > "$TEMP_FILE" << 'EOF'
+services:
+EOF
+
+BOT_NUMBER=1
+
+# Generate Video-only bots
+if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
+    echo "📹 Generating $VIDEO_ONLY_COUNT video-only bots..."
+    for i in $(seq 1 $VIDEO_ONLY_COUNT); do
+        VIDEO_NUM=$(( (BOT_NUMBER - 1) % 100 + 1 ))
+        DISPLAY_NAME=$(get_display_name $BOT_NUMBER)
+        cat >> "$TEMP_FILE" << EOF
+  bot-${BOT_NUMBER}:
+    build: ./
+    platform: linux/amd64
+    container_name: zoom-bot-${BOT_NUMBER}
+    volumes:
+    - .:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=${DISPLAY_NAME}
+    - JOIN_URL=${JOIN_URL}
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - ${JOIN_URL}
+    - --display-name
+    - ${DISPLAY_NAME}
+    - --config
+    - config.toml
+    - RawVideo
+    - --input
+    - videos/video-${VIDEO_NUM}.mp4
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 128M
+    stop_grace_period: 2s
+    restart: 'no'
+EOF
+        BOT_NUMBER=$((BOT_NUMBER + 1))
+    done
+fi
+
+# Generate Audio-only bots
+if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
+    echo "🔊 Generating $AUDIO_ONLY_COUNT audio-only bots..."
+    for i in $(seq 1 $AUDIO_ONLY_COUNT); do
+        DISPLAY_NAME=$(get_display_name $BOT_NUMBER)
+        cat >> "$TEMP_FILE" << EOF
+  bot-${BOT_NUMBER}:
+    build: ./
+    platform: linux/amd64
+    container_name: zoom-bot-${BOT_NUMBER}
+    volumes:
+    - .:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=${DISPLAY_NAME}
+    - JOIN_URL=${JOIN_URL}
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - ${JOIN_URL}
+    - --display-name
+    - ${DISPLAY_NAME}
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+EOF
+        BOT_NUMBER=$((BOT_NUMBER + 1))
+    done
+fi
+
+
+# Add volumes section
+cat >> "$TEMP_FILE" << 'EOF'
+
+volumes:
+  build-cache:
+EOF
+
+# Replace original file
+rm -f "$COMPOSE_FILE"
+mv "$TEMP_FILE" "$COMPOSE_FILE"
+
+echo "✅ Generated $COMPOSE_FILE with $TOTAL_BOTS bots"
+echo "   - Video-only: $VIDEO_ONLY_COUNT"
+echo "   - Audio-only: $AUDIO_ONLY_COUNT"
+

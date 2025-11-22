@@ -56,41 +56,52 @@ BOT_TOKENS=()
 BOT_EMAILS=()
 BOT_NUMS=()  # Track which bot numbers succeeded
 
-while IFS= read -r USER_EMAIL || [ -n "$USER_EMAIL" ]; do
+while IFS= read -r LINE || [ -n "$LINE" ]; do
     # Skip empty lines and comments
-    [[ -z "$USER_EMAIL" || "$USER_EMAIL" =~ ^# ]] && continue
+    [[ -z "$LINE" || "$LINE" =~ ^# ]] && continue
     
-    EMAIL=$(echo "$USER_EMAIL" | awk '{print $1}')  # Get email (first word)
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Bot $BOT_NUM: $EMAIL"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    # Generate ZAK token
-    ZAK_OUTPUT=$(./get-zak-token.sh "$EMAIL" "$ACCESS_TOKEN" 2>&1)
-    ZAK_TOKEN=$(echo "$ZAK_OUTPUT" | grep -A1 "ZAK Token:" | tail -1 | tr -d ' ')
-    
-    if [ -z "$ZAK_TOKEN" ] || [ ${#ZAK_TOKEN} -lt 50 ]; then
-        echo "❌ Failed to generate ZAK token for $EMAIL"
-        echo "$ZAK_OUTPUT" | tail -3
-        echo "⚠️  Skipping bot-$BOT_NUM (will not be added to compose file)"
+    # users.txt should only contain emails (one per line)
+    # If line contains @, it's an email
+    if [[ "$LINE" =~ @ ]]; then
+        EMAIL=$(echo "$LINE" | awk '{print $1}')  # Get email (first word, in case there's extra text)
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Bot $BOT_NUM: $EMAIL (with profile)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        # Generate ZAK token
+        ZAK_OUTPUT=$(./get-zak-token.sh "$EMAIL" "$ACCESS_TOKEN" 2>&1)
+        ZAK_TOKEN=$(echo "$ZAK_OUTPUT" | grep -A1 "ZAK Token:" | tail -1 | tr -d ' ')
+        
+        if [ -z "$ZAK_TOKEN" ] || [ ${#ZAK_TOKEN} -lt 50 ]; then
+            echo "❌ Failed to generate ZAK token for $EMAIL"
+            echo "$ZAK_OUTPUT" | tail -3
+            echo "⚠️  Skipping bot-$BOT_NUM (will not be added to compose file)"
+            echo ""
+            BOT_NUM=$((BOT_NUM + 1))
+            continue
+        fi
+        
+        # Only add to arrays if token generation succeeded
+        BOT_TOKENS+=("$ZAK_TOKEN")
+        BOT_EMAILS+=("$EMAIL")
+        BOT_NUMS+=("$BOT_NUM")
+        
+        echo "✅ ZAK token generated"
         echo ""
-        BOT_NUM=$((BOT_NUM + 1))
-        continue
+        
+        # Save to tokens file
+        echo "BOT${BOT_NUM}_ZAK_TOKEN=$ZAK_TOKEN" >> "$TOKENS_FILE"
+        echo "BOT${BOT_NUM}_EMAIL=$EMAIL" >> "$TOKENS_FILE"
+        echo "" >> "$TOKENS_FILE"
+    else
+        # Empty line or non-email line = guest bot (no ZAK token)
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Bot $BOT_NUM: (guest, no email)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "ℹ️  Guest bot - no ZAK token needed"
+        echo ""
     fi
-    
-    # Only add to arrays if token generation succeeded
-    BOT_TOKENS+=("$ZAK_TOKEN")
-    BOT_EMAILS+=("$EMAIL")
-    BOT_NUMS+=("$BOT_NUM")
-    
-    echo "✅ ZAK token generated"
-    echo ""
-    
-    # Save to tokens file
-    echo "BOT${BOT_NUM}_ZAK_TOKEN=$ZAK_TOKEN" >> "$TOKENS_FILE"
-    echo "BOT${BOT_NUM}_EMAIL=$EMAIL" >> "$TOKENS_FILE"
-    echo "" >> "$TOKENS_FILE"
     
     BOT_NUM=$((BOT_NUM + 1))
 done < "$USERS_FILE"

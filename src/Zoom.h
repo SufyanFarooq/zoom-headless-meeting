@@ -160,7 +160,55 @@ class Zoom : public Singleton<Zoom> {
         // Setup video sending even if recording is disabled
         string videoFile = m_config.videoInputFile();
         Log::info("Checking video input file: " + (videoFile.empty() ? "EMPTY" : videoFile));
-        if (!videoFile.empty()) {
+        
+        // For audio-only bots (RawAudio with no video input), explicitly mute video
+        bool isAudioOnly = m_config.useRawAudio() && videoFile.empty();
+        Log::info("onJoin: useRawAudio=" + string(m_config.useRawAudio() ? "true" : "false") + 
+                  ", videoFile=" + (videoFile.empty() ? "EMPTY" : videoFile) + 
+                  ", isAudioOnly=" + string(isAudioOnly ? "true" : "false"));
+        if (isAudioOnly) {
+            Log::info("Audio-only bot detected - disabling video...");
+            
+            // Disable auto-enable video settings
+            auto* videoSettings = m_settingService->GetVideoSettings();
+            if (videoSettings) {
+                videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(true);
+            }
+            
+            // Ensure no video source is set up for audio-only bots
+            auto* videoSourceHelper = GetRawdataVideoSourceHelper();
+            if (videoSourceHelper) {
+                videoSourceHelper->setExternalVideoSource(nullptr);
+                Log::info("Cleared video source for audio-only bot");
+            }
+            
+            auto* videoCtl = m_meetingService->GetMeetingVideoController();
+            if (videoCtl) {
+                // Wait a bit for meeting to fully initialize before muting
+                thread([&, videoCtl]() {
+                    // Immediate mute attempt
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    SDKError muteErr = videoCtl->MuteVideo();
+                    if (!hasError(muteErr)) {
+                        Log::success("Video muted on join (delayed)");
+                    } else {
+                        Log::error("Failed to mute video on join: " + to_string(muteErr));
+                    }
+                    
+                    // Retry muting multiple times to ensure it stays off
+                    for (int i = 0; i < 10; i++) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                        videoCtl->MuteVideo();
+                    }
+                    
+                    // Continue periodic muting to ensure it stays muted
+                    for (int i = 0; i < 20; i++) {
+                        std::this_thread::sleep_for(std::chrono::seconds(2));
+                        videoCtl->MuteVideo();
+                    }
+                }).detach();
+            }
+        } else if (!videoFile.empty()) {
             Log::info("Calling setupVideoSending()...");
             setupVideoSending();
         } else {

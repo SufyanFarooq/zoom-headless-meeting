@@ -7,10 +7,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-1-Alice
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Sufyan
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -19,26 +17,17 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-1-Alice
+    - Sufyan
     - --config
     - config.toml
     - "--zak"
-    - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiJjMTY0ODU4Mzc4NmU0OTMwYWNmZTA3NjU2N2VhNDFkNSIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNzQwMjYzLCJpYXQiOjE3NjM3MzMwNjMsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.aPZEtIxNVbnQ0FHe2dFjALerr6V9czJC78AQ1hKl93E"
+    - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6Ikl2RVAxQ05UU0w2UWxaVldnbkhuVVEiLCJ6aWQiOiI0YjJjMDE4NGQ2N2Q0NjY4YmQ3OTYzMzUzYTM4NTJmOCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MSwid2NkIjoidXMwNiIsImNsdCI6MCwiZXhwIjoxNzYzNzgyMDc4LCJpYXQiOjE3NjM3NzQ4NzgsImFpZCI6ImtPanJYZWRCUndHbGJHaUN5elFPeVEiLCJjaWQiOiIifQ.nFG7zx3NMOPVaeYmmfq0dJS76c5ujoqgIdRci-X_CG8"
     - RawVideo
     - --input
     - videos/video-1.mp4
-    - RawAudio
-    - --file
-    - dev-null.pcm
-    - --dir
-    - "/dev"
     deploy:
       resources:
         limits:
@@ -57,10 +46,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-2-Bob
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=John Doe
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -69,24 +56,15 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-2-Bob
+    - John Doe
     - --config
     - config.toml
     - RawVideo
     - --input
     - videos/video-2.mp4
-    - RawAudio
-    - --file
-    - dev-null.pcm
-    - --dir
-    - /dev
     deploy:
       resources:
         limits:
@@ -105,10 +83,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-3-Charlie
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Alice
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -117,14 +93,10 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-3-Charlie
+    - Alice
     - --config
     - config.toml
     - RawVideo
@@ -148,10 +120,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-4-Diana
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Sarah
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -160,14 +130,10 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-4-Diana
+    - Sarah
     - --config
     - config.toml
     - RawVideo
@@ -191,10 +157,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-5-Eve
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Bob Smith
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -203,14 +167,10 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-5-Eve
+    - Bob Smith
     - --config
     - config.toml
     - RawVideo
@@ -234,10 +194,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-6-Frank
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Emma Wilson
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -246,14 +204,10 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-6-Frank
+    - Emma Wilson
     - --config
     - config.toml
     - RawVideo
@@ -277,10 +231,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-7-Grace
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Michael Brown
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -289,27 +241,25 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-7-Grace
+    - Michael Brown
     - --config
     - config.toml
-    - RawVideo
-    - --input
-    - videos/video-7.mp4
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 256M
+          cpus: '0.2'
+          memory: 192M
         reservations:
-          cpus: '0.05'
-          memory: 128M
+          cpus: '0.03'
+          memory: 96M
     stop_grace_period: 2s
     restart: 'no'
   bot-8:
@@ -320,10 +270,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-8-Henry
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Olivia Davis
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -332,27 +280,25 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-8-Henry
+    - Olivia Davis
     - --config
     - config.toml
-    - RawVideo
-    - --input
-    - videos/video-8.mp4
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 256M
+          cpus: '0.2'
+          memory: 192M
         reservations:
-          cpus: '0.05'
-          memory: 128M
+          cpus: '0.03'
+          memory: 96M
     stop_grace_period: 2s
     restart: 'no'
   bot-9:
@@ -363,10 +309,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-9-Iris
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=James Miller
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -375,27 +319,25 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-9-Iris
+    - James Miller
     - --config
     - config.toml
-    - RawVideo
-    - --input
-    - videos/video-9.mp4
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 256M
+          cpus: '0.2'
+          memory: 192M
         reservations:
-          cpus: '0.05'
-          memory: 128M
+          cpus: '0.03'
+          memory: 96M
     stop_grace_period: 2s
     restart: 'no'
   bot-10:
@@ -406,10 +348,8 @@ services:
     - .:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
-    - DISPLAY_NAME=Bot-10-Jack
-    - JOIN_URL=https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
-    - CLIENT_ID=vdPX1q2bSQKip0X17LqXAw
-    - CLIENT_SECRET=Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
+    - DISPLAY_NAME=Sophia Garcia
+    - JOIN_URL=https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
@@ -418,28 +358,27 @@ services:
     - --
     - ./bin/entry-bot-optimized.sh
     command:
-    - --client-id
-    - vdPX1q2bSQKip0X17LqXAw
-    - --client-secret
-    - Te1YdXaBL6IScwdBVlNF0kay75KDMkyz
     - --join-url
-    - https://us05web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=86931044022
+    - https://us06web.zoom.us/j/5067498331?pwd=4aJ3z9zb8f0ZaKiouEYdWNFhBh1V6d.1&omn=81101816351
     - --display-name
-    - Bot-10-Jack
+    - Sophia Garcia
     - --config
     - config.toml
-    - RawVideo
-    - --input
-    - videos/video-10.mp4
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 256M
+          cpus: '0.2'
+          memory: 192M
         reservations:
-          cpus: '0.05'
-          memory: 128M
+          cpus: '0.03'
+          memory: 96M
     stop_grace_period: 2s
     restart: 'no'
+
 volumes:
-  build-cache: null
+  build-cache:

@@ -74,6 +74,11 @@ SDKError Zoom::auth() {
 
     generateJWT(m_config.clientId(), m_config.clientSecret());
 
+    // Debug: Log JWT info (first 50 chars only for security)
+    Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
+    Log::info("Client ID: " + m_config.clientId());
+    Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
+
     AuthContext ctx;
     ctx.jwt_token =  m_jwt.c_str();
 
@@ -92,6 +97,10 @@ void Zoom::generateJWT(const string& key, const string& secret) {
             .set_payload_claim("appKey", claim(key))
             .set_payload_claim("tokenExp", claim(m_exp))
             .sign(algorithm::hs256{secret});
+
+    // Debug: Log basic JWT info
+    Log::info("JWT generated (length: " + to_string(m_jwt.length()) + ")");
+    Log::info("Client ID: " + key);
 }
 
 SDKError Zoom::join() {
@@ -132,8 +141,17 @@ SDKError Zoom::join() {
     param.vanityID = nullptr;
     param.customer_key = nullptr;
     param.webinarToken = nullptr;
-    param.isVideoOff = false;
+    
+    // For audio-only bots (RawAudio with no video input), disable video
+    bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
+    param.isVideoOff = isAudioOnly;
     param.isAudioOff = true;  // Join muted
+    
+    if (isAudioOnly) {
+        Log::info("Audio-only bot: joining with video OFF (isVideoOff=true)");
+    } else {
+        Log::info("Video bot: joining with video ON (isVideoOff=false)");
+    }
 
     if (!m_config.zak().empty()) {
         Log::success("used ZAK token");
@@ -156,6 +174,14 @@ SDKError Zoom::join() {
     if (audioSettings) {
         audioSettings->EnableAutoJoinAudio(false);
     }
+    
+    // For audio-only bots, also disable auto-enable video settings before joining
+    if (isAudioOnly) {
+        auto* videoSettings = m_settingService->GetVideoSettings();
+        if (videoSettings) {
+            videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(true);
+        }
+    }
 
     return m_meetingService->Join(joinParam);
 }
@@ -170,7 +196,10 @@ SDKError Zoom::start() {
     normalUser.vanityID = nullptr;
     normalUser.customer_key = nullptr;
     normalUser.isAudioOff = true;  // Start muted
-    normalUser.isVideoOff = false;
+    
+    // For audio-only bots (RawAudio with no video input), disable video
+    bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
+    normalUser.isVideoOff = isAudioOnly;
 
     err = m_meetingService->Start(startParam);
     hasError(err, "start meeting");

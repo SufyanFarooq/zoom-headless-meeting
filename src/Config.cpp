@@ -21,8 +21,10 @@ Config::Config() :
     m_app.add_option("-b, --on-behalf", m_onBehalfToken, "Join the meeting on behalf of a user using a token");
 
 
-    m_app.add_option("--client-id", m_clientId, "Zoom Meeting Client ID")->required();
-    m_app.add_option("--client-secret", m_clientSecret, "Zoom Meeting Client Secret")->required();
+    // Client ID/Secret should come from config.toml by default
+    // Command line args are optional and only used if provided
+    m_app.add_option("--client-id", m_clientId, "Zoom Meeting Client ID");
+    m_app.add_option("--client-secret", m_clientSecret, "Zoom Meeting Client Secret");
 
     m_app.add_flag("-s, --start", m_isMeetingStart, "Start a Zoom Meeting");
 
@@ -49,12 +51,24 @@ int Config::read(int ac, char **av) {
     if (!m_joinUrl.empty())
         parseUrl(m_joinUrl);
 
-    // Debug: Check if RawVideo subcommand was activated and input was read
+    // Debug: Check what was parsed BEFORE clearing
+    if (m_rawRecordAudioCmd->parsed()) {
+        cerr << "RawAudio subcommand activated" << endl;
+        cerr << "Video input file BEFORE clearing: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
+    }
     if (m_rawRecordVideoCmd->parsed()) {
         cerr << "RawVideo subcommand activated" << endl;
         cerr << "Video input file: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
     } else {
         cerr << "RawVideo subcommand NOT activated" << endl;
+    }
+
+    // If RawAudio is used (not RawVideo), clear video input file from config
+    // This prevents config.toml [RawVideo] section from affecting audio-only bots
+    if (m_rawRecordAudioCmd->parsed() && !m_rawRecordVideoCmd->parsed()) {
+        cerr << "Clearing video input file for audio-only bot..." << endl;
+        m_videoInputFile.clear();
+        cerr << "Video input file AFTER clearing: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
     }
 
    return 0;
