@@ -190,3 +190,6 @@ bot-data/
 # Video files (too large for git, should be uploaded separately to server)
 videos/*.mp4
 !videos/.gitkeep
+
+# Profile pictures (only PNG files, not .txt files)
+profile-pics/*.jpg
