@@ -105,7 +105,7 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
     entrypoint:
     - /tini
     - --
-    - ./bin/entry-bot-optimized.sh
+    - /tmp/meeting-sdk-linux-sample/bin/entry-bot-optimized.sh
     command:
     - --join-url
     - ${JOIN_URL}
@@ -152,7 +152,7 @@ if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
     entrypoint:
     - /tini
     - --
-    - ./bin/entry-bot-optimized.sh
+    - /tmp/meeting-sdk-linux-sample/bin/entry-bot-optimized.sh
     command:
     - --join-url
     - ${JOIN_URL}
