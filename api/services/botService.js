@@ -138,7 +138,14 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
     }
     
     // Call bot server API to create bots
-    const botServerUrl = server.server_url;
+    let botServerUrl = server.server_url;
+    
+    // Fix localhost IPv6 issue - replace localhost with 127.0.0.1
+    // This prevents axios from trying to connect via IPv6 (::1) which may not be available
+    if (botServerUrl && botServerUrl.includes('localhost')) {
+      botServerUrl = botServerUrl.replace(/localhost/g, '127.0.0.1');
+      console.log(`🔧 Fixed bot server URL: ${server.server_url} -> ${botServerUrl}`);
+    }
     
     // Ensure videoCount and audioCount are numbers
     // Validate inputs first
@@ -257,7 +264,12 @@ async function stopBots(meetingId, containerIds, serverId) {
       throw new Error('Bot server not found');
     }
     
-    const serverUrl = serverResult.rows[0].server_url;
+    let serverUrl = serverResult.rows[0].server_url;
+    
+    // Fix localhost IPv6 issue
+    if (serverUrl && serverUrl.includes('localhost')) {
+      serverUrl = serverUrl.replace(/localhost/g, '127.0.0.1');
+    }
     
     // Call bot server API to stop bots
     await axios.post(`${serverUrl}/api/bots/stop`, {
