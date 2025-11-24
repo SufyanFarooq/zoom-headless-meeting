@@ -140,9 +140,25 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
     // Call bot server API to create bots
     let botServerUrl = server.server_url;
     
-    // Fix localhost IPv6 issue - replace localhost with 127.0.0.1
-    // This prevents axios from trying to connect via IPv6 (::1) which may not be available
-    if (botServerUrl && botServerUrl.includes('localhost')) {
+    // Fix Docker networking: In Docker Compose, containers communicate via service names
+    // Replace localhost/127.0.0.1 with service name for internal Docker network
+    // Check if we're running in Docker (via environment or network)
+    const isDocker = process.env.DB_HOST && process.env.DB_HOST !== 'localhost';
+    
+    if (isDocker && botServerUrl) {
+      // If URL contains localhost or 127.0.0.1, replace with service name
+      if (botServerUrl.includes('localhost') || botServerUrl.includes('127.0.0.1')) {
+        // Extract protocol and port
+        const urlMatch = botServerUrl.match(/^(https?:\/\/)([^:]+)(:\d+)?/);
+        if (urlMatch) {
+          const protocol = urlMatch[1];
+          const port = urlMatch[3] || ':3001';
+          botServerUrl = `${protocol}bot-server${port}`;
+          console.log(`🔧 Fixed bot server URL for Docker: ${server.server_url} -> ${botServerUrl}`);
+        }
+      }
+    } else if (botServerUrl && botServerUrl.includes('localhost')) {
+      // For non-Docker or external access, use 127.0.0.1 instead of localhost
       botServerUrl = botServerUrl.replace(/localhost/g, '127.0.0.1');
       console.log(`🔧 Fixed bot server URL: ${server.server_url} -> ${botServerUrl}`);
     }
@@ -266,8 +282,19 @@ async function stopBots(meetingId, containerIds, serverId) {
     
     let serverUrl = serverResult.rows[0].server_url;
     
-    // Fix localhost IPv6 issue
-    if (serverUrl && serverUrl.includes('localhost')) {
+    // Fix Docker networking
+    const isDocker = process.env.DB_HOST && process.env.DB_HOST !== 'localhost';
+    
+    if (isDocker && serverUrl) {
+      if (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) {
+        const urlMatch = serverUrl.match(/^(https?:\/\/)([^:]+)(:\d+)?/);
+        if (urlMatch) {
+          const protocol = urlMatch[1];
+          const port = urlMatch[3] || ':3001';
+          serverUrl = `${protocol}bot-server${port}`;
+        }
+      }
+    } else if (serverUrl && serverUrl.includes('localhost')) {
       serverUrl = serverUrl.replace(/localhost/g, '127.0.0.1');
     }
     
