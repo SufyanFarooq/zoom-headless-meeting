@@ -1,6 +1,12 @@
 # Build folder
 build
 
+# Environment files (sensitive credentials)
+.env
+.env.local
+.env.*.local
+*.env
+
 # output folder
 out
 

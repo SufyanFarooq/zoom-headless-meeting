@@ -21,7 +21,7 @@ Complete guide for deploying the Zoom Bot Dashboard with APIs and scheduler to p
 
 ```bash
 # On server
-cd /opt/zoom-bot-dashboard
+cd /opt/zoom-headless-meeting
 git pull origin main
 
 # Rebuild and restart
@@ -75,7 +75,7 @@ ssh user@server-ip
 # Extract files
 cd /opt
 tar -xzf zoom-bot-dashboard.tar.gz
-cd zoom-bot-dashboard
+cd zoom-headless-meeting  # or rename extracted folder to match your server path
 
 # Create .env file
 cp .env.example .env
@@ -97,7 +97,7 @@ ZOOM_CLIENT_ID=your_client_id
 ZOOM_CLIENT_SECRET=your_client_secret
 
 # Bot Server (if separate)
-HOST_PROJECT_PATH=/opt/zoom-bot-dashboard
+HOST_PROJECT_PATH=/opt/zoom-headless-meeting
 
 # API Port
 PORT=3000
@@ -327,4 +327,5 @@ For issues:
 3. Verify `.env` configuration
 4. Check database connectivity
 5. Verify bot server registration
+
 
