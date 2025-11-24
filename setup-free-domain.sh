@@ -72,20 +72,42 @@ else
     exit 1
 fi
 
-# Wait for DNS propagation
+# Wait for DNS propagation and verify
 echo ""
-echo -e "${YELLOW}⏳ Waiting 30 seconds for DNS propagation...${NC}"
-sleep 30
+echo -e "${YELLOW}⏳ Waiting for DNS propagation...${NC}"
+MAX_RETRIES=6
+RETRY_COUNT=0
+DNS_READY=false
 
-# Verify DNS
-echo -e "${YELLOW}🔍 Verifying DNS...${NC}"
-DNS_IP=$(dig +short ${DUCKDNS_DOMAIN} @8.8.8.8 | tail -1)
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    sleep 10
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo -e "${BLUE}Checking DNS... (Attempt $RETRY_COUNT/$MAX_RETRIES)${NC}"
+    
+    # Try multiple DNS servers
+    DNS_IP1=$(dig +short ${DUCKDNS_DOMAIN} @8.8.8.8 2>/dev/null | tail -1)
+    DNS_IP2=$(dig +short ${DUCKDNS_DOMAIN} @1.1.1.1 2>/dev/null | tail -1)
+    DNS_IP3=$(host ${DUCKDNS_DOMAIN} 2>/dev/null | grep "has address" | awk '{print $4}')
+    
+    if [ "$DNS_IP1" = "$SERVER_IP" ] || [ "$DNS_IP2" = "$SERVER_IP" ] || [ "$DNS_IP3" = "$SERVER_IP" ]; then
+        echo -e "${GREEN}✅ DNS is pointing to correct IP (${SERVER_IP})${NC}"
+        DNS_READY=true
+        break
+    else
+        echo -e "${YELLOW}   DNS not ready yet... (found: ${DNS_IP1:-none})${NC}"
+    fi
+done
 
-if [ "$DNS_IP" = "$SERVER_IP" ]; then
-    echo -e "${GREEN}✅ DNS is pointing to correct IP${NC}"
-else
-    echo -e "${YELLOW}⚠️  DNS might not be ready yet (IP: ${DNS_IP})${NC}"
-    echo "Continuing anyway... DNS might take a few more minutes"
+if [ "$DNS_READY" = false ]; then
+    echo -e "${YELLOW}⚠️  DNS might not be fully propagated yet${NC}"
+    echo -e "${YELLOW}   Current DNS shows: ${DNS_IP1:-not found}${NC}"
+    echo -e "${YELLOW}   Expected: ${SERVER_IP}${NC}"
+    echo ""
+    read -p "Continue anyway? (y/n): " CONTINUE_DNS
+    if [ "$CONTINUE_DNS" != "y" ]; then
+        echo "Exiting. Please wait a few minutes and try again."
+        exit 1
+    fi
 fi
 
 echo ""
@@ -184,31 +206,95 @@ echo -e "${YELLOW}🔒 Step 5: Getting SSL certificate from Let's Encrypt...${NC
 echo "This may take a minute..."
 echo ""
 
-# Certbot will automatically update nginx config with SSL
+# First, verify DNS is accessible from internet
+echo -e "${YELLOW}🔍 Verifying domain is accessible...${NC}"
+HTTP_TEST=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://${DUCKDNS_DOMAIN}/health 2>/dev/null || echo "000")
+
+if [ "$HTTP_TEST" != "200" ] && [ "$HTTP_TEST" != "000" ]; then
+    echo -e "${GREEN}✅ Domain is accessible (HTTP ${HTTP_TEST})${NC}"
+elif [ "$HTTP_TEST" = "000" ]; then
+    echo -e "${YELLOW}⚠️  Domain not accessible yet, but continuing...${NC}"
+fi
+
+echo ""
+
+# Try nginx mode first
+echo -e "${YELLOW}Attempting SSL certificate with nginx mode...${NC}"
 certbot --nginx \
     -d ${DUCKDNS_DOMAIN} \
     --email ${EMAIL} \
     --agree-tos \
     --non-interactive \
     --redirect \
-    --no-eff-email
+    --no-eff-email \
+    --quiet
 
-if [ $? -eq 0 ]; then
+SSL_SUCCESS=$?
+
+if [ $SSL_SUCCESS -eq 0 ]; then
     echo -e "${GREEN}✅ SSL certificate installed successfully${NC}"
     echo -e "${GREEN}✅ Nginx config automatically updated with SSL${NC}"
 else
-    echo -e "${YELLOW}⚠️  SSL certificate installation failed${NC}"
-    echo "This might be due to DNS not being ready yet."
+    echo -e "${YELLOW}⚠️  Nginx mode failed, trying standalone mode...${NC}"
     echo ""
-    echo -e "${YELLOW}You can try again later with:${NC}"
-    echo "  sudo certbot --nginx -d ${DUCKDNS_DOMAIN}"
-    echo ""
-    echo -e "${YELLOW}For now, you can access via HTTP:${NC}"
-    echo "  http://${DUCKDNS_DOMAIN}"
-    echo ""
-    read -p "Continue anyway? (y/n): " CONTINUE
-    if [ "$CONTINUE" != "y" ]; then
-        exit 1
+    
+    # Stop nginx temporarily for standalone mode
+    systemctl stop nginx
+    
+    # Try standalone mode
+    certbot certonly --standalone \
+        -d ${DUCKDNS_DOMAIN} \
+        --email ${EMAIL} \
+        --agree-tos \
+        --non-interactive \
+        --no-eff-email \
+        --preferred-challenges http
+    
+    STANDALONE_SUCCESS=$?
+    
+    # Restart nginx
+    systemctl start nginx
+    
+    if [ $STANDALONE_SUCCESS -eq 0 ]; then
+        echo -e "${GREEN}✅ SSL certificate obtained via standalone mode${NC}"
+        echo -e "${YELLOW}📝 Now updating nginx config with SSL...${NC}"
+        
+        # Manually update nginx config with SSL
+        certbot --nginx \
+            -d ${DUCKDNS_DOMAIN} \
+            --email ${EMAIL} \
+            --agree-tos \
+            --non-interactive \
+            --redirect \
+            --no-eff-email \
+            --quiet
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✅ Nginx config updated with SSL${NC}"
+            SSL_SUCCESS=0
+        else
+            echo -e "${RED}❌ Failed to update nginx config${NC}"
+            echo -e "${YELLOW}You may need to manually configure SSL in nginx${NC}"
+        fi
+    else
+        echo -e "${RED}❌ SSL certificate installation failed${NC}"
+        echo ""
+        echo -e "${YELLOW}Possible reasons:${NC}"
+        echo "  1. DNS not fully propagated (wait 5-10 minutes)"
+        echo "  2. Port 80 not accessible from internet"
+        echo "  3. Firewall blocking Let's Encrypt"
+        echo ""
+        echo -e "${YELLOW}You can try again later with:${NC}"
+        echo "  sudo certbot --nginx -d ${DUCKDNS_DOMAIN}"
+        echo ""
+        echo -e "${YELLOW}For now, you can access via HTTP:${NC}"
+        echo "  http://${DUCKDNS_DOMAIN}"
+        echo ""
+        read -p "Continue setup without SSL? (y/n): " CONTINUE
+        if [ "$CONTINUE" != "y" ]; then
+            exit 1
+        fi
+        SSL_SUCCESS=1
     fi
 fi
 
@@ -262,10 +348,20 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}✅ Free Domain Setup Complete!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "${GREEN}🌐 Your Dashboard URLs:${NC}"
-echo -e "   📊 Dashboard: ${BLUE}https://${DUCKDNS_DOMAIN}${NC}"
-echo -e "   🔌 API: ${BLUE}https://${DUCKDNS_DOMAIN}/api${NC}"
-echo -e "   🏥 Health: ${BLUE}https://${DUCKDNS_DOMAIN}/health${NC}"
+if [ $SSL_SUCCESS -eq 0 ]; then
+    echo -e "${GREEN}🌐 Your Dashboard URLs (HTTPS):${NC}"
+    echo -e "   📊 Dashboard: ${BLUE}https://${DUCKDNS_DOMAIN}${NC}"
+    echo -e "   🔌 API: ${BLUE}https://${DUCKDNS_DOMAIN}/api${NC}"
+    echo -e "   🏥 Health: ${BLUE}https://${DUCKDNS_DOMAIN}/health${NC}"
+else
+    echo -e "${YELLOW}🌐 Your Dashboard URLs (HTTP - SSL not installed):${NC}"
+    echo -e "   📊 Dashboard: ${BLUE}http://${DUCKDNS_DOMAIN}${NC}"
+    echo -e "   🔌 API: ${BLUE}http://${DUCKDNS_DOMAIN}/api${NC}"
+    echo -e "   🏥 Health: ${BLUE}http://${DUCKDNS_DOMAIN}/health${NC}"
+    echo ""
+    echo -e "${YELLOW}💡 To install SSL later, run:${NC}"
+    echo -e "   ${BLUE}sudo certbot --nginx -d ${DUCKDNS_DOMAIN}${NC}"
+fi
 echo ""
 echo -e "${YELLOW}📝 Configuration Saved:${NC}"
 echo -e "   Domain: ${DUCKDNS_DOMAIN}"
