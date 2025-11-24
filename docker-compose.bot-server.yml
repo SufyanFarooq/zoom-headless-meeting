@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Bot Server API
+  bot-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot-server
+    container_name: zoom-bot-server-api
+    environment:
+      BOT_SERVER_PORT: 3001
+      SERVER_CAPACITY: ${SERVER_CAPACITY:-100}
+      BOT_PROJECT_DIR: /app/bot-project
+    ports:
+      - "${BOT_SERVER_PORT:-3001}:3001"
+    volumes:
+      - .:/app/bot-project
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - zoom-network
+    restart: unless-stopped
+
+networks:
+  zoom-network:
+    driver: bridge
+

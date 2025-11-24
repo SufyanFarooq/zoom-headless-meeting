@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Generate flexible bots compose file
-# Usage: ./generate-flexible-bots.sh <video_count> <audio_count> <join_url> <display_name_prefix>
+# Usage: ./generate-flexible-bots.sh <video_count> <audio_count> <join_url> <display_name_prefix> [users_file] [name_type]
+# name_type: "Indian" (default) or "International" - determines which names file to use
 
 set -e
 
@@ -11,7 +12,14 @@ JOIN_URL=${3:-""}
 DISPLAY_NAME_PREFIX=${4:-"Bot"}
 
 USERS_FILE="${5:-profile-pics/users.txt}"
-NAMES_FILE="profile-pics/names.txt"
+NAME_TYPE="${6:-Indian}"
+
+# Select names file based on name type
+if [ "$NAME_TYPE" = "International" ]; then
+    NAMES_FILE="profile-pics/names-international.txt"
+else
+    NAMES_FILE="profile-pics/names.txt"
+fi
 
 # Function to get display name from names.txt
 get_display_name() {
@@ -83,11 +91,10 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
         DISPLAY_NAME=$(get_display_name $BOT_NUMBER)
         cat >> "$TEMP_FILE" << EOF
   bot-${BOT_NUMBER}:
-    build: ./
-    platform: linux/amd64
+    image: zoom-bot:latest
     container_name: zoom-bot-${BOT_NUMBER}
     volumes:
-    - .:/tmp/meeting-sdk-linux-sample
+    - ${HOST_PROJECT_PATH:-.}:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
     - DISPLAY_NAME=${DISPLAY_NAME}
@@ -131,11 +138,10 @@ if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
         DISPLAY_NAME=$(get_display_name $BOT_NUMBER)
         cat >> "$TEMP_FILE" << EOF
   bot-${BOT_NUMBER}:
-    build: ./
-    platform: linux/amd64
+    image: zoom-bot:latest
     container_name: zoom-bot-${BOT_NUMBER}
     volumes:
-    - .:/tmp/meeting-sdk-linux-sample
+    - ${HOST_PROJECT_PATH:-.}:/tmp/meeting-sdk-linux-sample
     - build-cache:/tmp/meeting-sdk-linux-sample/build
     environment:
     - DISPLAY_NAME=${DISPLAY_NAME}

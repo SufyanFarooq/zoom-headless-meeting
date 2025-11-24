@@ -2,18 +2,23 @@
 
 # Automated script to:
 # 1. Read emails from users.txt
-# 2. Generate ZAK tokens for each
+# 2. Generate ZAK tokens for each (sequential or parallel)
 # 3. Update compose file automatically
 
 set -e
 
 if [ $# -lt 3 ]; then
-    echo "Usage: $0 <account_id> <client_id> <client_secret> [users_file]"
+    echo "Usage: $0 <account_id> <client_id> <client_secret> [users_file] [parallel_jobs]"
     echo ""
     echo "Example:"
     echo "  $0 kOjrXedBRwGlbGiCyzQOyQ 9bk9CyXgSgqggGe5InpVMA OiftYuJ6cM6QtDbex64P4T6MM5q1JEBS"
     echo ""
-    echo "Optional: users_file (default: profile-pics/users.txt)"
+    echo "Optional:"
+    echo "  users_file (default: profile-pics/users.txt)"
+    echo "  parallel_jobs (default: 0 = sequential, use 10-20 for parallel)"
+    echo ""
+    echo "For large batches (50+ bots), use parallel generation:"
+    echo "  $0 ... profile-pics/users.txt 20"
     exit 1
 fi
 
@@ -21,14 +26,29 @@ ACCOUNT_ID="$1"
 CLIENT_ID="$2"
 CLIENT_SECRET="$3"
 USERS_FILE="${4:-profile-pics/users.txt}"
+PARALLEL_JOBS="${5:-0}"
 
 if [ ! -f "$USERS_FILE" ]; then
     echo "❌ Error: Users file not found: $USERS_FILE"
     exit 1
 fi
 
+# Count emails to determine if parallel is beneficial
+EMAIL_COUNT=$(grep -c "@" "$USERS_FILE" 2>/dev/null || echo "0")
+
+# Auto-enable parallel for large batches
+if [ "$PARALLEL_JOBS" -eq 0 ] && [ "$EMAIL_COUNT" -ge 50 ]; then
+    PARALLEL_JOBS=10
+    echo "💡 Auto-enabling parallel generation (10 jobs) for $EMAIL_COUNT emails"
+fi
+
 echo "🚀 Automated Bot Setup with ZAK Tokens"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ "$PARALLEL_JOBS" -gt 0 ]; then
+    echo "   Mode: Parallel ($PARALLEL_JOBS jobs)"
+else
+    echo "   Mode: Sequential"
+fi
 echo ""
 
 # Get access token
@@ -41,9 +61,37 @@ fi
 echo "✅ Access token obtained"
 echo ""
 
-# Generate ZAK tokens for all users
-echo "Step 2: Generating ZAK tokens..."
-echo ""
+# Generate ZAK tokens (parallel or sequential)
+if [ "$PARALLEL_JOBS" -gt 0 ]; then
+    echo "Step 2: Generating ZAK tokens in parallel ($PARALLEL_JOBS jobs)..."
+    echo ""
+    
+    # Use parallel script
+    if [ -f "./generate-zak-tokens-parallel.sh" ]; then
+        chmod +x ./generate-zak-tokens-parallel.sh
+        if ! ./generate-zak-tokens-parallel.sh "$ACCOUNT_ID" "$CLIENT_ID" "$CLIENT_SECRET" "$USERS_FILE" "$PARALLEL_JOBS"; then
+            echo "❌ Parallel token generation failed"
+            exit 1
+        fi
+        # Parallel script generates bot-zak-tokens.env, now continue to compose file update
+        TOKENS_FILE="bot-zak-tokens.env"
+        if [ ! -f "$TOKENS_FILE" ]; then
+            echo "❌ Error: Tokens file not generated: $TOKENS_FILE"
+            exit 1
+        fi
+        echo ""
+        echo "✅ Parallel token generation complete, continuing to compose file update..."
+        echo ""
+    else
+        echo "⚠️  Parallel script not found, falling back to sequential"
+        PARALLEL_JOBS=0
+    fi
+fi
+
+# Sequential generation (if not using parallel or parallel script not found)
+if [ "$PARALLEL_JOBS" -eq 0 ]; then
+    echo "Step 2: Generating ZAK tokens (sequential)..."
+    echo ""
 
 TOKENS_FILE="bot-zak-tokens.env"
 echo "# ZAK Tokens for bots (auto-generated on $(date))" > "$TOKENS_FILE"
@@ -66,10 +114,11 @@ while IFS= read -r LINE || [ -n "$LINE" ]; do
         EMAIL=$(echo "$LINE" | awk '{print $1}')  # Get email (first word, in case there's extra text)
         
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Bot $BOT_NUM: $EMAIL (with profile)"
+        echo "[$BOT_NUM/$EMAIL_COUNT] Bot $BOT_NUM: $EMAIL (with profile)"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
         # Generate ZAK token
+        echo "   ⏳ Generating ZAK token..."
         ZAK_OUTPUT=$(./get-zak-token.sh "$EMAIL" "$ACCESS_TOKEN" 2>&1)
         ZAK_TOKEN=$(echo "$ZAK_OUTPUT" | grep -A1 "ZAK Token:" | tail -1 | tr -d ' ')
         
@@ -118,6 +167,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✅ Generated ZAK tokens for $SUCCESSFUL_BOTS bots (out of $TOTAL_BOTS total)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+fi
 
 # Update compose file
 echo "Step 3: Updating compose file..."

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoom Services - Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <h1>ZOOM SERVICES</h1>
+            </div>
+            <div class="usage-chart">
+                <div class="chart-container">
+                    <div class="chart-legend">
+                        <span class="legend-item submitted">Submitted</span>
+                        <span class="legend-item remaining">Remaining</span>
+                    </div>
+                    <div class="pie-chart" id="usageChart">
+                        <div class="chart-text">
+                            <div id="usageText">Usage: 0 / 2000</div>
+                        </div>
+                    </div>
+                </div>
+                <a href="#" class="add-names-link" onclick="showAddNamesModal()">Add custom names</a>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Left Panel -->
+            <div class="left-panel">
+                <!-- All Meetings Section -->
+                <section class="meetings-section">
+                    <div class="section-header">
+                        <h2>All Meetings</h2>
+                        <button class="btn-download" onclick="downloadDetails()">DOWNLOAD DETAIL'S</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="meetingsTable">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Meet</th>
+                                    <th>Total</th>
+                                    <th>Video</th>
+                                    <th>Audio</th>
+                                    <th>Start</th>
+                                    <th>Time out</th>
+                                    <th>Nm</th>
+                                    <th>Type</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="meetingsTableBody">
+                                <tr>
+                                    <td colspan="10" class="no-data">No active meetings</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Scheduled Tasks Section -->
+                <section class="scheduled-section">
+                    <h2>Scheduled Tasks</h2>
+                    <div class="table-container">
+                        <table id="schedulesTable">
+                            <thead>
+                                <tr>
+                                    <th>Meet ID</th>
+                                    <th>Members</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Scheduled Time</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schedulesTableBody">
+                                <tr>
+                                    <td colspan="7" class="no-data">No scheduled tasks</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Panel - Form -->
+            <div class="right-panel">
+                <form id="meetingForm" class="meeting-form">
+                    <h3>Create Meeting</h3>
+                    
+                    <div class="form-group">
+                        <label for="meetingId">Meeting ID:</label>
+                        <input type="text" id="meetingId" name="meetingId" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Meeting Password:</label>
+                        <input type="text" id="password" name="password" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="totalMembers">Total Members (must be divisible by 10 and not zero):</label>
+                        <input type="number" id="totalMembers" name="totalMembers" min="10" step="10" required>
+                        <small class="error-message" id="totalMembersError"></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="videoCount">Video Bots:</label>
+                        <input type="number" id="videoCount" name="videoCount" min="0" step="1" required>
+                        <small class="error-message" id="videoCountError"></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="audioCount">Audio Bots:</label>
+                        <input type="number" id="audioCount" name="audioCount" min="0" step="1" required>
+                        <small class="error-message" id="audioCountError"></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nameType">Name:</label>
+                        <select id="nameType" name="nameType" required>
+                            <option value="Indian">Indian</option>
+                            <option value="International">International</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="meetingType">Meeting Type:</label>
+                        <select id="meetingType" name="meetingType" required>
+                            <option value="Normal Member">Normal Member</option>
+                            <option value="Profile Pic Member">Profile Pic Member</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="timeout">Timeout (in seconds):</label>
+                        <input type="number" id="timeout" name="timeout" value="7200" min="60" step="60">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enableSchedule" onchange="toggleSchedule()">
+                            Enable Scheduling
+                        </label>
+                    </div>
+
+                    <div class="form-group" id="scheduleGroup" style="display: none;">
+                        <label for="scheduledTime">Schedule Task (IST Format):</label>
+                        <input type="datetime-local" id="scheduledTime" name="scheduledTime">
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-submit">SUBMIT</button>
+                        <button type="button" class="btn-cancel" onclick="resetForm()">CANCEL</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Names Modal -->
+    <div id="addNamesModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddNamesModal()">&times;</span>
+            <h3>Add Custom Names</h3>
+            <form id="addNamesForm">
+                <div class="form-group">
+                    <label for="nameTypeSelect">Name Type:</label>
+                    <select id="nameTypeSelect" required>
+                        <option value="Indian">Indian</option>
+                        <option value="International">International</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="customName">Name:</label>
+                    <input type="text" id="customName" required>
+                </div>
+                <button type="submit" class="btn-submit">Add Name</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js?v=2"></script>
+</body>
+</html>
+

@@ -9,8 +9,18 @@ import sys
 import os
 from datetime import datetime
 
-COMPOSE_FILE = "compose-50-bots.yaml"
-TOKENS_FILE = "bot-zak-tokens.env"
+# Get script directory to ensure we use absolute paths
+# Try to get script location, fallback to current working directory
+try:
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    SCRIPT_DIR = os.getcwd()
+
+# Use current working directory (where script is executed from)
+# This ensures files are found when run from container
+WORK_DIR = os.getcwd()
+COMPOSE_FILE = os.path.join(WORK_DIR, "compose-50-bots.yaml")
+TOKENS_FILE = os.path.join(WORK_DIR, "bot-zak-tokens.env")
 
 def load_tokens():
     """Load ZAK tokens from env file"""
@@ -141,6 +151,8 @@ def update_compose_file(tokens):
 
 def main():
     print("🔄 Updating compose file with ZAK tokens...")
+    print(f"   Compose file: {COMPOSE_FILE}")
+    print(f"   Tokens file: {TOKENS_FILE}")
     print("")
     
     tokens = load_tokens()

@@ -1,0 +1,96 @@
+version: '3.8'
+
+# Full stack: Dashboard + Database + Bot Server
+# Use this for single-server deployment
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: zoom-dashboard-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-zoom_bots}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zoom-network
+
+  # Dashboard API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: zoom-dashboard-api
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-zoom_bots}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      PORT: 3000
+      ZOOM_ACCOUNT_ID: ${ZOOM_ACCOUNT_ID}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./profile-pics:/app/profile-pics
+    networks:
+      - zoom-network
+    restart: unless-stopped
+
+  # Dashboard UI (Nginx)
+  dashboard:
+    image: nginx:alpine
+    container_name: zoom-dashboard-ui
+    volumes:
+      - ./dashboard:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${DASHBOARD_PORT:-8080}:80"
+    depends_on:
+      - api
+    networks:
+      - zoom-network
+    restart: unless-stopped
+
+  # Bot Server API (optional - for single server)
+  bot-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot-server
+    container_name: zoom-bot-server-api
+    environment:
+      BOT_SERVER_PORT: 3001
+      SERVER_CAPACITY: ${SERVER_CAPACITY:-100}
+      BOT_PROJECT_DIR: /app/bot-project
+      HOST_PROJECT_PATH: "/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample"
+    ports:
+      - "${BOT_SERVER_PORT:-3001}:3001"
+    volumes:
+      - .:/app/bot-project
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - zoom-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  zoom-network:
+    driver: bridge
+
