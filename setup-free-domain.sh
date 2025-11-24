@@ -29,16 +29,23 @@ echo "2. Sign in with Google/GitHub/Reddit"
 echo "3. Create a subdomain (e.g., 'myzoom')"
 echo "4. Copy your token from the dashboard"
 echo ""
-read -p "Enter your DuckDNS subdomain (e.g., myzoom): " DUCKDNS_SUBDOMAIN
+read -p "Enter your DuckDNS subdomain (e.g., myzoom or myzoom.duckdns.org): " DUCKDNS_INPUT
 read -p "Enter your DuckDNS token: " DUCKDNS_TOKEN
 read -p "Enter your email (for SSL certificate): " EMAIL
 
-if [ -z "$DUCKDNS_SUBDOMAIN" ] || [ -z "$DUCKDNS_TOKEN" ] || [ -z "$EMAIL" ]; then
+if [ -z "$DUCKDNS_INPUT" ] || [ -z "$DUCKDNS_TOKEN" ] || [ -z "$EMAIL" ]; then
     echo -e "${RED}❌ All fields are required${NC}"
     exit 1
 fi
 
-DUCKDNS_DOMAIN="${DUCKDNS_SUBDOMAIN}.duckdns.org"
+# Extract subdomain if user entered full domain
+if [[ "$DUCKDNS_INPUT" == *".duckdns.org"* ]]; then
+    DUCKDNS_SUBDOMAIN=$(echo "$DUCKDNS_INPUT" | cut -d'.' -f1)
+    DUCKDNS_DOMAIN="$DUCKDNS_INPUT"
+else
+    DUCKDNS_SUBDOMAIN="$DUCKDNS_INPUT"
+    DUCKDNS_DOMAIN="${DUCKDNS_SUBDOMAIN}.duckdns.org"
+fi
 echo ""
 echo -e "${GREEN}✅ Domain: ${DUCKDNS_DOMAIN}${NC}"
 echo ""
@@ -88,10 +95,10 @@ echo -e "${YELLOW}📦 Step 3: Installing Nginx and Certbot...${NC}"
 apt update
 apt install -y nginx certbot python3-certbot-nginx curl
 
-# Step 4: Create Nginx configuration
+# Step 4: Create Nginx configuration (HTTP only first, SSL will be added by certbot)
 echo -e "${YELLOW}📝 Step 4: Creating Nginx configuration...${NC}"
 cat > /etc/nginx/sites-available/zoom-bot-dashboard <<EOF
-# HTTP to HTTPS redirect
+# HTTP Configuration (will be updated to HTTPS by certbot)
 server {
     listen 80;
     server_name ${DUCKDNS_DOMAIN} www.${DUCKDNS_DOMAIN};
@@ -100,32 +107,6 @@ server {
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
-    
-    # Redirect all other HTTP to HTTPS
-    location / {
-        return 301 https://\$server_name\$request_uri;
-    }
-}
-
-# HTTPS Configuration (will be updated by certbot)
-server {
-    listen 443 ssl http2;
-    server_name ${DUCKDNS_DOMAIN} www.${DUCKDNS_DOMAIN};
-
-    # SSL Certificate (will be added by certbot)
-    # ssl_certificate /etc/letsencrypt/live/${DUCKDNS_DOMAIN}/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/${DUCKDNS_DOMAIN}/privkey.pem;
-    
-    # SSL Configuration
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-
-    # Security Headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     # Dashboard UI
     location / {
@@ -203,21 +184,32 @@ echo -e "${YELLOW}🔒 Step 5: Getting SSL certificate from Let's Encrypt...${NC
 echo "This may take a minute..."
 echo ""
 
+# Certbot will automatically update nginx config with SSL
 certbot --nginx \
     -d ${DUCKDNS_DOMAIN} \
-    -d www.${DUCKDNS_DOMAIN} \
     --email ${EMAIL} \
     --agree-tos \
     --non-interactive \
-    --redirect
+    --redirect \
+    --no-eff-email
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ SSL certificate installed successfully${NC}"
+    echo -e "${GREEN}✅ Nginx config automatically updated with SSL${NC}"
 else
-    echo -e "${RED}❌ SSL certificate installation failed${NC}"
+    echo -e "${YELLOW}⚠️  SSL certificate installation failed${NC}"
     echo "This might be due to DNS not being ready yet."
-    echo "Wait a few minutes and run: sudo certbot --nginx -d ${DUCKDNS_DOMAIN}"
-    exit 1
+    echo ""
+    echo -e "${YELLOW}You can try again later with:${NC}"
+    echo "  sudo certbot --nginx -d ${DUCKDNS_DOMAIN}"
+    echo ""
+    echo -e "${YELLOW}For now, you can access via HTTP:${NC}"
+    echo "  http://${DUCKDNS_DOMAIN}"
+    echo ""
+    read -p "Continue anyway? (y/n): " CONTINUE
+    if [ "$CONTINUE" != "y" ]; then
+        exit 1
+    fi
 fi
 
 # Step 6: Setup auto-renewal
