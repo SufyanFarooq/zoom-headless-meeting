@@ -102,10 +102,11 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
     entrypoint:
     - /tini
     - --
-    - /tmp/meeting-sdk-linux-sample/bin/entry-bot-optimized.sh
+    - ./bin/entry-bot-optimized.sh
     command:
     - --join-url
     - ${JOIN_URL}
@@ -149,10 +150,11 @@ if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
     entrypoint:
     - /tini
     - --
-    - /tmp/meeting-sdk-linux-sample/bin/entry-bot-optimized.sh
+    - ./bin/entry-bot-optimized.sh
     command:
     - --join-url
     - ${JOIN_URL}
