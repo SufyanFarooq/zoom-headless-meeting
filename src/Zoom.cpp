@@ -149,6 +149,8 @@ SDKError Zoom::join() {
     
     if (isAudioOnly) {
         Log::info("Audio-only bot: joining with video OFF (isVideoOff=true)");
+        // Ensure video is explicitly disabled at join time
+        // This should make the video disable icon appear in Zoom UI
     } else {
         Log::info("Video bot: joining with video ON (isVideoOff=false)");
     }

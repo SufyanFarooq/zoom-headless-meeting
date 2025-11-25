@@ -175,38 +175,59 @@ class Zoom : public Singleton<Zoom> {
                 videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(true);
             }
             
-            // Ensure no video source is set up for audio-only bots
+            // CRITICAL FIX: For audio-only bots to show video disabled icon
+            // Problem: When video source is nullptr, Zoom SDK doesn't register video capability
+            // Solution: Create a dummy video source, register it, then mute video
+            // This ensures Zoom SDK knows video exists (but is disabled), so icon shows
+            
+            // Step 1: Create a dummy video source to register video capability
+            // We'll create it but never send frames - just to register capability
             auto* videoSourceHelper = GetRawdataVideoSourceHelper();
             if (videoSourceHelper) {
-                videoSourceHelper->setExternalVideoSource(nullptr);
-                Log::info("Cleared video source for audio-only bot");
+                // Create a minimal video source object (but don't start sending)
+                // This registers video capability with Zoom SDK
+                if (!m_videoSource) {
+                    m_videoSource = new ZoomSDKVideoSource();
+                }
+                
+                // Set the video source to register capability (even though we won't send frames)
+                SDKError sourceErr = videoSourceHelper->setExternalVideoSource(m_videoSource);
+                if (!hasError(sourceErr)) {
+                    Log::info("Video source registered for audio-only bot (capability enabled)");
+                } else {
+                    Log::error("Failed to register video source: " + to_string(sourceErr));
+                    // Fallback: clear source and try mute-only approach
+                    videoSourceHelper->setExternalVideoSource(nullptr);
+                }
             }
             
+            // Step 2: Aggressively mute video to show disabled icon
+            // Now that video capability is registered, muting should show the icon
             auto* videoCtl = m_meetingService->GetMeetingVideoController();
             if (videoCtl) {
-                // Wait a bit for meeting to fully initialize before muting
                 thread([&, videoCtl]() {
-                    // Immediate mute attempt
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    // Immediate mute (0ms) - should show icon now that capability is registered
                     SDKError muteErr = videoCtl->MuteVideo();
                     if (!hasError(muteErr)) {
-                        Log::success("Video muted on join (delayed)");
+                        Log::success("Video muted immediately (0ms) - icon should appear");
                     } else {
-                        Log::error("Failed to mute video on join: " + to_string(muteErr));
+                        Log::error("First mute failed: " + to_string(muteErr) + " - will retry");
                     }
                     
-                    // Retry muting multiple times to ensure it stays off
-                    for (int i = 0; i < 10; i++) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                        videoCtl->MuteVideo();
+                    // Aggressive retries to ensure icon appears
+                    int delays[] = {100, 200, 500, 1000};
+                    for (int i = 0; i < 4; i++) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(delays[i]));
+                        SDKError err = videoCtl->MuteVideo();
+                        if (!hasError(err) && i == 0) {
+                            Log::info("Video muted at " + to_string(delays[i]) + "ms - icon should appear");
+                        }
                     }
                     
-                    // Continue periodic muting to ensure it stays muted
-                    for (int i = 0; i < 20; i++) {
-                        std::this_thread::sleep_for(std::chrono::seconds(2));
-                        videoCtl->MuteVideo();
-                    }
+                    Log::info("Video mute attempts completed - icon should be visible");
                 }).detach();
+            } else {
+                Log::error("Video controller not available");
             }
         } else if (!videoFile.empty()) {
             Log::info("Calling setupVideoSending()...");
