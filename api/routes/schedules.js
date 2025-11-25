@@ -37,28 +37,50 @@ router.post('/', async (req, res) => {
     const [hours, minutes] = timePart.split(':').map(Number);
     
     // Create a Date object treating the input as IST (UTC+5:30)
-    // We'll create it in UTC and then subtract 5:30 to get the actual UTC time
+    // IST is UTC+5:30, so to convert IST to UTC, we subtract 5:30
+    // Method: Create UTC date, then subtract 5 hours 30 minutes
     const scheduledTimeUTC = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
     
     // Subtract 5 hours 30 minutes to convert IST to UTC
-    scheduledTimeUTC.setUTCHours(scheduledTimeUTC.getUTCHours() - 5);
-    scheduledTimeUTC.setUTCMinutes(scheduledTimeUTC.getUTCMinutes() - 30);
+    // Use getTime() to avoid date rollover issues
+    const istOffsetMs = (5 * 60 + 30) * 60 * 1000; // 5:30 in milliseconds
+    scheduledTimeUTC.setTime(scheduledTimeUTC.getTime() - istOffsetMs);
     
     // Validate: scheduled time must be in the future (at least 1 minute from now)
     const nowUTC = new Date();
     const minFutureTime = new Date(nowUTC.getTime() + 60000); // 1 minute from now
     
+    // Calculate IST time for better error message (correctly)
+    // IST = UTC + 5:30, so to get IST from UTC, we add 5:30
+    const nowISTTimestamp = new Date(nowUTC.getTime() + istOffsetMs);
+    // Format IST time correctly (using UTC methods since we've already added offset)
+    const nowISTYear = nowISTTimestamp.getUTCFullYear();
+    const nowISTMonth = String(nowISTTimestamp.getUTCMonth() + 1).padStart(2, '0');
+    const nowISTDay = String(nowISTTimestamp.getUTCDate()).padStart(2, '0');
+    const nowISTHours = String(nowISTTimestamp.getUTCHours()).padStart(2, '0');
+    const nowISTMinutes = String(nowISTTimestamp.getUTCMinutes()).padStart(2, '0');
+    const nowISTString = `${nowISTYear}-${nowISTMonth}-${nowISTDay}T${nowISTHours}:${nowISTMinutes}`;
+    
+    // Calculate minimum future time in IST
+    const minFutureISTTimestamp = new Date(minFutureTime.getTime() + istOffsetMs);
+    const minFutureISTYear = minFutureISTTimestamp.getUTCFullYear();
+    const minFutureISTMonth = String(minFutureISTTimestamp.getUTCMonth() + 1).padStart(2, '0');
+    const minFutureISTDay = String(minFutureISTTimestamp.getUTCDate()).padStart(2, '0');
+    const minFutureISTHours = String(minFutureISTTimestamp.getUTCHours()).padStart(2, '0');
+    const minFutureISTMinutes = String(minFutureISTTimestamp.getUTCMinutes()).padStart(2, '0');
+    const minFutureISTString = `${minFutureISTYear}-${minFutureISTMonth}-${minFutureISTDay}T${minFutureISTHours}:${minFutureISTMinutes}`;
+    
     if (scheduledTimeUTC <= nowUTC) {
       return res.status(400).json({ 
         error: 'Scheduled time must be in the future',
-        message: `Scheduled time (${scheduledTimeIST} IST) is in the past. Current time is ${nowUTC.toISOString()} UTC. Please schedule for at least 1 minute in the future.`
+        message: `Scheduled time (${scheduledTimeIST} IST) is in the past. Current time is ${nowISTString} IST (${nowUTC.toISOString()} UTC). Please schedule for at least 1 minute in the future (minimum: ${minFutureISTString} IST).`
       });
     }
     
     if (scheduledTimeUTC < minFutureTime) {
       return res.status(400).json({ 
         error: 'Scheduled time too soon',
-        message: 'Scheduled time must be at least 1 minute in the future to allow proper scheduling.'
+        message: `Scheduled time must be at least 1 minute in the future. Current time: ${nowISTString} IST. Minimum scheduled time: ${minFutureISTString} IST. Your scheduled time: ${scheduledTimeIST} IST.`
       });
     }
     
