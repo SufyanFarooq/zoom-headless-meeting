@@ -327,14 +327,28 @@ router.get('/me', async (req, res) => {
       user: result.rows[0]
     });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+    console.error('Error in /api/auth/me:', {
+      error: error.message,
+      name: error.name,
+      stack: error.stack,
+      authHeader: req.headers.authorization ? 'present' : 'missing'
+    });
+    
+    if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ 
         error: 'Unauthorized',
-        message: 'Invalid or expired token. Please login again.' 
+        message: 'Invalid token. Please login again.',
+        details: error.message
       });
     }
     
-    console.error('Error getting user info:', error);
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        message: 'Token expired. Please login again.' 
+      });
+    }
+    
     res.status(500).json({ 
       error: 'Failed to get user info',
       message: error.message 
