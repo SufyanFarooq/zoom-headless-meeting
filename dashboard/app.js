@@ -5,44 +5,163 @@ const API_BASE_URL = window.location.hostname === 'localhost' && window.location
     ? 'http://localhost:3000/api' 
     : '/api';
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-    loadMeetings();
-    loadSchedules();
-    loadUsage();
+// Check authentication on page load
+window.addEventListener('DOMContentLoaded', () => {
+    checkAuthentication();
+});
+
+// Check if user is authenticated
+function checkAuthentication() {
+    const token = localStorage.getItem('authToken');
     
-    // Refresh every 10 seconds
-    setInterval(() => {
+    if (!token) {
+        // Redirect to login if no token
+        if (window.location.pathname !== '/login.html' && !window.location.pathname.endsWith('login.html')) {
+            window.location.href = 'login.html';
+            return;
+        }
+    } else {
+        // Verify token is still valid
+        verifyToken(token);
+    }
+}
+
+// Verify token and load dashboard
+async function verifyToken(token) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            // Token invalid, redirect to login
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            if (window.location.pathname !== '/login.html' && !window.location.pathname.endsWith('login.html')) {
+                window.location.href = 'login.html';
+            }
+            return;
+        }
+        
+        // Token is valid, load dashboard
+        if (window.location.pathname === '/login.html' || window.location.pathname.endsWith('login.html')) {
+            window.location.href = 'index.html';
+            return;
+        }
+        
+        // Load dashboard data
         loadMeetings();
         loadSchedules();
         loadUsage();
+        
+        // Display user info
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user.username) {
+            displayUserInfo(user);
+        }
+    } catch (error) {
+        console.error('Token verification error:', error);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        if (window.location.pathname !== '/login.html' && !window.location.pathname.endsWith('login.html')) {
+            window.location.href = 'login.html';
+        }
+    }
+}
+
+// Display user info in header
+function displayUserInfo(user) {
+    const header = document.querySelector('.header');
+    if (header) {
+        // Check if user info already exists
+        let userInfo = document.getElementById('userInfo');
+        if (!userInfo) {
+            userInfo = document.createElement('div');
+            userInfo.id = 'userInfo';
+            userInfo.style.cssText = 'display: flex; align-items: center; gap: 15px; margin-left: auto;';
+            header.appendChild(userInfo);
+        }
+        
+        userInfo.innerHTML = `
+            <span style="color: #fff; font-weight: 500;">${user.username}</span>
+            <button onclick="logout()" style="padding: 8px 16px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 500;">Logout</button>
+        `;
+    }
+}
+
+// Logout function
+function logout() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+}
+
+// Helper function to add auth token to fetch requests
+function fetchWithAuth(url, options = {}) {
+    const token = localStorage.getItem('authToken');
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+    };
+    
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return fetch(url, {
+        ...options,
+        headers
+    }).then(response => {
+        if (response.status === 401) {
+            // Unauthorized, redirect to login
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+            return Promise.reject(new Error('Unauthorized'));
+        }
+        return response;
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Authentication check is handled above
+    // Data loading will happen after token verification
+    
+    // Refresh every 10 seconds (only if authenticated)
+    setInterval(() => {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            loadMeetings();
+            loadSchedules();
+            loadUsage();
+        }
     }, 10000);
     
-    // Form submission
+    // Form submission (only if on dashboard page)
     const meetingForm = document.getElementById('meetingForm');
     const addNamesForm = document.getElementById('addNamesForm');
     const totalMembersInput = document.getElementById('totalMembers');
     const videoCountInput = document.getElementById('videoCount');
     const audioCountInput = document.getElementById('audioCount');
     
-    if (!meetingForm || !addNamesForm || !totalMembersInput || !videoCountInput || !audioCountInput) {
-        console.error('Required form elements not found. Please refresh the page.');
-        return;
+    if (meetingForm && addNamesForm && totalMembersInput && videoCountInput && audioCountInput) {
+        meetingForm.addEventListener('submit', handleFormSubmit);
+        addNamesForm.addEventListener('submit', handleAddName);
+        
+        // Members input validation
+        totalMembersInput.addEventListener('input', validateTotalMembers);
+        videoCountInput.addEventListener('input', validateVideoAudio);
+        audioCountInput.addEventListener('input', validateVideoAudio);
     }
-    
-    meetingForm.addEventListener('submit', handleFormSubmit);
-    addNamesForm.addEventListener('submit', handleAddName);
-    
-    // Members input validation
-    totalMembersInput.addEventListener('input', validateTotalMembers);
-    videoCountInput.addEventListener('input', validateVideoAudio);
-    audioCountInput.addEventListener('input', validateVideoAudio);
 });
 
 // Load active meetings
 async function loadMeetings() {
     try {
-        const response = await fetch(`${API_BASE_URL}/meetings?status=active`);
+        const response = await fetchWithAuth(`${API_BASE_URL}/meetings?status=active`);
         const data = await response.json();
         
         const tbody = document.getElementById('meetingsTableBody');
@@ -77,7 +196,7 @@ async function loadMeetings() {
 // Load scheduled tasks
 async function loadSchedules() {
     try {
-        const response = await fetch(`${API_BASE_URL}/schedules?status=pending`);
+        const response = await fetchWithAuth(`${API_BASE_URL}/schedules?status=pending`);
         const data = await response.json();
         
         const tbody = document.getElementById('schedulesTableBody');
@@ -128,7 +247,7 @@ async function loadSchedules() {
 // Load usage statistics
 async function loadUsage() {
     try {
-        const response = await fetch(`${API_BASE_URL}/usage`);
+        const response = await fetchWithAuth(`${API_BASE_URL}/usage`);
         const data = await response.json();
         
         if (data.usage) {
@@ -223,7 +342,7 @@ async function handleFormSubmit(e) {
                 scheduledTimeIST: utcTime // Backend expects UTC format
             };
             
-            const response = await fetch(`${API_BASE_URL}/schedules`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/schedules`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(scheduleData)
@@ -243,7 +362,7 @@ async function handleFormSubmit(e) {
             console.log('Sending request to:', `${API_BASE_URL}/meetings`);
             console.log('Request body:', JSON.stringify(formData));
             
-            const response = await fetch(`${API_BASE_URL}/meetings`, {
+            const response = await fetchWithAuth(`${API_BASE_URL}/meetings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
@@ -408,7 +527,7 @@ async function stopMeeting(meetingId) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes
         
-        const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}`, {
+        const response = await fetchWithAuth(`${API_BASE_URL}/meetings/${meetingId}`, {
             method: 'DELETE',
             signal: controller.signal
         });
@@ -472,7 +591,7 @@ async function cancelSchedule(scheduleId) {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}/schedules/${scheduleId}`, {
+        const response = await fetchWithAuth(`${API_BASE_URL}/schedules/${scheduleId}`, {
             method: 'DELETE'
         });
         
@@ -541,7 +660,7 @@ async function handleAddName(e) {
     const name = document.getElementById('customName').value;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/names`, {
+        const response = await fetchWithAuth(`${API_BASE_URL}/names`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, nameType })

@@ -7,6 +7,8 @@ const schedulesRouter = require('./routes/schedules');
 const usageRouter = require('./routes/usage');
 const namesRouter = require('./routes/names');
 const botServersRouter = require('./routes/bot-servers');
+const authRouter = require('./routes/auth');
+const { authenticate } = require('./middleware/auth');
 const scheduler = require('./workers/scheduler');
 
 const app = express();
@@ -22,12 +24,15 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes
-app.use('/api/meetings', meetingsRouter);
-app.use('/api/schedules', schedulesRouter);
-app.use('/api/usage', usageRouter);
-app.use('/api/names', namesRouter);
-app.use('/api/bot-servers', botServersRouter);
+// Public Routes
+app.use('/api/auth', authRouter);
+
+// Protected Routes (require authentication)
+app.use('/api/meetings', authenticate, meetingsRouter);
+app.use('/api/schedules', authenticate, schedulesRouter);
+app.use('/api/usage', authenticate, usageRouter);
+app.use('/api/names', authenticate, namesRouter);
+app.use('/api/bot-servers', authenticate, botServersRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

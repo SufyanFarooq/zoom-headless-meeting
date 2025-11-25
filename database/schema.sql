@@ -58,6 +58,18 @@ CREATE TABLE IF NOT EXISTS bot_servers (
   last_heartbeat TIMESTAMP DEFAULT NOW()
 );
 
+-- Users table - for authentication
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  reset_token VARCHAR(255),
+  reset_token_expiry TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Initialize usage tracking
 INSERT INTO usage_tracking (total_submitted, remaining, limit_value) 
 VALUES (0, 2000, 2000)
@@ -69,4 +81,6 @@ CREATE INDEX IF NOT EXISTS idx_meetings_created_at ON meetings(created_at);
 CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_status ON scheduled_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_time ON scheduled_tasks(scheduled_time_ist);
 CREATE INDEX IF NOT EXISTS idx_bot_servers_status ON bot_servers(status);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
