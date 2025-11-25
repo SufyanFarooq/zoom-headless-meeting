@@ -112,9 +112,26 @@ router.post('/', async (req, res) => {
       ]
     );
     
+    // Convert UTC back to IST for response (same as GET route)
+    const scheduledTimeUTCFromDB = new Date(result.rows[0].scheduled_time_ist);
+    const scheduledTimeIST = new Date(scheduledTimeUTCFromDB);
+    scheduledTimeIST.setUTCHours(scheduledTimeIST.getUTCHours() + 5);
+    scheduledTimeIST.setUTCMinutes(scheduledTimeIST.getUTCMinutes() + 30);
+    
+    // Format as IST string (YYYY-MM-DDTHH:mm format)
+    const year = scheduledTimeIST.getUTCFullYear();
+    const month = String(scheduledTimeIST.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(scheduledTimeIST.getUTCDate()).padStart(2, '0');
+    const hours = String(scheduledTimeIST.getUTCHours()).padStart(2, '0');
+    const minutes = String(scheduledTimeIST.getUTCMinutes()).padStart(2, '0');
+    const istString = `${year}-${month}-${day}T${hours}:${minutes}`;
+    
     res.status(201).json({
       success: true,
-      schedule: result.rows[0]
+      schedule: {
+        ...result.rows[0],
+        scheduled_time_ist: istString
+      }
     });
   } catch (error) {
     console.error('Error creating schedule:', error);
