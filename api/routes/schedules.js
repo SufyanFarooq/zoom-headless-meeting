@@ -26,61 +26,60 @@ router.post('/', async (req, res) => {
       });
     }
     
-    // Convert IST to UTC for storage
-    // IST is UTC+5:30
-    // Input format: "2025-11-24T04:41" (IST time, no timezone info)
-    // We need to treat this as IST and convert to UTC
+    // Accept time in UTC format (ISO 8601) or local timezone format
+    // Input can be:
+    // 1. ISO string with timezone: "2025-11-25T14:10:00Z" or "2025-11-25T14:10:00+05:30"
+    // 2. Local datetime: "2025-11-25T19:40" (will be treated as user's local timezone)
     
-    // Parse the input string (format: YYYY-MM-DDTHH:mm)
-    const [datePart, timePart] = scheduledTimeIST.split('T');
-    const [year, month, day] = datePart.split('-').map(Number);
-    const [hours, minutes] = timePart.split(':').map(Number);
+    let scheduledTimeUTC;
     
-    // Create a Date object treating the input as IST (UTC+5:30)
-    // IST is UTC+5:30, so to convert IST to UTC, we subtract 5:30
-    // Method: Create UTC date, then subtract 5 hours 30 minutes
-    const scheduledTimeUTC = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
+    // Check if input is ISO string with timezone info
+    if (scheduledTimeIST.includes('Z') || scheduledTimeIST.includes('+') || scheduledTimeIST.includes('-', 10)) {
+      // ISO format with timezone - parse directly
+      scheduledTimeUTC = new Date(scheduledTimeIST);
+    } else {
+      // Local datetime format (YYYY-MM-DDTHH:mm) - treat as UTC
+      // Frontend should send UTC time, but if local time is sent, we'll parse it
+      const [datePart, timePart] = scheduledTimeIST.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      // Create UTC date directly (assuming input is already in UTC)
+      scheduledTimeUTC = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
+    }
     
-    // Subtract 5 hours 30 minutes to convert IST to UTC
-    // Use getTime() to avoid date rollover issues
-    const istOffsetMs = (5 * 60 + 30) * 60 * 1000; // 5:30 in milliseconds
-    scheduledTimeUTC.setTime(scheduledTimeUTC.getTime() - istOffsetMs);
+    // Validate the date is valid
+    if (isNaN(scheduledTimeUTC.getTime())) {
+      return res.status(400).json({ 
+        error: 'Invalid scheduled time format',
+        message: `Invalid time format: ${scheduledTimeIST}. Please use UTC time format (YYYY-MM-DDTHH:mm) or ISO 8601 format.`
+      });
+    }
     
     // Validate: scheduled time must be in the future (at least 1 minute from now)
     const nowUTC = new Date();
     const minFutureTime = new Date(nowUTC.getTime() + 60000); // 1 minute from now
     
-    // Calculate IST time for better error message (correctly)
-    // IST = UTC + 5:30, so to get IST from UTC, we add 5:30
-    const nowISTTimestamp = new Date(nowUTC.getTime() + istOffsetMs);
-    // Format IST time correctly (using UTC methods since we've already added offset)
-    const nowISTYear = nowISTTimestamp.getUTCFullYear();
-    const nowISTMonth = String(nowISTTimestamp.getUTCMonth() + 1).padStart(2, '0');
-    const nowISTDay = String(nowISTTimestamp.getUTCDate()).padStart(2, '0');
-    const nowISTHours = String(nowISTTimestamp.getUTCHours()).padStart(2, '0');
-    const nowISTMinutes = String(nowISTTimestamp.getUTCMinutes()).padStart(2, '0');
-    const nowISTString = `${nowISTYear}-${nowISTMonth}-${nowISTDay}T${nowISTHours}:${nowISTMinutes}`;
-    
-    // Calculate minimum future time in IST
-    const minFutureISTTimestamp = new Date(minFutureTime.getTime() + istOffsetMs);
-    const minFutureISTYear = minFutureISTTimestamp.getUTCFullYear();
-    const minFutureISTMonth = String(minFutureISTTimestamp.getUTCMonth() + 1).padStart(2, '0');
-    const minFutureISTDay = String(minFutureISTTimestamp.getUTCDate()).padStart(2, '0');
-    const minFutureISTHours = String(minFutureISTTimestamp.getUTCHours()).padStart(2, '0');
-    const minFutureISTMinutes = String(minFutureISTTimestamp.getUTCMinutes()).padStart(2, '0');
-    const minFutureISTString = `${minFutureISTYear}-${minFutureISTMonth}-${minFutureISTDay}T${minFutureISTHours}:${minFutureISTMinutes}`;
+    // Debug logging
+    console.log('[Schedule Validation]', {
+      input: scheduledTimeIST,
+      scheduledTimeUTC: scheduledTimeUTC.toISOString(),
+      nowUTC: nowUTC.toISOString(),
+      isPast: scheduledTimeUTC <= nowUTC,
+      isTooSoon: scheduledTimeUTC < minFutureTime
+    });
     
     if (scheduledTimeUTC <= nowUTC) {
       return res.status(400).json({ 
         error: 'Scheduled time must be in the future',
-        message: `Scheduled time (${scheduledTimeIST} IST) is in the past. Current time is ${nowISTString} IST (${nowUTC.toISOString()} UTC). Please schedule for at least 1 minute in the future (minimum: ${minFutureISTString} IST).`
+        message: `Scheduled time (${scheduledTimeUTC.toISOString()} UTC) is in the past. Current server time: ${nowUTC.toISOString()} UTC. Please schedule for at least 1 minute in the future.`
       });
     }
     
     if (scheduledTimeUTC < minFutureTime) {
       return res.status(400).json({ 
         error: 'Scheduled time too soon',
-        message: `Scheduled time must be at least 1 minute in the future. Current time: ${nowISTString} IST. Minimum scheduled time: ${minFutureISTString} IST. Your scheduled time: ${scheduledTimeIST} IST.`
+        message: `Scheduled time must be at least 1 minute in the future. Current time: ${nowUTC.toISOString()} UTC. Minimum scheduled time: ${minFutureTime.toISOString()} UTC. Your scheduled time: ${scheduledTimeUTC.toISOString()} UTC.`
       });
     }
     
@@ -112,25 +111,22 @@ router.post('/', async (req, res) => {
       ]
     );
     
-    // Convert UTC back to IST for response (same as GET route)
+    // Return UTC time (stored in database)
     const scheduledTimeUTCFromDB = new Date(result.rows[0].scheduled_time_ist);
-    const scheduledTimeIST = new Date(scheduledTimeUTCFromDB);
-    scheduledTimeIST.setUTCHours(scheduledTimeIST.getUTCHours() + 5);
-    scheduledTimeIST.setUTCMinutes(scheduledTimeIST.getUTCMinutes() + 30);
     
-    // Format as IST string (YYYY-MM-DDTHH:mm format)
-    const year = scheduledTimeIST.getUTCFullYear();
-    const month = String(scheduledTimeIST.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(scheduledTimeIST.getUTCDate()).padStart(2, '0');
-    const hours = String(scheduledTimeIST.getUTCHours()).padStart(2, '0');
-    const minutes = String(scheduledTimeIST.getUTCMinutes()).padStart(2, '0');
-    const istString = `${year}-${month}-${day}T${hours}:${minutes}`;
+    // Format as UTC string (YYYY-MM-DDTHH:mm format)
+    const year = scheduledTimeUTCFromDB.getUTCFullYear();
+    const month = String(scheduledTimeUTCFromDB.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(scheduledTimeUTCFromDB.getUTCDate()).padStart(2, '0');
+    const hours = String(scheduledTimeUTCFromDB.getUTCHours()).padStart(2, '0');
+    const minutes = String(scheduledTimeUTCFromDB.getUTCMinutes()).padStart(2, '0');
+    const utcString = `${year}-${month}-${day}T${hours}:${minutes}`;
     
     res.status(201).json({
       success: true,
       schedule: {
         ...result.rows[0],
-        scheduled_time_ist: istString
+        scheduled_time_ist: utcString // UTC format
       }
     });
   } catch (error) {
@@ -159,28 +155,23 @@ router.get('/', async (req, res) => {
     
     const result = await query(queryText, params);
     
-    // Convert UTC back to IST for display
-    // IST is UTC+5:30
+    // Return UTC time (stored in database)
+    // Frontend will handle timezone conversion for display
     const schedules = result.rows.map(row => {
       const scheduledTimeUTC = new Date(row.scheduled_time_ist);
       
-      // Add 5 hours 30 minutes to convert UTC to IST
-      const scheduledTimeIST = new Date(scheduledTimeUTC);
-      scheduledTimeIST.setUTCHours(scheduledTimeIST.getUTCHours() + 5);
-      scheduledTimeIST.setUTCMinutes(scheduledTimeIST.getUTCMinutes() + 30);
-      
-      // Format as IST string (YYYY-MM-DDTHH:mm format for datetime-local input)
-      const year = scheduledTimeIST.getUTCFullYear();
-      const month = String(scheduledTimeIST.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(scheduledTimeIST.getUTCDate()).padStart(2, '0');
-      const hours = String(scheduledTimeIST.getUTCHours()).padStart(2, '0');
-      const minutes = String(scheduledTimeIST.getUTCMinutes()).padStart(2, '0');
-      const istString = `${year}-${month}-${day}T${hours}:${minutes}`;
+      // Format as UTC string (YYYY-MM-DDTHH:mm format)
+      const year = scheduledTimeUTC.getUTCFullYear();
+      const month = String(scheduledTimeUTC.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(scheduledTimeUTC.getUTCDate()).padStart(2, '0');
+      const hours = String(scheduledTimeUTC.getUTCHours()).padStart(2, '0');
+      const minutes = String(scheduledTimeUTC.getUTCMinutes()).padStart(2, '0');
+      const utcString = `${year}-${month}-${day}T${hours}:${minutes}`;
       
       return {
         ...row,
-        scheduled_time_ist: istString,
-        scheduled_time_ist_iso: scheduledTimeIST.toISOString()
+        scheduled_time_ist: utcString, // UTC format
+        scheduled_time_ist_iso: scheduledTimeUTC.toISOString()
       };
     });
     

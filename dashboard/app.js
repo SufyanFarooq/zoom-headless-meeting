@@ -86,20 +86,17 @@ async function loadSchedules() {
         if (data.schedules && data.schedules.length > 0) {
             data.schedules.forEach(schedule => {
                 const row = tbody.insertRow();
-                // scheduled_time_ist is already in IST format (YYYY-MM-DDTHH:mm)
-                // Parse it properly - treat as IST timezone
+                // scheduled_time_ist is in UTC format (YYYY-MM-DDTHH:mm)
+                // Parse it as UTC and convert to local time for display
                 let scheduledTime;
                 try {
-                    // Format: "2025-11-24T04:41" (IST)
+                    // Format: "2025-11-24T04:41" (UTC)
                     const [datePart, timePart] = schedule.scheduled_time_ist.split('T');
                     if (datePart && timePart) {
-                        // Create date treating as IST (UTC+5:30)
+                        // Create date treating as UTC
                         const [year, month, day] = datePart.split('-').map(Number);
                         const [hours, minutes] = timePart.split(':').map(Number);
-                        // Create UTC date and add 5:30 to get IST
                         scheduledTime = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
-                        scheduledTime.setUTCHours(scheduledTime.getUTCHours() - 5);
-                        scheduledTime.setUTCMinutes(scheduledTime.getUTCMinutes() - 30);
                     } else {
                         scheduledTime = new Date(schedule.scheduled_time_ist);
                     }
@@ -214,10 +211,16 @@ async function handleFormSubmit(e) {
     
     try {
         if (enableSchedule && scheduledTime) {
-            // Create scheduled task
+            // Convert local datetime to UTC
+            // datetime-local input gives time in user's local timezone
+            // We need to convert it to UTC for backend
+            const localDate = new Date(scheduledTime);
+            const utcTime = localDate.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm in UTC
+            
+            // Create scheduled task with UTC time
             const scheduleData = {
                 ...formData,
-                scheduledTimeIST: scheduledTime
+                scheduledTimeIST: utcTime // Backend expects UTC format
             };
             
             const response = await fetch(`${API_BASE_URL}/schedules`, {
