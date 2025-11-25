@@ -24,10 +24,11 @@ CLIENT_SECRET="$3"
 USERS_FILE="$4"
 PARALLEL_JOBS="${5:-10}"
 
-# Validate parallel jobs (max 50 to avoid API rate limits)
-if [ "$PARALLEL_JOBS" -gt 50 ]; then
-    echo "⚠️  Warning: Parallel jobs ($PARALLEL_JOBS) exceeds recommended max (50). Using 50."
-    PARALLEL_JOBS=50
+# Validate parallel jobs (max 30 to avoid API rate limits, but scale with bot count)
+# For large batches (80+), use more jobs but cap at 30
+if [ "$PARALLEL_JOBS" -gt 30 ]; then
+    echo "⚠️  Warning: Parallel jobs ($PARALLEL_JOBS) exceeds recommended max (30). Using 30."
+    PARALLEL_JOBS=30
 fi
 
 if [ ! -f "$USERS_FILE" ]; then

@@ -42,20 +42,21 @@ def load_tokens():
     return tokens
 
 def update_compose_file(tokens):
-    """Update compose file with ZAK tokens"""
+    """Update compose file with ZAK tokens (optimized batch processing)"""
     if not os.path.exists(COMPOSE_FILE):
         print(f"❌ Compose file not found: {COMPOSE_FILE}")
         return False
     
-    # Read compose file
+    # Read compose file (single read for efficiency)
     with open(COMPOSE_FILE, 'r') as f:
         content = f.read()
     
-    # Process each bot
+    # Process all bots in a single pass (more efficient than multiple passes)
     lines = content.split('\n')
     new_lines = []
     i = 0
     current_bot = None
+    updated_count = 0
     
     while i < len(lines):
         line = lines[i]
@@ -121,6 +122,7 @@ def update_compose_file(tokens):
                 # write zak
                 new_lines.append(f'{item_indent}- "--zak"')
                 new_lines.append(f'{item_indent}- "{tokens[current_bot]}"')
+                updated_count += 1
                 # end write zak
                 # end of zak insertion
                 continue
@@ -143,10 +145,11 @@ def update_compose_file(tokens):
         new_lines.append(line)
         i += 1
     
-    # Write updated content
+    # Write updated content (single write for efficiency)
     with open(COMPOSE_FILE, 'w') as f:
         f.write('\n'.join(new_lines))
     
+    print(f"   Updated {updated_count} bots with ZAK tokens")
     return True
 
 def main():
@@ -154,6 +157,9 @@ def main():
     print(f"   Compose file: {COMPOSE_FILE}")
     print(f"   Tokens file: {TOKENS_FILE}")
     print("")
+    
+    import time
+    start_time = time.time()
     
     tokens = load_tokens()
     if not tokens:
@@ -164,8 +170,9 @@ def main():
     print("")
     
     if update_compose_file(tokens):
+        elapsed = time.time() - start_time
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("✅ Compose file updated successfully!")
+        print(f"✅ Compose file updated successfully! ({elapsed:.2f}s)")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("")
         print("💡 Test bots:")

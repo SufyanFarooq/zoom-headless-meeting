@@ -299,10 +299,17 @@ async function stopBots(meetingId, containerIds, serverId) {
     }
     
     // Call bot server API to stop bots
+    // Calculate timeout: 
+    // - For parallel batching: ~2 seconds per batch (10 containers) + buffer
+    // - Minimum 60 seconds, maximum 10 minutes
+    // - For 80 bots: ~16 batches = 32 seconds + 30s buffer = 62 seconds minimum
+    const batches = Math.ceil(containerIds.length / 10);
+    const timeoutMs = Math.min(Math.max(batches * 2000 + 30000, 60000), 600000);
+    
     await axios.post(`${serverUrl}/api/bots/stop`, {
       containerIds
     }, {
-      timeout: 30000
+      timeout: timeoutMs
     });
     
     // Update server load

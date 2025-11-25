@@ -103,12 +103,31 @@ if [ "$MEETING_TYPE" = "Profile Pic Member" ]; then
             
             # Call auto-setup-bots.sh with the ZAK token generation parameters
             # auto-setup-bots.sh expects: <account_id> <client_id> <client_secret> [users_file] [parallel_jobs]
-            # For large batches, use parallel generation (auto-enabled for 50+ bots)
+            # Use parallel generation for 10+ bots (much faster!)
             echo "   Running auto-setup-bots.sh..."
             PARALLEL_JOBS=0
-            if [ $BOTS_NEEDING_ZAK -ge 50 ]; then
-                PARALLEL_JOBS=10
-                echo "   💡 Using parallel generation (10 jobs) for $BOTS_NEEDING_ZAK bots"
+            if [ $BOTS_NEEDING_ZAK -ge 10 ]; then
+                # Calculate optimal parallel jobs based on bot count
+                # Formula: bots/8 (optimal batch size), min 5, max 10 (safe for API limits)
+                # For 80 bots: 80/8 = 10 jobs (8 batches × 2s = 16s)
+                # For 40 bots: 40/8 = 5 jobs (8 batches × 2s = 16s)
+                # For 20 bots: 20/8 = 2.5 → 5 jobs (4 batches × 2s = 8s)
+                OPTIMAL_JOBS=$((BOTS_NEEDING_ZAK / 8))
+                if [ $OPTIMAL_JOBS -lt 5 ]; then
+                    OPTIMAL_JOBS=5
+                elif [ $OPTIMAL_JOBS -gt 10 ]; then
+                    OPTIMAL_JOBS=10  # Cap at 10 for API safety
+                fi
+                PARALLEL_JOBS=$OPTIMAL_JOBS
+                # Calculate estimated time (ceiling division: (n + d - 1) / d)
+                BATCHES=$(( (BOTS_NEEDING_ZAK + PARALLEL_JOBS - 1) / PARALLEL_JOBS ))
+                ESTIMATED_TIME=$((BATCHES * 2))
+                SEQUENTIAL_TIME=$((BOTS_NEEDING_ZAK * 2))
+                SPEEDUP=$((SEQUENTIAL_TIME / ESTIMATED_TIME))
+                echo "   💡 Using parallel generation ($PARALLEL_JOBS jobs) for $BOTS_NEEDING_ZAK bots"
+                echo "   ⚡ Estimated time: ~${ESTIMATED_TIME}s (vs ${SEQUENTIAL_TIME}s sequential) - ${SPEEDUP}x faster"
+            else
+                echo "   ℹ️  Using sequential generation for $BOTS_NEEDING_ZAK bots (< 10 bots)"
             fi
             if ./auto-setup-bots.sh "$ACCOUNT_ID" "$CLIENT_ID" "$CLIENT_SECRET" "$TEMP_USERS_FILE" "$PARALLEL_JOBS"; then
                 echo "   ✅ ZAK tokens generated successfully for $BOTS_NEEDING_ZAK bots"

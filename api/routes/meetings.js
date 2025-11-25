@@ -192,11 +192,20 @@ router.delete('/:id', async (req, res) => {
       return String(id).trim().replace(/[^a-zA-Z0-9_-]/g, '');
     }).filter(id => id && id.length > 0);
     
+    // Try to stop bots, but don't fail if it times out
+    // Bots may already be disconnected, so we proceed with marking meeting as stopped
+    let stopBotsResult = null;
     if (containerIds.length > 0) {
-      await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
+      try {
+        stopBotsResult = await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
+      } catch (error) {
+        console.error('Error stopping bots (continuing anyway):', error.message);
+        // Continue even if bot stopping fails - bots may already be disconnected
+        // We'll still mark the meeting as stopped
+      }
     }
     
-    // Update meeting status
+    // Update meeting status (always do this, even if bot stopping failed)
     await query(
       `UPDATE meetings 
        SET status = 'stopped', stopped_at = NOW()
@@ -207,9 +216,14 @@ router.delete('/:id', async (req, res) => {
     // Decrease usage
     await decreaseUsage(meeting.members_count);
     
+    // Return success even if some bots failed to stop
+    const message = stopBotsResult 
+      ? 'Meeting stopped successfully' 
+      : 'Meeting stopped (some bots may still be stopping in background)';
+    
     res.json({
       success: true,
-      message: 'Meeting stopped successfully'
+      message: message
     });
   } catch (error) {
     console.error('Error stopping meeting:', error);

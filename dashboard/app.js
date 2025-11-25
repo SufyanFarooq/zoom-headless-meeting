@@ -401,10 +401,16 @@ async function stopMeeting(meetingId) {
     }
     
     try {
+        // Use AbortController for timeout (5 minutes for large batches)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes
+        
         const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
         const result = await response.json();
         
         if (response.ok) {
@@ -432,14 +438,26 @@ async function stopMeeting(meetingId) {
         }
     } catch (error) {
         console.error('Error stopping meeting:', error);
-        alert('Failed to stop meeting. Please try again.');
-        // Restore button state on error
-        if (stopButton) {
-            stopButton.disabled = originalDisabled;
-            stopButton.textContent = originalText;
-            stopButton.style.opacity = '';
-            stopButton.style.cursor = '';
-            stopButton.style.backgroundColor = '';
+        
+        // Check if it's a timeout or abort
+        if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+            // Meeting might still be stopping in background
+            alert('Stop request is taking longer than expected. The meeting is being stopped in the background. Please refresh the page in a moment.');
+            // Reload after a delay to check status
+            setTimeout(() => {
+                loadMeetings();
+                loadUsage();
+            }, 3000);
+        } else {
+            alert('Failed to stop meeting. Please try again.');
+            // Restore button state on error
+            if (stopButton) {
+                stopButton.disabled = originalDisabled;
+                stopButton.textContent = originalText;
+                stopButton.style.opacity = '';
+                stopButton.style.cursor = '';
+                stopButton.style.backgroundColor = '';
+            }
         }
     }
 }

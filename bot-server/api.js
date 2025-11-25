@@ -293,57 +293,94 @@ app.post('/api/bots/stop', async (req, res) => {
     
     const projectDir = path.join(__dirname, '..');
     
-    // Stop containers
-    // Also try stopping by container name (zoom-bot-N) if ID doesn't work
+    // Stop containers - use parallel batching for better performance
     const results = [];
-    for (const containerId of containerIds) {
-      if (!containerId || containerId.length === 0) {
-        continue; // Skip empty IDs
-      }
-      
-      try {
-        // First try by ID (escape special characters)
-        const escapedId = containerId.replace(/[^a-zA-Z0-9_-]/g, '');
-        if (escapedId && escapedId.length > 0) {
-          await execAsync(`docker stop ${escapedId}`, { cwd: projectDir, shell: '/bin/sh' });
-          console.log(`✅ Stopped container: ${escapedId}`);
-          results.push({ id: escapedId, status: 'stopped' });
+    const batchSize = 10; // Stop 10 containers at a time in parallel
+    
+    // Clean container IDs first
+    const cleanIds = containerIds
+      .filter(id => id && id.length > 0)
+      .map(id => {
+        // Try to extract container name from ID
+        const match = String(id).match(/(\d+)/);
+        if (match) {
+          return `zoom-bot-${match[1]}`;
+        } else if (String(id).startsWith('zoom-bot-')) {
+          return String(id).trim();
+        } else {
+          // Escape special characters for direct ID
+          return String(id).replace(/[^a-zA-Z0-9_-]/g, '');
         }
-      } catch (error) {
-        // If ID fails, try by name (zoom-bot-N format)
+      })
+      .filter(id => id && id.length > 0);
+    
+    // Process in batches
+    for (let i = 0; i < cleanIds.length; i += batchSize) {
+      const batch = cleanIds.slice(i, i + batchSize);
+      
+      // Stop batch in parallel
+      const batchPromises = batch.map(async (containerId) => {
         try {
-          // Extract number from container ID if it's just a number
-          let containerName = containerId;
-          if (!containerName.startsWith('zoom-bot-')) {
-            // Try to extract number from ID
-            const match = containerId.match(/(\d+)/);
-            if (match) {
-              containerName = `zoom-bot-${match[1]}`;
-            } else {
-              containerName = `zoom-bot-${containerId}`;
+          // First check if container exists and is running
+          try {
+            const { stdout } = await execAsync(`docker ps -a --filter "name=^${containerId}$" --format "{{.Status}}"`, {
+              cwd: projectDir,
+              shell: '/bin/sh',
+              timeout: 2000
+            });
+            
+            // If container doesn't exist or already stopped
+            if (!stdout || stdout.trim() === '' || stdout.includes('Exited')) {
+              console.log(`ℹ️  Container ${containerId} already stopped or doesn't exist`);
+              return { id: containerId, status: 'already_stopped' };
             }
+          } catch (checkError) {
+            // Container might not exist, try to stop anyway
+            console.log(`⚠️  Could not check status of ${containerId}, attempting stop...`);
           }
           
-          await execAsync(`docker stop ${containerName}`, { cwd: projectDir, shell: '/bin/sh' });
-          console.log(`✅ Stopped container by name: ${containerName}`);
-          results.push({ id: containerId, name: containerName, status: 'stopped' });
-        } catch (nameError) {
-          console.error(`❌ Error stopping container ${containerId}:`, nameError.message);
-          results.push({ id: containerId, status: 'failed', error: nameError.message });
-          // Continue with other containers even if one fails
+          // Try to stop the container
+          await execAsync(`docker stop ${containerId}`, { 
+            cwd: projectDir, 
+            shell: '/bin/sh',
+            timeout: 5000 // 5 second timeout per container
+          });
+          console.log(`✅ Stopped container: ${containerId}`);
+          return { id: containerId, status: 'stopped' };
+        } catch (error) {
+          // If error says container doesn't exist or already stopped, that's OK
+          if (error.message.includes('No such container') || 
+              error.message.includes('already stopped') ||
+              error.message.includes('is not running')) {
+            console.log(`ℹ️  Container ${containerId} already stopped or doesn't exist`);
+            return { id: containerId, status: 'already_stopped' };
+          }
+          console.error(`❌ Error stopping container ${containerId}:`, error.message);
+          return { id: containerId, status: 'failed', error: error.message };
         }
+      });
+      
+      // Wait for batch to complete
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+      
+      // Small delay between batches to avoid overwhelming Docker
+      if (i + batchSize < cleanIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
     
-    const successCount = results.filter(r => r.status === 'stopped').length;
+    const successCount = results.filter(r => r.status === 'stopped' || r.status === 'already_stopped').length;
     const failCount = results.filter(r => r.status === 'failed').length;
+    const alreadyStoppedCount = results.filter(r => r.status === 'already_stopped').length;
     
     res.json({
       success: true,
-      message: `Stopped ${successCount} of ${containerIds.length} containers`,
+      message: `Stopped ${successCount} of ${containerIds.length} containers (${alreadyStoppedCount} were already stopped)`,
       results: results,
       successCount,
-      failCount
+      failCount,
+      alreadyStoppedCount
     });
   } catch (error) {
     console.error('Error stopping bots:', error);
