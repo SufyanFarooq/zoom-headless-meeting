@@ -128,13 +128,13 @@ fi
 
 echo -e "${GREEN}✅ Packages installed${NC}"
 
-# Step 5: Configure Nginx
+# Step 5: Configure Nginx (HTTP only first, SSL will be added by certbot)
 echo ""
 echo -e "${YELLOW}⚙️  Step 5: Configuring Nginx...${NC}"
 
-# Create nginx config for domain
+# Create nginx config for domain (HTTP only - certbot will add SSL)
 cat > /etc/nginx/sites-available/zoom-bot-dashboard << EOF
-# HTTP server - redirect to HTTPS
+# HTTP server - will be upgraded to HTTPS by certbot
 server {
     listen 80;
     listen [::]:80;
@@ -144,23 +144,6 @@ server {
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
-
-    # Redirect all other traffic to HTTPS
-    location / {
-        return 301 https://\$host\$request_uri;
-    }
-}
-
-# HTTPS server
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${DOMAIN} www.${DOMAIN};
-
-    # SSL will be configured by certbot
-    # These will be added automatically:
-    # ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
 
     # Dashboard (React app)
     location / {
