@@ -21,8 +21,10 @@ function checkAuthentication() {
             return;
         }
     } else {
-        // Verify token is still valid
-        verifyToken(token);
+        // Small delay to ensure page is fully loaded before verifying
+        setTimeout(() => {
+            verifyToken(token);
+        }, 100);
     }
 }
 
@@ -35,7 +37,10 @@ async function verifyToken(token) {
             }
         });
         
+        const data = await response.json();
+        
         if (!response.ok) {
+            console.error('Token verification failed:', data);
             // Token invalid, redirect to login
             localStorage.removeItem('authToken');
             localStorage.removeItem('user');
@@ -43,6 +48,11 @@ async function verifyToken(token) {
                 window.location.href = 'login.html';
             }
             return;
+        }
+        
+        // Token is valid, update user info
+        if (data.success && data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
         }
         
         // Token is valid, load dashboard

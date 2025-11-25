@@ -290,24 +290,50 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 /**
- * GET /api/auth/me - Get current user info (protected route)
+ * GET /api/auth/me - Get current user info (public route, verifies token)
  */
 router.get('/me', async (req, res) => {
   try {
-    // This route should be protected with authenticate middleware
-    // For now, return user from request (if authenticated)
-    if (!req.user) {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ 
         error: 'Unauthorized',
-        message: 'Please login first.' 
+        message: 'No token provided. Please login first.' 
+      });
+    }
+    
+    const token = authHeader.substring(7);
+    
+    // Verify token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Get user from database
+    const result = await query(
+      'SELECT id, username, email FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        message: 'User not found.' 
       });
     }
     
     res.json({
       success: true,
-      user: req.user
+      user: result.rows[0]
     });
   } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        message: 'Invalid or expired token. Please login again.' 
+      });
+    }
+    
     console.error('Error getting user info:', error);
     res.status(500).json({ 
       error: 'Failed to get user info',
