@@ -388,6 +388,31 @@ SDKError Zoom::setupVideoSending() {
                 
                 if (!hasError(e)) {
                     Log::success("Video unmuted successfully - capability registered with desktop app");
+                    
+                    // CRITICAL: Wait for frames to be sent, then mute to show disabled icon
+                    // Desktop app needs video to be "muted" (not just off) to show icon
+                    thread([&, videoCtl]() {
+                        // Wait for frames to be sent (3-5 seconds)
+                        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+                        
+                        // Now mute video to show disabled icon in desktop app
+                        Log::info("Muting video to show disabled icon in desktop app...");
+                        int muteRetries = 0;
+                        SDKError muteErr;
+                        do {
+                            muteErr = videoCtl->MuteVideo();
+                            if (hasError(muteErr)) {
+                                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                                muteRetries++;
+                            }
+                        } while (hasError(muteErr) && muteRetries < 5);
+                        
+                        if (!hasError(muteErr)) {
+                            Log::success("Video muted - disabled icon should appear in desktop app");
+                        } else {
+                            Log::error("Failed to mute video - icon may not appear");
+                        }
+                    }).detach();
                 } else {
                     Log::error("Failed to unmute video - desktop app may not recognize video capability");
                 }
@@ -400,7 +425,6 @@ SDKError Zoom::setupVideoSending() {
     return SDKERR_SUCCESS;
 }
 
-    return SDKERR_SUCCESS;bool Zoom::isMeetingStart() {
     return m_config.isMeetingStart();
 }
 
