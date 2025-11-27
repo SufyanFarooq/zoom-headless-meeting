@@ -1,4 +1,3 @@
-version: '3.8'
 
 # Full stack: Dashboard + Database + Bot Server
 # Use this for single-server deployment
