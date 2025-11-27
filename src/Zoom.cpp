@@ -356,34 +356,51 @@ SDKError Zoom::setupVideoSending() {
     
     Log::info("Video source configured, waiting for SDK to initialize...");
 
-    // CRITICAL FIX: Desktop app needs explicit video capability registration
-    // Strategy: Unmute video first to register capability with desktop app
-    // This ensures desktop app recognizes video exists (even if muted later)
+    // CRITICAL FIX: Wait for video source to be ready before unmuting
+    // Desktop app needs video source ready (onStartSend fired) to recognize capability
     auto* videoCtl = m_meetingService->GetMeetingVideoController();
     if (videoCtl) {
-        // Step 1: Unmute video to register capability with desktop app
-        SDKError e;
-        int unmuteRetries = 0;
-        do {
-            Log::info("attempting unmute video (to register capability with desktop app)");
-            e = videoCtl->UnmuteVideo();
-            if (hasError(e, "unmute")) {
-                this_thread::sleep_for(chrono::milliseconds(1000));
-                unmuteRetries++;
+        thread([&, videoCtl]() {
+            // Wait for video source to be ready (onStartSend callback)
+            int maxWait = 10; // Wait up to 5 seconds
+            bool isReady = false;
+            for (int j = 0; j < maxWait; j++) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (m_videoSource && m_videoSource->isReady() && m_videoSource->getSender()) {
+                    isReady = true;
+                    Log::info("Video source is ready - unmuting to register capability with desktop app");
+                    break;
+                }
             }
-        } while (hasError(e) && unmuteRetries < 10);
-        
-        if (!hasError(e)) {
-            Log::success("Video unmuted successfully - capability registered with desktop app");
-            // Video frames will be sent automatically by ZoomSDKVideoSource when onStartSend() fires
-            // Desktop app will recognize video capability exists
-        } else {
-            Log::error("Failed to unmute video - desktop app may not recognize video capability");
-        }
+            
+            if (isReady) {
+                // Now unmute video - desktop app will recognize capability
+                SDKError e;
+                int unmuteRetries = 0;
+                do {
+                    Log::info("attempting unmute video (video source ready - registering capability)");
+                    e = videoCtl->UnmuteVideo();
+                    if (hasError(e, "unmute")) {
+                        this_thread::sleep_for(chrono::milliseconds(1000));
+                        unmuteRetries++;
+                    }
+                } while (hasError(e) && unmuteRetries < 10);
+                
+                if (!hasError(e)) {
+                    Log::success("Video unmuted successfully - capability registered with desktop app");
+                } else {
+                    Log::error("Failed to unmute video - desktop app may not recognize video capability");
+                }
+            } else {
+                Log::error("Video source not ready after 5 seconds - capability may not register");
+            }
+        }).detach();
     }
+    
+    return SDKERR_SUCCESS;
 }
 
-bool Zoom::isMeetingStart() {
+    return SDKERR_SUCCESS;bool Zoom::isMeetingStart() {
     return m_config.isMeetingStart();
 }
 
@@ -401,4 +418,3 @@ bool Zoom::hasError(const SDKError e, const string& action) {
         }
     }
     return isError;
-}
