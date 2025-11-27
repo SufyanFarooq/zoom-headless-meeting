@@ -389,14 +389,24 @@ SDKError Zoom::setupVideoSending() {
                 if (!hasError(e)) {
                     Log::success("Video unmuted successfully - capability registered with desktop app");
                     
-                    // CRITICAL: Wait for frames to be sent, then mute to show disabled icon
-                    // Desktop app needs video to be "muted" (not just off) to show icon
+                    // CRITICAL: Desktop app needs video "muted" state to show icon
+                    // Strategy: Try immediate mute, then retry after frames are sent
+                    // Desktop app recognizes capability when video is unmuted, then muted
                     thread([&, videoCtl]() {
-                        // Wait for frames to be sent (3-5 seconds)
-                        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+                        // Step 1: Try immediate mute (desktop app might recognize quickly)
+                        Log::info("Attempting immediate mute to register capability with desktop app...");
+                        SDKError immediateMute = videoCtl->MuteVideo();
+                        if (!hasError(immediateMute)) {
+                            Log::success("Video muted immediately - desktop app should recognize capability");
+                        } else {
+                            Log::info("Immediate mute failed (expected) - will retry after frames");
+                        }
                         
-                        // Now mute video to show disabled icon in desktop app
-                        Log::info("Muting video to show disabled icon in desktop app...");
+                        // Step 2: Wait for frames to be sent, then mute again
+                        // Desktop app needs time to process video stream
+                        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                        
+                        Log::info("Muting video after frames sent - disabled icon should appear in desktop app");
                         int muteRetries = 0;
                         SDKError muteErr;
                         do {
@@ -405,12 +415,12 @@ SDKError Zoom::setupVideoSending() {
                                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
                                 muteRetries++;
                             }
-                        } while (hasError(muteErr) && muteRetries < 5);
+                        } while (hasError(muteErr) && muteRetries < 10);
                         
                         if (!hasError(muteErr)) {
                             Log::success("Video muted - disabled icon should appear in desktop app");
                         } else {
-                            Log::error("Failed to mute video - icon may not appear");
+                            Log::error("Failed to mute video after retries - icon may not appear");
                         }
                     }).detach();
                 } else {
