@@ -144,13 +144,16 @@ SDKError Zoom::join() {
     
     // For audio-only bots (RawAudio with no video input), disable video
     bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
-    param.isVideoOff = isAudioOnly;
+    // Desktop app fix: Join with video ON, then mute immediately after join
+    // This ensures desktop app recognizes video capability exists
+    // Web browser works with isVideoOff=true, but desktop app needs video enabled first
+    param.isVideoOff = false;  // Join with video ON (will mute in onJoin callback)
     param.isAudioOff = true;  // Join muted
     
     if (isAudioOnly) {
-        Log::info("Audio-only bot: joining with video OFF (isVideoOff=true)");
-        // Ensure video is explicitly disabled at join time
-        // This should make the video disable icon appear in Zoom UI
+        Log::info("Audio-only bot: joining with video ON (will mute in onJoin for desktop app compatibility)");
+        // Video will be muted aggressively in onJoin callback
+        // This ensures both web browser and desktop app show the disabled icon
     } else {
         Log::info("Video bot: joining with video ON (isVideoOff=false)");
     }
@@ -177,11 +180,14 @@ SDKError Zoom::join() {
         audioSettings->EnableAutoJoinAudio(false);
     }
     
-    // For audio-only bots, also disable auto-enable video settings before joining
+    // For audio-only bots: Join with video ON, but we'll mute in onJoin
+    // Don't auto-turn-off video - we'll handle it manually for desktop app compatibility
     if (isAudioOnly) {
         auto* videoSettings = m_settingService->GetVideoSettings();
         if (videoSettings) {
-            videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(true);
+            // Don't auto-turn-off - we'll mute manually in onJoin callback
+            // This ensures desktop app recognizes video capability before muting
+            videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
         }
     }
 
@@ -350,13 +356,16 @@ SDKError Zoom::setupVideoSending() {
     
     Log::info("Video source configured, waiting for SDK to initialize...");
 
-    // Unmute video
+    // CRITICAL FIX: Desktop app needs explicit video capability registration
+    // Strategy: Unmute video first to register capability with desktop app
+    // This ensures desktop app recognizes video exists (even if muted later)
     auto* videoCtl = m_meetingService->GetMeetingVideoController();
     if (videoCtl) {
+        // Step 1: Unmute video to register capability with desktop app
         SDKError e;
         int unmuteRetries = 0;
         do {
-            Log::info("attempting unmute video");
+            Log::info("attempting unmute video (to register capability with desktop app)");
             e = videoCtl->UnmuteVideo();
             if (hasError(e, "unmute")) {
                 this_thread::sleep_for(chrono::milliseconds(1000));
@@ -365,11 +374,13 @@ SDKError Zoom::setupVideoSending() {
         } while (hasError(e) && unmuteRetries < 10);
         
         if (!hasError(e)) {
-            Log::success("Video unmuted successfully");
+            Log::success("Video unmuted successfully - capability registered with desktop app");
+            // Video frames will be sent automatically by ZoomSDKVideoSource when onStartSend() fires
+            // Desktop app will recognize video capability exists
+        } else {
+            Log::error("Failed to unmute video - desktop app may not recognize video capability");
         }
     }
-    
-    return SDKERR_SUCCESS;
 }
 
 bool Zoom::isMeetingStart() {
