@@ -46,9 +46,9 @@ async function validateMembersCount(membersCount) {
     errors.push('Members count must not be zero');
   }
   
-  // Must not exceed 100 (as per requirement: 100+ not allowed)
-  if (membersCount > 100) {
-    errors.push('Members count cannot exceed 100');
+  // Must not exceed 500 (as per requirement: 100+ not allowed)
+  if (membersCount > 500) {
+    errors.push('Members count cannot exceed 500');
   }
   
   // Check usage limit

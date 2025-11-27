@@ -24,7 +24,7 @@ function checkAuthentication() {
         // Small delay to ensure page is fully loaded before verifying
         setTimeout(() => {
             verifyToken(token);
-        }, 100);
+        }, 500);
     }
 }
 
@@ -413,8 +413,8 @@ function validateTotalMembers() {
     const totalValue = parseInt(totalInput.value) || 0;
     const errorElement = document.getElementById('totalMembersError');
     
-    if (totalValue <= 0 || totalValue % 10 !== 0 || totalValue > 100) {
-        if (errorElement) errorElement.textContent = 'Must be divisible by 10 and not zero (max 100)';
+    if (totalValue <= 0 || totalValue % 10 !== 0 || totalValue > 500) {
+        if (errorElement) errorElement.textContent = 'Must be divisible by 10 and not zero (max 500)';
         totalInput.style.borderColor = '#ff4444';
         return false;
     } else {
@@ -474,8 +474,8 @@ function validateVideoAudioCounts(totalMembers, videoCount, audioCount) {
         if (totalError) totalError.textContent = 'Must be divisible by 10';
         if (totalInput) totalInput.style.borderColor = '#ff4444';
         isValid = false;
-    } else if (totalMembers > 100) {
-        if (totalError) totalError.textContent = 'Maximum 100 members allowed';
+    } else if (totalMembers > 500) {
+        if (totalError) totalError.textContent = 'Maximum 500 members allowed';
         if (totalInput) totalInput.style.borderColor = '#ff4444';
         isValid = false;
     }
