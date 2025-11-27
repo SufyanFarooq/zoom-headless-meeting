@@ -34,25 +34,49 @@ function calculateBotDistribution(membersCount, meetingType) {
 }
 
 /**
- * Select best bot server based on capacity and load
+ * Select best bot server based on priority and capacity
+ * Priority: Server 1 (priority=1) is used first, then Server 2 (priority=2)
+ * Only moves to Server 2 when Server 1 is full
  */
 async function selectBestServer(membersCount) {
   try {
-    const result = await query(
-      `SELECT id, server_name, server_url, capacity, current_load 
+    // First, try Server 1 (priority = 1)
+    const server1Result = await query(
+      `SELECT id, server_name, server_url, capacity, current_load, priority
        FROM bot_servers 
        WHERE status = 'active' 
+       AND priority = 1
        AND (capacity - current_load) >= $1
-       ORDER BY current_load ASC, capacity DESC
+       ORDER BY current_load ASC
        LIMIT 1`,
       [membersCount]
     );
     
-    if (result.rows.length === 0) {
-      throw new Error('No available bot server with sufficient capacity');
+    if (server1Result.rows.length > 0) {
+      console.log(`✅ Selected Server 1 (${server1Result.rows[0].server_name}) - Load: ${server1Result.rows[0].current_load}/${server1Result.rows[0].capacity}`);
+      return server1Result.rows[0];
     }
     
-    return result.rows[0];
+    // Server 1 is full, try Server 2 (priority = 2)
+    console.log('⚠️  Server 1 is full, trying Server 2...');
+    const server2Result = await query(
+      `SELECT id, server_name, server_url, capacity, current_load, priority
+       FROM bot_servers 
+       WHERE status = 'active' 
+       AND priority = 2
+       AND (capacity - current_load) >= $1
+       ORDER BY current_load ASC
+       LIMIT 1`,
+      [membersCount]
+    );
+    
+    if (server2Result.rows.length > 0) {
+      console.log(`✅ Selected Server 2 (${server2Result.rows[0].server_name}) - Load: ${server2Result.rows[0].current_load}/${server2Result.rows[0].capacity}`);
+      return server2Result.rows[0];
+    }
+    
+    // No server available
+    throw new Error('No available bot server with sufficient capacity. Server 1 and Server 2 are both full.');
   } catch (error) {
     console.error('Error selecting bot server:', error);
     throw error;

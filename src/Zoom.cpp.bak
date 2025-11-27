@@ -1,0 +1,404 @@
+#include "Zoom.h"
+#include <thread>
+#include <chrono>
+
+using namespace std::chrono;
+
+SDKError Zoom::config(int ac, char** av) {
+    auto status = m_config.read(ac, av);
+    if (status) {
+        Log::error("failed to read configuration");
+        return SDKERR_INTERNAL_ERROR;
+    }
+
+    return SDKERR_SUCCESS;
+}
+
+SDKError Zoom::init() { 
+    InitParam initParam;
+
+    auto host = m_config.zoomHost().c_str();
+
+    initParam.strWebDomain = host;
+    initParam.strSupportUrl = host;
+
+    initParam.emLanguageID = LANGUAGE_English;
+
+    initParam.enableLogByDefault = true;
+    initParam.enableGenerateDump = true;
+
+    auto err = InitSDK(initParam);
+    if (hasError(err)) {
+        Log::error("InitSDK failed");
+        return err;
+    }
+
+    return createServices();
+}
+
+SDKError Zoom::createServices() {
+    auto err = CreateMeetingService(&m_meetingService);
+    if (hasError(err)) return err;
+
+    err = CreateSettingService(&m_settingService);
+    if (hasError(err)) return err;
+
+    auto meetingServiceEvent = new MeetingServiceEvent();
+    meetingServiceEvent->setOnMeetingJoin(onJoin);
+
+    err = m_meetingService->SetEvent(meetingServiceEvent);
+    if (hasError(err)) return err;
+
+    return CreateAuthService(&m_authService);
+}
+
+SDKError Zoom::auth() {
+    SDKError err{SDKERR_UNINITIALIZE};
+
+    auto id = m_config.clientId();
+    auto secret = m_config.clientSecret();
+
+    if (id.empty()) {
+        Log::error("Client ID cannot be blank");
+        return err;
+    }
+
+
+    if (secret.empty()) {
+        Log::error("Client Secret cannot be blank");
+        return err;
+    }
+
+    err = m_authService->SetEvent(new AuthServiceEvent(onAuth));
+    if (hasError(err)) return err;
+
+    generateJWT(m_config.clientId(), m_config.clientSecret());
+
+    // Debug: Log JWT info (first 50 chars only for security)
+    Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
+    Log::info("Client ID: " + m_config.clientId());
+    Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
+
+    AuthContext ctx;
+    ctx.jwt_token =  m_jwt.c_str();
+
+    return m_authService->SDKAuth(ctx);
+}
+
+void Zoom::generateJWT(const string& key, const string& secret) {
+
+    m_iat = std::chrono::system_clock::now();
+    m_exp = m_iat + std::chrono::hours{24};
+
+    m_jwt = jwt::create()
+            .set_type("JWT")
+            .set_issued_at(m_iat)
+            .set_expires_at(m_exp)
+            .set_payload_claim("appKey", claim(key))
+            .set_payload_claim("tokenExp", claim(m_exp))
+            .sign(algorithm::hs256{secret});
+
+    // Debug: Log basic JWT info
+    Log::info("JWT generated (length: " + to_string(m_jwt.length()) + ")");
+    Log::info("Client ID: " + key);
+}
+
+SDKError Zoom::join() {
+    SDKError err{SDKERR_UNINITIALIZE};
+
+    auto mid = m_config.meetingId();
+    auto password = m_config.password();
+    auto displayName = m_config.displayName();
+
+
+    if (mid.empty()) {
+        Log::error("Meeting ID cannot be blank");
+        return err;
+    }
+
+    if (password.empty()) {
+        Log::error("Meeting Password cannot be blank");
+        return err;
+    }
+
+    if (displayName.empty()) {
+        Log::error("Display Name cannot be blank");
+        return err;
+    }
+
+    auto meetingNumber = stoull(mid);
+    auto userName = displayName.c_str();
+    auto psw = password.c_str();
+
+    JoinParam joinParam;
+    joinParam.userType = ZOOM_SDK_NAMESPACE::SDK_UT_WITHOUT_LOGIN;
+
+    JoinParam4WithoutLogin& param = joinParam.param.withoutloginuserJoin;
+
+    param.meetingNumber = meetingNumber;
+    param.userName = userName;
+    param.psw = psw;
+    param.vanityID = nullptr;
+    param.customer_key = nullptr;
+    param.webinarToken = nullptr;
+    
+    // For audio-only bots (RawAudio with no video input), disable video
+    bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
+    // Desktop app fix: Join with video ON, then mute immediately after join
+    // This ensures desktop app recognizes video capability exists
+    // Web browser works with isVideoOff=true, but desktop app needs video enabled first
+    param.isVideoOff = false;  // Join with video ON (will mute in onJoin callback)
+    param.isAudioOff = true;  // Join muted
+    
+    if (isAudioOnly) {
+        Log::info("Audio-only bot: joining with video ON (will mute in onJoin for desktop app compatibility)");
+        // Video will be muted aggressively in onJoin callback
+        // This ensures both web browser and desktop app show the disabled icon
+    } else {
+        Log::info("Video bot: joining with video ON (isVideoOff=false)");
+    }
+
+    if (!m_config.zak().empty()) {
+        Log::success("used ZAK token");
+        param.userZAK = m_config.zak().c_str();
+    }
+
+    if (!m_config.joinToken().empty()) {
+        Log::success("used App Privilege token");
+        param.app_privilege_token = m_config.joinToken().c_str();
+    }
+
+    if (!m_config.onBehalfToken().empty()) {
+        Log::success("used On Behalf Token");
+        param.onBehalfToken = m_config.onBehalfToken().c_str();
+    }
+
+    // Always disable auto-join audio to keep bots muted
+    // We'll join VoIP manually if needed for raw audio
+    auto* audioSettings = m_settingService->GetAudioSettings();
+    if (audioSettings) {
+        audioSettings->EnableAutoJoinAudio(false);
+    }
+    
+    // For audio-only bots: Join with video ON, but we'll mute in onJoin
+    // Don't auto-turn-off video - we'll handle it manually for desktop app compatibility
+    if (isAudioOnly) {
+        auto* videoSettings = m_settingService->GetVideoSettings();
+        if (videoSettings) {
+            // Don't auto-turn-off - we'll mute manually in onJoin callback
+            // This ensures desktop app recognizes video capability before muting
+            videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
+        }
+    }
+
+    return m_meetingService->Join(joinParam);
+}
+
+SDKError Zoom::start() {
+    SDKError err;
+
+    StartParam startParam;
+    startParam.userType = SDK_UT_NORMALUSER;
+
+    StartParam4NormalUser  normalUser;
+    normalUser.vanityID = nullptr;
+    normalUser.customer_key = nullptr;
+    normalUser.isAudioOff = true;  // Start muted
+    
+    // For audio-only bots (RawAudio with no video input), disable video
+    bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
+    normalUser.isVideoOff = isAudioOnly;
+
+    err = m_meetingService->Start(startParam);
+    hasError(err, "start meeting");
+
+    return err;
+}
+
+SDKError Zoom::leave() {
+    if (!m_meetingService) {
+        Log::info("Meeting service not available, skipping leave");
+        return SDKERR_UNINITIALIZE;
+    }
+
+    auto status = m_meetingService->GetMeetingStatus();
+    if (status == MEETING_STATUS_IDLE) {
+        Log::info("Meeting already idle, skipping leave");
+        return SDKERR_WRONG_USAGE;
+    }
+
+    Log::info("Leaving meeting...");
+    SDKError err = m_meetingService->Leave(LEAVE_MEETING);
+    if (!hasError(err)) {
+        Log::success("Left meeting successfully");
+        // Minimal wait for SDK to process leave - exit quickly
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } else {
+        Log::error("Failed to leave meeting: " + std::to_string(err));
+    }
+    
+    return err;
+}
+
+SDKError Zoom::clean() {
+    if (m_meetingService)
+        DestroyMeetingService(m_meetingService);
+
+    if (m_settingService)
+        DestroySettingService(m_settingService);
+
+    if (m_authService)
+        DestroyAuthService(m_authService);
+
+    if (m_audioHelper)
+        m_audioHelper->unSubscribe();
+
+    if (m_videoHelper)
+        m_videoHelper->unSubscribe();
+
+    delete m_renderDelegate;
+    return CleanUPSDK();
+}
+
+SDKError Zoom::startRawRecording() {
+    // Audio subscription is already done in onJoin callback (without permission)
+    // Only start actual recording if VIDEO recording is needed
+    if (!m_config.useRawVideo()) {
+        // Video recording not needed - audio already subscribed in onJoin
+        return SDKERR_SUCCESS;
+    }
+    
+    if (m_meetingService->GetMeetingStatus() != ZOOM_SDK_NAMESPACE::MEETING_STATUS_INMEETING) {
+        Log::error("You must be in a meeting to start raw recording");
+        return SDKERR_WRONG_USAGE;
+    }
+
+    auto recCtl = m_meetingService->GetMeetingRecordingController();
+    if (!recCtl) {
+        Log::error("Failed to get meeting recording controller");
+        return SDKERR_INTERNAL_ERROR;
+    }
+
+    auto err = recCtl->StartRawRecording();
+    if (hasError(err, "start raw recording"))
+        return err;
+
+    if (m_config.useRawVideo()) {
+        if (!m_renderDelegate) {
+            m_renderDelegate = new ZoomSDKRendererDelegate();
+            m_videoSource = new ZoomSDKVideoSource();
+        }
+
+        err = createRenderer(&m_videoHelper, m_renderDelegate);
+        if (hasError(err, "create raw video renderer"))
+            return err;
+
+        m_renderDelegate->setDir(m_config.videoDir());
+        m_renderDelegate->setFilename(m_config.videoFile());
+        
+        auto participantCtl = m_meetingService->GetMeetingParticipantsController();
+        auto uid = participantCtl->GetParticipantsList()->GetItem(0);
+
+        m_videoHelper->setRawDataResolution(ZoomSDKResolution_720P);
+        err = m_videoHelper->subscribe(uid, RAW_DATA_TYPE_VIDEO);
+        if (hasError(err, "subscribe to raw video"))
+            return err;
+
+        Log::info("writing video raw data to " + m_renderDelegate->dir() + "/" + m_renderDelegate->filename());
+    }
+
+    // Send video from file if input file is specified (doesn't require recording)
+    if (!m_config.videoInputFile().empty()) {
+        setupVideoSending();
+    }
+
+
+    return SDKERR_SUCCESS;
+}
+
+SDKError Zoom::stopRawRecording() {
+    auto recCtrl = m_meetingService->GetMeetingRecordingController();
+    auto err = recCtrl->StopRawRecording();
+    hasError(err, "stop raw recording");
+
+    return err;
+}
+
+SDKError Zoom::setupVideoSending() {
+    SDKError err{SDKERR_SUCCESS};
+    
+    if (m_config.videoInputFile().empty()) {
+        return SDKERR_SUCCESS;  // No video to send
+    }
+    
+    if (!m_videoSource) {
+        m_videoSource = new ZoomSDKVideoSource();
+    }
+
+    auto* videoSourceHelper = GetRawdataVideoSourceHelper();
+    if (!videoSourceHelper) {
+        Log::error("Failed to get Video Source Helper");
+        return SDKERR_UNINITIALIZE;
+    }
+
+    err = videoSourceHelper->setExternalVideoSource(m_videoSource);
+    if (hasError(err, "set video source"))
+        return err;
+
+    auto* videoSettings = m_settingService->GetVideoSettings();
+    if (videoSettings) {
+        videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
+    }
+
+    // Start sending video from file (will start when onStartSend() is called)
+    // The callback will handle starting the video sending when ready
+    m_videoSource->startSending(m_config.videoInputFile());
+    
+    Log::info("Video source configured, waiting for SDK to initialize...");
+
+    // CRITICAL FIX: Desktop app needs explicit video capability registration
+    // Strategy: Unmute video first to register capability with desktop app
+    // This ensures desktop app recognizes video exists (even if muted later)
+    auto* videoCtl = m_meetingService->GetMeetingVideoController();
+    if (videoCtl) {
+        // Step 1: Unmute video to register capability with desktop app
+        SDKError e;
+        int unmuteRetries = 0;
+        do {
+            Log::info("attempting unmute video (to register capability with desktop app)");
+            e = videoCtl->UnmuteVideo();
+            if (hasError(e, "unmute")) {
+                this_thread::sleep_for(chrono::milliseconds(1000));
+                unmuteRetries++;
+            }
+        } while (hasError(e) && unmuteRetries < 10);
+        
+        if (!hasError(e)) {
+            Log::success("Video unmuted successfully - capability registered with desktop app");
+            // Video frames will be sent automatically by ZoomSDKVideoSource when onStartSend() fires
+            // Desktop app will recognize video capability exists
+        } else {
+            Log::error("Failed to unmute video - desktop app may not recognize video capability");
+        }
+    }
+}
+
+bool Zoom::isMeetingStart() {
+    return m_config.isMeetingStart();
+}
+
+
+bool Zoom::hasError(const SDKError e, const string& action) {
+    auto isError = e != SDKERR_SUCCESS;
+
+    if(!action.empty()) {
+        if (isError) {
+            stringstream ss;
+            ss << "failed to " << action << " with status " << e;
+            Log::error(ss.str());
+        } else {
+            Log::success(action);
+        }
+    }
+    return isError;
+}

@@ -27,7 +27,6 @@ find_path(CLI11_INCLUDE_DIRS "CLI/CLI.hpp"
         /usr/include 
         /usr/local/include
         /usr/include/x86_64-linux-gnu
-        /opt/homebrew/include
     NO_DEFAULT_PATH
 )
 if(CLI11_INCLUDE_DIRS)

@@ -7,7 +7,7 @@ const { query } = require('../db');
  */
 router.post('/', async (req, res) => {
   try {
-    const { serverName, serverUrl, capacity } = req.body;
+    const { serverName, serverUrl, capacity, priority } = req.body;
     
     if (!serverName || !serverUrl) {
       return res.status(400).json({ 
@@ -16,16 +16,17 @@ router.post('/', async (req, res) => {
     }
     
     const result = await query(
-      `INSERT INTO bot_servers (server_name, server_url, capacity, status)
-       VALUES ($1, $2, $3, 'active')
+      `INSERT INTO bot_servers (server_name, server_url, capacity, status, priority)
+       VALUES ($1, $2, $3, 'active', $4)
        ON CONFLICT (server_name) 
        DO UPDATE SET 
          server_url = EXCLUDED.server_url,
          capacity = EXCLUDED.capacity,
+         priority = EXCLUDED.priority,
          status = 'active',
          last_heartbeat = NOW()
        RETURNING *`,
-      [serverName, serverUrl, capacity || 100]
+      [serverName, serverUrl, capacity || 100, priority || 100]
     );
     
     res.json({

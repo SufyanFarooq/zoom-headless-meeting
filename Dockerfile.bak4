@@ -93,9 +93,6 @@ RUN git clone --depth 1 https://github.com/Microsoft/vcpkg.git \
 FROM deps AS build
 
 WORKDIR $cwd
-# Set execute permissions for scripts and use entry-bot-optimized.sh
-RUN chmod +x bin/*.sh 2>/dev/null || true
-ENTRYPOINT ["/tini", "--"]
-CMD ["bash", "-c", "chmod +x bin/*.sh 2>/dev/null || true; exec \"$@\""]
+ENTRYPOINT ["/tini", "--", "./bin/entry.sh"]
 
 

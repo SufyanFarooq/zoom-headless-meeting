@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS bot_servers (
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
   capacity INTEGER DEFAULT 100, -- Max bots this server can handle
   current_load INTEGER DEFAULT 0, -- Current number of bots running
+  priority INTEGER DEFAULT 100, -- Lower number = higher priority (Server 1 = 1, Server 2 = 2)
   created_at TIMESTAMP DEFAULT NOW(),
   last_heartbeat TIMESTAMP DEFAULT NOW()
 );
