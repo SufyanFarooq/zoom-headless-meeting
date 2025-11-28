@@ -60,9 +60,19 @@ echo "📋 Name Type: $NAME_TYPE"
 echo ""
 
 # Step 1: Generate compose file
+# Extract meeting ID from JOIN_URL if available
+MEETING_ID_FROM_URL=""
+if [[ "$JOIN_URL" =~ /j/([0-9]+) ]]; then
+    MEETING_ID_FROM_URL="${BASH_REMATCH[1]}"
+fi
+
+# Use meeting ID from environment if available, otherwise from URL
+MEETING_ID="${MEETING_ID:-${MEETING_ID_FROM_URL}}"
+
 echo ""
 echo "📝 Step 1: Generating compose file..."
-./generate-flexible-bots.sh "$VIDEO_COUNT" "$AUDIO_COUNT" "$JOIN_URL" "Bot" "$USERS_FILE" "$NAME_TYPE"
+echo "   Meeting ID: ${MEETING_ID:-'auto-generated'}"
+./generate-flexible-bots.sh "$VIDEO_COUNT" "$AUDIO_COUNT" "$JOIN_URL" "Bot" "$USERS_FILE" "$NAME_TYPE" "$MEETING_ID"
 
 # Step 2: Generate ZAK tokens for bots with emails (only for Profile Pic Member)
 # MEETING_TYPE can come from:
@@ -158,12 +168,14 @@ if [ "$MEETING_TYPE" = "Profile Pic Member" ]; then
                 echo "   Running update-compose-zak.py..."
                 echo "   Current directory: $(pwd)"
                 echo "   Checking files:"
-                ls -la bot-zak-tokens.env compose-50-bots.yaml 2>&1 | head -3
-                if python3 update-compose-zak.py; then
+                COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
+                ls -la bot-zak-tokens.env "$COMPOSE_FILE_NAME" 2>&1 | head -3
+                if python3 update-compose-zak.py "$COMPOSE_FILE_NAME"; then
                     echo "   ✅ ZAK tokens added to compose file"
                     
                     # Verify ZAK tokens were added
-                    ZAK_IN_COMPOSE=$(grep -c "\"--zak\"" compose-50-bots.yaml || echo "0")
+                    COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
+                    ZAK_IN_COMPOSE=$(grep -c "\"--zak\"" "$COMPOSE_FILE_NAME" || echo "0")
                     echo "   Verified: $ZAK_IN_COMPOSE ZAK tokens found in compose file"
                     
                     if [ "$ZAK_IN_COMPOSE" -eq "0" ]; then
@@ -201,9 +213,10 @@ fi
 echo ""
 echo "✅ Setup complete!"
 echo ""
+COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
 echo "To start bots, run:"
-echo "   docker compose -f compose-50-bots.yaml up -d"
+echo "   docker compose -f $COMPOSE_FILE_NAME up -d"
 echo ""
 echo "To start specific bots:"
-echo "   docker compose -f compose-50-bots.yaml up bot-1 bot-2 ..."
+echo "   docker compose -f $COMPOSE_FILE_NAME up bot-${MEETING_ID}-1 bot-${MEETING_ID}-2 ..."
 

@@ -138,8 +138,9 @@ app.post('/api/bots/create', async (req, res) => {
     // Pass HOST_PROJECT_PATH so generate-flexible-bots.sh can use it in volume mounts
     // Pass meetingType to determine if ZAK tokens should be generated
     // Pass nameType to determine which names file to use (Indian/International)
+    // Pass meetingId for unique container names and compose file names
     const hostPath = process.env.HOST_PROJECT_PATH || '/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample';
-    const command = `cd ${projectDir} && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
+    const command = `cd ${projectDir} && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
     
     // Execute setup script
     // Increase timeout for large bot counts (10 bots can take 2-3 minutes)
@@ -194,13 +195,15 @@ app.post('/api/bots/create', async (req, res) => {
     }
     
     // Get container IDs from compose file
-    // Parse compose-50-bots.yaml to get container names
+    // Use meeting ID based compose file name
+    const composeFileName = `compose-${meetingId}-bots.yaml`;
     const containerIds = [];
     // totalBots is already declared above (line 96)
     
-    // Generate container names based on bot numbers
+    // Generate container names based on meeting ID and bot numbers
+    // This ensures unique names per meeting, avoiding conflicts
     for (let i = 1; i <= totalBots; i++) {
-      containerIds.push(`zoom-bot-${i}`);
+      containerIds.push(`zoom-bot-${meetingId}-${i}`);
     }
     
     // Start containers
@@ -210,12 +213,15 @@ app.post('/api/bots/create', async (req, res) => {
     console.log(`🚀 Starting containers...`);
     
     // IMPORTANT: Use container path for docker-compose
-    // The compose file is in the container at /app/bot-project/compose-50-bots.yaml
+    // The compose file is in the container at /app/bot-project/compose-{meetingId}-bots.yaml
     // docker-compose will use the host Docker daemon via socket
     // Force recreate to ensure containers use latest compose file with ZAK tokens
-    const startCommand = `docker-compose -f compose-50-bots.yaml up -d --force-recreate`;
+    // Note: --force-recreate will only recreate containers defined in this compose file
+    // Other meetings' containers will remain untouched
+    const startCommand = `docker-compose -f ${composeFileName} up -d --force-recreate`;
     
-    console.log(`📋 Using compose file: ${projectDir}/compose-50-bots.yaml`);
+    console.log(`📋 Using compose file: ${projectDir}/${composeFileName}`);
+    console.log(`📋 Meeting ID: ${meetingId} - Containers: zoom-bot-${meetingId}-1 to zoom-bot-${meetingId}-${totalBots}`);
     console.log(`📋 Force recreating containers to ensure ZAK tokens are used...`);
     
     await execAsync(startCommand, { 
@@ -227,11 +233,11 @@ app.post('/api/bots/create', async (req, res) => {
       shell: '/bin/sh' // Explicitly specify shell
     });
     
-    // Get actual container IDs
+    // Get actual container IDs using meeting ID based names
     for (let i = 1; i <= totalBots; i++) {
       try {
         const { stdout: containerId } = await execAsync(
-          `docker ps -q -f name=zoom-bot-${i}`,
+          `docker ps -q -f name=zoom-bot-${meetingId}-${i}`,
           { cwd: projectDir, shell: '/bin/sh' }
         );
         if (containerId.trim()) {

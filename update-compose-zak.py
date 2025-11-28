@@ -19,7 +19,13 @@ except NameError:
 # Use current working directory (where script is executed from)
 # This ensures files are found when run from container
 WORK_DIR = os.getcwd()
-COMPOSE_FILE = os.path.join(WORK_DIR, "compose-50-bots.yaml")
+
+# Get compose file name from command line argument or use default
+if len(sys.argv) > 1:
+    COMPOSE_FILE = os.path.join(WORK_DIR, sys.argv[1])
+else:
+    COMPOSE_FILE = os.path.join(WORK_DIR, "compose-50-bots.yaml")
+
 TOKENS_FILE = os.path.join(WORK_DIR, "bot-zak-tokens.env")
 
 def load_tokens():
@@ -62,9 +68,14 @@ def update_compose_file(tokens):
         line = lines[i]
         
         # Detect bot section start
-        bot_match = re.match(r'^\s*bot-(\d+):', line)
+        # Support both formats: bot-{meetingId}-{number} and bot-{number}
+        bot_match = re.match(r'^\s*bot-(\d+)(?:-(\d+))?:', line)
         if bot_match:
-            current_bot = int(bot_match.group(1))
+            # Extract bot number (second number if meeting ID format, first if old format)
+            if bot_match.group(2):
+                current_bot = int(bot_match.group(2))  # bot-{meetingId}-{number}
+            else:
+                current_bot = int(bot_match.group(1))  # bot-{number}
             new_lines.append(line)
             i += 1
             continue
@@ -176,7 +187,8 @@ def main():
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("")
         print("💡 Test bots:")
-        print("   docker compose -f compose-50-bots.yaml up --build bot-1")
+        compose_filename = os.path.basename(COMPOSE_FILE)
+        print(f"   docker compose -f {compose_filename} up --build bot-1")
         return 0
     else:
         return 1
