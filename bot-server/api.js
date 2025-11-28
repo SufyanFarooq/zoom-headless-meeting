@@ -181,11 +181,34 @@ app.post('/api/bots/create', async (req, res) => {
     console.log(`   Step 3: Generating ZAK tokens (${video + audio} bots, ~2s each)...`);
     console.log(`   Step 4: Starting containers...`);
     
-    const { stdout, stderr } = await execAsync(command, {
-      cwd: projectDir,
-      timeout: scriptTimeout,
-      shell: '/bin/sh' // Explicitly specify shell
-    });
+    let stdout, stderr;
+    try {
+      const result = await execAsync(command, {
+        cwd: projectDir,
+        timeout: scriptTimeout,
+        shell: '/bin/sh' // Explicitly specify shell
+      });
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (scriptError) {
+      // Script execution failed - log detailed error
+      console.error('❌ Script execution failed:', scriptError.message);
+      console.error('   Command:', command);
+      console.error('   Stdout:', scriptError.stdout || '');
+      console.error('   Stderr:', scriptError.stderr || '');
+      
+      // Check if compose file was generated despite error
+      const composeFilePath = path.join(projectDir, `compose-${meetingId}-bots.yaml`);
+      if (fs.existsSync(composeFilePath)) {
+        console.log(`✅ Compose file was generated: ${composeFilePath}`);
+        // Continue with container startup even if script had warnings
+        stdout = scriptError.stdout || '';
+        stderr = scriptError.stderr || '';
+      } else {
+        // Script failed and no compose file - throw error
+        throw new Error(`Script execution failed: ${scriptError.message}. Compose file not generated.`);
+      }
+    }
     
     console.log(`✅ Setup script completed`);
     console.log(`📋 Script output:`);
@@ -280,14 +303,34 @@ app.post('/api/bots/create', async (req, res) => {
       });
     }
     
-    await execAsync(startCommand, { 
-      cwd: projectDir, // Use container path for docker-compose
-      env: {
-        ...process.env,
-        DOCKER_HOST: 'unix:///var/run/docker.sock'
-      },
-      shell: '/bin/sh' // Explicitly specify shell
-    });
+    try {
+      await execAsync(startCommand, { 
+        cwd: projectDir, // Use container path for docker-compose
+        env: {
+          ...process.env,
+          DOCKER_HOST: 'unix:///var/run/docker.sock'
+        },
+        shell: '/bin/sh' // Explicitly specify shell
+      });
+    } catch (dockerError) {
+      // Docker-compose command failed - log detailed error
+      console.error('❌ Docker-compose command failed:');
+      console.error('   Command:', startCommand);
+      console.error('   Working directory:', projectDir);
+      console.error('   Compose file path:', composeFilePath);
+      console.error('   Compose file exists:', fs.existsSync(composeFilePath));
+      console.error('   Error:', dockerError.message);
+      console.error('   Stdout:', dockerError.stdout || '');
+      console.error('   Stderr:', dockerError.stderr || '');
+      
+      // Check if compose file exists
+      if (!fs.existsSync(composeFilePath)) {
+        throw new Error(`Compose file ${composeFileName} does not exist at ${composeFilePath}. Script may have failed to generate it.`);
+      }
+      
+      // Re-throw with better error message
+      throw new Error(`Docker-compose failed: ${dockerError.message}. Command: ${startCommand}. Compose file: ${composeFilePath}`);
+    }
     
     // Get actual container IDs using meeting ID based names
     for (let i = 1; i <= totalBots; i++) {
