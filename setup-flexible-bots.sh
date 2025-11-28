@@ -147,7 +147,11 @@ if [ "$MEETING_TYPE" = "Profile Pic Member" ]; then
             else
                 echo "   ℹ️  Using sequential generation for $BOTS_NEEDING_ZAK bots (< 10 bots)"
             fi
-            if ./auto-setup-bots.sh "$ACCOUNT_ID" "$CLIENT_ID" "$CLIENT_SECRET" "$TEMP_USERS_FILE" "$PARALLEL_JOBS"; then
+            # Set COMPOSE_FILE environment variable for auto-setup-bots.sh
+            COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
+            export COMPOSE_FILE="$COMPOSE_FILE_NAME"
+            echo "   Setting COMPOSE_FILE=$COMPOSE_FILE_NAME for auto-setup-bots.sh"
+            if COMPOSE_FILE="$COMPOSE_FILE_NAME" ./auto-setup-bots.sh "$ACCOUNT_ID" "$CLIENT_ID" "$CLIENT_SECRET" "$TEMP_USERS_FILE" "$PARALLEL_JOBS"; then
                 echo "   ✅ ZAK tokens generated successfully for $BOTS_NEEDING_ZAK bots"
                 if [ $EMAIL_COUNT -gt $TOTAL_BOTS ]; then
                     echo "   ℹ️  Note: $((EMAIL_COUNT - TOTAL_BOTS)) extra emails not used (only $TOTAL_BOTS bots needed)"

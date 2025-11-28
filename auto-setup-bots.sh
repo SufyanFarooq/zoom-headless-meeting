@@ -171,12 +171,16 @@ fi
 
 # Update compose file
 echo "Step 3: Updating compose file..."
-COMPOSE_FILE="compose-50-bots.yaml"
+# Use COMPOSE_FILE from environment if set, otherwise default to compose-50-bots.yaml
+COMPOSE_FILE="${COMPOSE_FILE:-compose-50-bots.yaml}"
 
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo "❌ Compose file not found: $COMPOSE_FILE"
+    echo "   💡 Set COMPOSE_FILE environment variable to specify compose file name"
     exit 1
 fi
+
+echo "   Using compose file: $COMPOSE_FILE"
 
 # Update each bot in compose file
 # Iterate over bots that successfully got tokens
@@ -204,7 +208,7 @@ while [ $i -lt $SUCCESSFUL_BOTS ]; do
             echo "   OR: python3 -m pip install PyYAML"
             echo ""
             echo "   Falling back to update-compose-zak.py script..."
-            python3 update-compose-zak.py 2>/dev/null || {
+            python3 update-compose-zak.py "$COMPOSE_FILE" 2>/dev/null || {
                 echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
                 echo "   Manual update needed:"
                 echo "   Bot-${BOT_NUM}: Update --zak token to \"${ZAK_TOKEN}\""
@@ -215,7 +219,8 @@ while [ $i -lt $SUCCESSFUL_BOTS ]; do
     fi
     
     # Use Python script to remove all duplicates and update
-    COMPOSE_FILE="$COMPOSE_FILE" BOT_NUM=$BOT_NUM ZAK_TOKEN="$ZAK_TOKEN" python3 << 'PYTHON_UPDATE_SCRIPT'
+    # Pass COMPOSE_FILE to Python script via environment
+    COMPOSE_FILE="$COMPOSE_FILE" BOT_NUM=$BOT_NUM ZAK_TOKEN="$ZAK_TOKEN" python3 << PYTHON_UPDATE_SCRIPT
 import yaml
 import sys
 import os
@@ -235,9 +240,19 @@ try:
     if not compose_data or 'services' not in compose_data:
         sys.exit(1)
     
+    # Try both formats: bot-{NUM} and bot-{MEETING_ID}-{NUM}
     service_name = f"bot-{BOT_NUM}"
-    if service_name not in compose_data['services']:
+    # Check if service exists with meeting ID format
+    found_service = None
+    for svc_name in compose_data['services'].keys():
+        if svc_name == service_name or svc_name.endswith(f"-{BOT_NUM}"):
+            found_service = svc_name
+            break
+    
+    if not found_service:
         sys.exit(1)
+    
+    service_name = found_service
     
     command_list = compose_data['services'][service_name].get('command', [])
     
@@ -358,15 +373,20 @@ try:
         while i < len(lines):
             line = lines[i]
             
-            # Detect bot service start
-            if re.match(r'^\s*bot-' + str(BOT_NUM) + r':', line):
+            # Detect bot service start - handle both bot-{NUM} and bot-{MEETING_ID}-{NUM} formats
+            # Match: bot-{NUM}: or bot-{MEETING_ID}-{NUM}:
+            if re.match(r'^\s*bot-(\d+-)?' + str(BOT_NUM) + r':', line):
                 in_bot_section = True
                 new_lines.append(line)
                 i += 1
                 continue
             
-            # Detect end of bot service
-            if in_bot_section and re.match(r'^\s+(bot-|\w+):', line) and not line.strip().startswith('bot-' + str(BOT_NUM) + ':'):
+            # Detect end of bot service - handle both formats
+            if in_bot_section and re.match(r'^\s+(bot-|\w+):', line):
+                # Check if this is still the same bot (handle both formats)
+                if not re.match(r'^\s*bot-(\d+-)?' + str(BOT_NUM) + r':', line):
+                    in_bot_section = False
+                    in_command_section = False
                 in_bot_section = False
                 in_command_section = False
             
@@ -418,7 +438,7 @@ PYTHON_UPDATE_SCRIPT
     if [ $? -ne 0 ]; then
         # Fallback: Use update-compose-zak.py script
         echo "   Using update-compose-zak.py script..."
-        python3 update-compose-zak.py 2>/dev/null || {
+        python3 update-compose-zak.py "$COMPOSE_FILE" 2>/dev/null || {
             echo "⚠️  Could not auto-update bot-${BOT_NUM} in compose file"
             echo "   Manual update needed:"
             echo "   Bot-${BOT_NUM}: Update --zak token to \"${ZAK_TOKEN}\""
