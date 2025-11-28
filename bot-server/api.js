@@ -140,7 +140,8 @@ app.post('/api/bots/create', async (req, res) => {
     // Pass nameType to determine which names file to use (Indian/International)
     // Pass meetingId for unique container names and compose file names
     const hostPath = process.env.HOST_PROJECT_PATH || '/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample';
-    const command = `cd ${projectDir} && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
+    // Quote projectDir to handle paths with spaces
+    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
     
     // Execute setup script
     // Increase timeout for large bot counts (10 bots can take 2-3 minutes)
@@ -196,7 +197,7 @@ app.post('/api/bots/create', async (req, res) => {
     
     // Debug: Check what compose files were generated
     try {
-      const { stdout: composeFiles } = await execAsync(`ls -la ${projectDir}/compose-*-bots.yaml 2>/dev/null || echo 'No compose files found'`, {
+      const { stdout: composeFiles } = await execAsync(`ls -la "${projectDir}"/compose-*-bots.yaml 2>/dev/null || echo 'No compose files found'`, {
         cwd: projectDir,
         shell: '/bin/sh'
       });
@@ -210,6 +211,32 @@ app.post('/api/bots/create', async (req, res) => {
     const composeFileName = `compose-${meetingId}-bots.yaml`;
     console.log(`📋 Expected compose file: ${composeFileName}`);
     console.log(`📋 Meeting ID used: ${meetingId}`);
+    console.log(`📋 Meeting ID type: ${typeof meetingId}`);
+    console.log(`📋 Meeting ID value: "${meetingId}"`);
+    
+    // Verify compose file exists before trying to use it
+    const composeFilePath = path.join(projectDir, composeFileName);
+    if (!fs.existsSync(composeFilePath)) {
+      console.error(`❌ Compose file not found: ${composeFilePath}`);
+      console.error(`   Checking for any compose files...`);
+      try {
+        const { stdout: allComposeFiles } = await execAsync(`ls -la "${projectDir}"/compose-*.yaml 2>/dev/null || echo 'No compose files found'`, {
+          cwd: projectDir,
+          shell: '/bin/sh'
+        });
+        console.error(`   Found compose files:`, allComposeFiles);
+      } catch (error) {
+        console.error(`   Could not list compose files:`, error.message);
+      }
+      return res.status(500).json({ 
+        error: 'Compose file not generated',
+        message: `Expected compose file ${composeFileName} not found after script execution`,
+        meetingId,
+        composeFileName,
+        projectDir
+      });
+    }
+    console.log(`✅ Compose file exists: ${composeFilePath}`);
     const containerIds = [];
     // totalBots is already declared above (line 96)
     
@@ -233,9 +260,25 @@ app.post('/api/bots/create', async (req, res) => {
     // Other meetings' containers will remain untouched
     const startCommand = `docker-compose -f ${composeFileName} up -d --force-recreate`;
     
-    console.log(`📋 Using compose file: ${projectDir}/${composeFileName}`);
+    console.log(`📋 Using compose file: "${projectDir}/${composeFileName}"`);
+    console.log(`📋 Full compose file path: ${composeFilePath}`);
+    console.log(`📋 Command to execute: ${startCommand}`);
     console.log(`📋 Meeting ID: ${meetingId} - Containers: zoom-bot-${meetingId}-1 to zoom-bot-${meetingId}-${totalBots}`);
     console.log(`📋 Force recreating containers to ensure ZAK tokens are used...`);
+    
+    // Double-check compose file exists
+    if (!fs.existsSync(composeFilePath)) {
+      const errorMsg = `Compose file ${composeFileName} does not exist at ${composeFilePath}`;
+      console.error(`❌ ${errorMsg}`);
+      return res.status(500).json({ 
+        error: 'Compose file not found',
+        message: errorMsg,
+        meetingId,
+        composeFileName,
+        composeFilePath,
+        projectDir
+      });
+    }
     
     await execAsync(startCommand, { 
       cwd: projectDir, // Use container path for docker-compose
