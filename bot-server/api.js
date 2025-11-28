@@ -194,9 +194,22 @@ app.post('/api/bots/create', async (req, res) => {
       console.error('Setup script stderr:', stderr);
     }
     
+    // Debug: Check what compose files were generated
+    try {
+      const { stdout: composeFiles } = await execAsync(`ls -la ${projectDir}/compose-*-bots.yaml 2>/dev/null || echo 'No compose files found'`, {
+        cwd: projectDir,
+        shell: '/bin/sh'
+      });
+      console.log(`📋 Generated compose files:`, composeFiles);
+    } catch (error) {
+      console.log(`⚠️  Could not list compose files:`, error.message);
+    }
+    
     // Get container IDs from compose file
     // Use meeting ID based compose file name
     const composeFileName = `compose-${meetingId}-bots.yaml`;
+    console.log(`📋 Expected compose file: ${composeFileName}`);
+    console.log(`📋 Meeting ID used: ${meetingId}`);
     const containerIds = [];
     // totalBots is already declared above (line 96)
     

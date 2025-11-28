@@ -19,6 +19,9 @@ MEETING_ID="${7:-}"
 # If meeting ID not provided, use timestamp for uniqueness
 if [ -z "$MEETING_ID" ]; then
     MEETING_ID="$(date +%s)"
+    echo "⚠️  No Meeting ID provided, using timestamp: $MEETING_ID"
+else
+    echo "✅ Using Meeting ID: $MEETING_ID"
 fi
 
 # Select names file based on name type

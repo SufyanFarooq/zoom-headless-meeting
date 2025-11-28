@@ -66,12 +66,20 @@ if [[ "$JOIN_URL" =~ /j/([0-9]+) ]]; then
     MEETING_ID_FROM_URL="${BASH_REMATCH[1]}"
 fi
 
-# Use meeting ID from environment if available, otherwise from URL
-MEETING_ID="${MEETING_ID:-${MEETING_ID_FROM_URL}}"
+# Use meeting ID from environment if available and not empty, otherwise from URL
+# Handle both unset and empty string cases
+if [ -z "${MEETING_ID}" ] && [ -n "${MEETING_ID_FROM_URL}" ]; then
+    MEETING_ID="${MEETING_ID_FROM_URL}"
+elif [ -z "${MEETING_ID}" ]; then
+    # Fallback to timestamp if neither is available
+    MEETING_ID="$(date +%s)"
+fi
 
 echo ""
 echo "📝 Step 1: Generating compose file..."
-echo "   Meeting ID: ${MEETING_ID:-'auto-generated'}"
+echo "   Meeting ID from env: ${MEETING_ID:-'not set'}"
+echo "   Meeting ID from URL: ${MEETING_ID_FROM_URL:-'not found'}"
+echo "   Using Meeting ID: ${MEETING_ID}"
 ./generate-flexible-bots.sh "$VIDEO_COUNT" "$AUDIO_COUNT" "$JOIN_URL" "Bot" "$USERS_FILE" "$NAME_TYPE" "$MEETING_ID"
 
 # Step 2: Generate ZAK tokens for bots with emails (only for Profile Pic Member)
