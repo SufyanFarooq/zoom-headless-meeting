@@ -199,3 +199,7 @@ videos/*.mp4
 
 # Profile pictures (only PNG files, not .txt files)
 profile-pics/*.jpg
+
+# Archive files
+bot-server-only.tar.gz
+*.tar.gz

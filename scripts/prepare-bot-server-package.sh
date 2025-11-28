@@ -84,6 +84,19 @@ cp compose-50-bots.yaml "$TEMP_DIR/zoom-headless-meeting/" 2>/dev/null || echo "
 echo "  ✅ config.toml"
 cp config.toml "$TEMP_DIR/zoom-headless-meeting/" 2>/dev/null || echo "  ⚠️  config.toml not found"
 
+# Required scripts for bot creation
+echo "  ✅ setup-flexible-bots.sh (REQUIRED)"
+cp setup-flexible-bots.sh "$TEMP_DIR/zoom-headless-meeting/" 2>/dev/null || echo "  ⚠️  setup-flexible-bots.sh not found"
+
+echo "  ✅ generate-flexible-bots.sh (REQUIRED)"
+cp generate-flexible-bots.sh "$TEMP_DIR/zoom-headless-meeting/" 2>/dev/null || echo "  ⚠️  generate-flexible-bots.sh not found"
+
+echo "  ✅ auto-setup-bots.sh (REQUIRED)"
+cp auto-setup-bots.sh "$TEMP_DIR/zoom-headless-meeting/" 2>/dev/null || echo "  ⚠️  auto-setup-bots.sh not found"
+
+echo "  ✅ update-compose-zak.py (REQUIRED)"
+cp update-compose-zak.py "$TEMP_DIR/zoom-headless-meeting/" 2>/dev/null || echo "  ⚠️  update-compose-zak.py not found"
+
 # Optional but useful
 if [ -f ".dockerignore" ]; then
     echo "  ✅ .dockerignore"
