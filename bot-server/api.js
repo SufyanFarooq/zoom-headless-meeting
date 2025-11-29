@@ -138,6 +138,23 @@ app.post('/api/bots/create', async (req, res) => {
       });
     }
     
+    // Calculate name offset: count existing containers for this meeting
+    // This ensures names continue from where we left off, avoiding duplicates
+    let nameOffset = 0;
+    try {
+      const { stdout: existingContainers } = await execAsync(
+        `docker ps -a --filter "name=zoom-bot-${meetingId}-" --format "{{.Names}}"`,
+        { cwd: projectDir, shell: '/bin/sh' }
+      );
+      if (existingContainers && existingContainers.trim()) {
+        const containerNames = existingContainers.trim().split('\n').filter(n => n);
+        nameOffset = containerNames.length;
+        console.log(`📊 Found ${nameOffset} existing containers for meeting ${meetingId}, using name offset: ${nameOffset}`);
+      }
+    } catch (error) {
+      console.log(`ℹ️  Could not count existing containers, starting from name offset 0`);
+    }
+    
     // Build command to run setup-flexible-bots.sh
     // Use bash explicitly and make scripts executable
     // Pass HOST_PROJECT_PATH so generate-flexible-bots.sh can use it in volume mounts
@@ -145,9 +162,10 @@ app.post('/api/bots/create', async (req, res) => {
     // Pass nameType to determine which names file to use (Indian/International)
     // Pass meetingId and requestId for unique container names and compose file names
     // requestId ensures each bot creation request gets its own compose file, even for same meeting
+    // Pass NAME_OFFSET to continue names from where we left off (prevents duplicates)
     const hostPath = process.env.HOST_PROJECT_PATH || '/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample';
     // Quote projectDir to handle paths with spaces
-    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" REQUEST_ID="${uniqueRequestId}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
+    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" REQUEST_ID="${uniqueRequestId}" NAME_OFFSET="${nameOffset}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
     
     // Execute setup script
     // Increase timeout for large bot counts (10 bots can take 2-3 minutes)
@@ -341,18 +359,24 @@ app.post('/api/bots/create', async (req, res) => {
       throw new Error(`Docker-compose failed: ${dockerError.message}. Command: ${startCommand}. Compose file: ${composeFilePath}`);
     }
     
-    // Get actual container IDs using meeting ID based names
+    // Get actual container IDs using meeting ID + request ID based names
+    // Format: zoom-bot-{meetingId}-{requestId}-{botNumber}
     for (let i = 1; i <= totalBots; i++) {
+      const containerName = `zoom-bot-${meetingId}-${uniqueRequestId}-${i}`;
       try {
         const { stdout: containerId } = await execAsync(
-          `docker ps -q -f name=zoom-bot-${meetingId}-${i}`,
+          `docker ps -q -f name=^${containerName}$`,
           { cwd: projectDir, shell: '/bin/sh' }
         );
         if (containerId.trim()) {
-          containerIds.push(containerId.trim());
+          containerIds.push(containerName); // Use container name, not ID
+        } else {
+          // Fallback: try to get by name directly
+          containerIds.push(containerName);
         }
       } catch (error) {
-        // Container might not exist yet
+        // Container might not exist yet, but add name anyway
+        containerIds.push(containerName);
       }
     }
     
@@ -411,20 +435,19 @@ app.post('/api/bots/stop', async (req, res) => {
     const results = [];
     const batchSize = 10; // Stop 10 containers at a time in parallel
     
-    // Clean container IDs first
+    // Clean container IDs - use as-is if they're already container names
+    // Format: zoom-bot-{meetingId}-{requestId}-{botNumber}
     const cleanIds = containerIds
       .filter(id => id && id.length > 0)
       .map(id => {
-        // Try to extract container name from ID
-        const match = String(id).match(/(\d+)/);
-        if (match) {
-          return `zoom-bot-${match[1]}`;
-        } else if (String(id).startsWith('zoom-bot-')) {
-          return String(id).trim();
-        } else {
-          // Escape special characters for direct ID
-          return String(id).replace(/[^a-zA-Z0-9_-]/g, '');
+        const idStr = String(id).trim();
+        // If it's already a container name (starts with zoom-bot-), use as-is
+        if (idStr.startsWith('zoom-bot-')) {
+          return idStr;
         }
+        // If it's a container ID (hex string), try to find container by ID
+        // Otherwise, escape special characters
+        return idStr.replace(/[^a-zA-Z0-9_-]/g, '');
       })
       .filter(id => id && id.length > 0);
     

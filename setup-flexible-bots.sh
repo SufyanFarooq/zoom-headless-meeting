@@ -81,13 +81,18 @@ if [ -z "${REQUEST_ID}" ]; then
     REQUEST_ID="$(date +%s)"
 fi
 
+# Get NAME_OFFSET from environment (to continue names from where we left off)
+# This prevents duplicate names when adding bots to same meeting
+NAME_OFFSET="${NAME_OFFSET:-0}"
+
 echo ""
 echo "📝 Step 1: Generating compose file..."
 echo "   Meeting ID from env: ${MEETING_ID:-'not set'}"
 echo "   Meeting ID from URL: ${MEETING_ID_FROM_URL:-'not found'}"
 echo "   Request ID: ${REQUEST_ID}"
+echo "   Name Offset: ${NAME_OFFSET} (to avoid duplicate names)"
 echo "   Using Meeting ID: ${MEETING_ID}, Request ID: ${REQUEST_ID}"
-./generate-flexible-bots.sh "$VIDEO_COUNT" "$AUDIO_COUNT" "$JOIN_URL" "Bot" "$USERS_FILE" "$NAME_TYPE" "$MEETING_ID" "$REQUEST_ID"
+NAME_OFFSET="${NAME_OFFSET}" ./generate-flexible-bots.sh "$VIDEO_COUNT" "$AUDIO_COUNT" "$JOIN_URL" "Bot" "$USERS_FILE" "$NAME_TYPE" "$MEETING_ID" "$REQUEST_ID"
 
 # Step 2: Generate ZAK tokens for bots with emails (only for Profile Pic Member)
 # MEETING_TYPE can come from:

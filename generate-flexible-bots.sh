@@ -42,13 +42,26 @@ else
 fi
 
 # Function to get display name from names.txt
+# Uses name offset to avoid duplicates when adding bots to same meeting
 get_display_name() {
     local bot_num=$1
+    local name_offset=${NAME_OFFSET:-0}  # Offset to continue from where we left off
+    local actual_line_num=$((bot_num + name_offset))
     local name=""
     
-    # Read name from names.txt (line number = bot number)
+    # Read name from names.txt (line number = bot number + offset)
     if [ -f "$NAMES_FILE" ]; then
-        name=$(sed -n "${bot_num}p" "$NAMES_FILE" 2>/dev/null | xargs)
+        # Get total lines in names file
+        local total_lines=$(wc -l < "$NAMES_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+        
+        # Use modulo to wrap around if we exceed file length
+        if [ "$total_lines" -gt 0 ]; then
+            local line_to_read=$((actual_line_num % total_lines))
+            if [ "$line_to_read" -eq 0 ]; then
+                line_to_read=$total_lines
+            fi
+            name=$(sed -n "${line_to_read}p" "$NAMES_FILE" 2>/dev/null | xargs)
+        fi
         
         # Skip empty lines and comments
         if [ -z "$name" ] || [[ "$name" =~ ^# ]]; then
@@ -58,18 +71,25 @@ get_display_name() {
     
     # Fallback: If no name found, try to extract from users.txt email
     if [ -z "$name" ] && [ -f "$USERS_FILE" ]; then
-        local line=$(sed -n "${bot_num}p" "$USERS_FILE" 2>/dev/null)
-        if [ -n "$line" ] && [[ "$line" =~ @ ]]; then
-            local email=$(echo "$line" | awk '{print $1}')
-            name=$(echo "$email" | cut -d'@' -f1)
-            # Capitalize first letter
-            name=$(echo "$name" | sed 's/^./\U&/')
+        local total_users=$(wc -l < "$USERS_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+        if [ "$total_users" -gt 0 ]; then
+            local user_line_num=$((actual_line_num % total_users))
+            if [ "$user_line_num" -eq 0 ]; then
+                user_line_num=$total_users
+            fi
+            local line=$(sed -n "${user_line_num}p" "$USERS_FILE" 2>/dev/null)
+            if [ -n "$line" ] && [[ "$line" =~ @ ]]; then
+                local email=$(echo "$line" | awk '{print $1}')
+                name=$(echo "$email" | cut -d'@' -f1)
+                # Capitalize first letter
+                name=$(echo "$name" | sed 's/^./\U&/')
+            fi
         fi
     fi
     
     # Final fallback to prefix-number
     if [ -z "$name" ]; then
-        name="${DISPLAY_NAME_PREFIX}-${bot_num}"
+        name="${DISPLAY_NAME_PREFIX}-${actual_line_num}"
     fi
     
     echo "$name"
