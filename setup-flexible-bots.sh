@@ -75,12 +75,19 @@ elif [ -z "${MEETING_ID}" ]; then
     MEETING_ID="$(date +%s)"
 fi
 
+# Get REQUEST_ID from environment (unique ID for this bot creation request)
+# If not provided, generate one (backward compatibility)
+if [ -z "${REQUEST_ID}" ]; then
+    REQUEST_ID="$(date +%s)"
+fi
+
 echo ""
 echo "📝 Step 1: Generating compose file..."
 echo "   Meeting ID from env: ${MEETING_ID:-'not set'}"
 echo "   Meeting ID from URL: ${MEETING_ID_FROM_URL:-'not found'}"
-echo "   Using Meeting ID: ${MEETING_ID}"
-./generate-flexible-bots.sh "$VIDEO_COUNT" "$AUDIO_COUNT" "$JOIN_URL" "Bot" "$USERS_FILE" "$NAME_TYPE" "$MEETING_ID"
+echo "   Request ID: ${REQUEST_ID}"
+echo "   Using Meeting ID: ${MEETING_ID}, Request ID: ${REQUEST_ID}"
+./generate-flexible-bots.sh "$VIDEO_COUNT" "$AUDIO_COUNT" "$JOIN_URL" "Bot" "$USERS_FILE" "$NAME_TYPE" "$MEETING_ID" "$REQUEST_ID"
 
 # Step 2: Generate ZAK tokens for bots with emails (only for Profile Pic Member)
 # MEETING_TYPE can come from:
@@ -148,7 +155,7 @@ if [ "$MEETING_TYPE" = "Profile Pic Member" ]; then
                 echo "   ℹ️  Using sequential generation for $BOTS_NEEDING_ZAK bots (< 10 bots)"
             fi
             # Set COMPOSE_FILE environment variable for auto-setup-bots.sh
-            COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
+            COMPOSE_FILE_NAME="compose-${MEETING_ID}-${REQUEST_ID}-bots.yaml"
             export COMPOSE_FILE="$COMPOSE_FILE_NAME"
             echo "   Setting COMPOSE_FILE=$COMPOSE_FILE_NAME for auto-setup-bots.sh"
             if COMPOSE_FILE="$COMPOSE_FILE_NAME" ./auto-setup-bots.sh "$ACCOUNT_ID" "$CLIENT_ID" "$CLIENT_SECRET" "$TEMP_USERS_FILE" "$PARALLEL_JOBS"; then
@@ -180,13 +187,13 @@ if [ "$MEETING_TYPE" = "Profile Pic Member" ]; then
                 echo "   Running update-compose-zak.py..."
                 echo "   Current directory: $(pwd)"
                 echo "   Checking files:"
-                COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
+                COMPOSE_FILE_NAME="compose-${MEETING_ID}-${REQUEST_ID}-bots.yaml"
                 ls -la bot-zak-tokens.env "$COMPOSE_FILE_NAME" 2>&1 | head -3
                 if python3 update-compose-zak.py "$COMPOSE_FILE_NAME"; then
                     echo "   ✅ ZAK tokens added to compose file"
                     
                     # Verify ZAK tokens were added
-                    COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
+                    COMPOSE_FILE_NAME="compose-${MEETING_ID}-${REQUEST_ID}-bots.yaml"
                     ZAK_IN_COMPOSE=$(grep -c "\"--zak\"" "$COMPOSE_FILE_NAME" || echo "0")
                     echo "   Verified: $ZAK_IN_COMPOSE ZAK tokens found in compose file"
                     
@@ -230,5 +237,5 @@ echo "To start bots, run:"
 echo "   docker compose -f $COMPOSE_FILE_NAME up -d"
 echo ""
 echo "To start specific bots:"
-echo "   docker compose -f $COMPOSE_FILE_NAME up bot-${MEETING_ID}-1 bot-${MEETING_ID}-2 ..."
+echo "   docker compose -f $COMPOSE_FILE_NAME up bot-${MEETING_ID}-${REQUEST_ID}-1 bot-${MEETING_ID}-${REQUEST_ID}-2 ..."
 

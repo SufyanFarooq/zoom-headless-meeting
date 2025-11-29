@@ -240,11 +240,12 @@ try:
     if not compose_data or 'services' not in compose_data:
         sys.exit(1)
     
-    # Try both formats: bot-{NUM} and bot-{MEETING_ID}-{NUM}
+    # Try multiple formats: bot-{NUM}, bot-{MEETING_ID}-{NUM}, bot-{MEETING_ID}-{REQUEST_ID}-{NUM}
     service_name = f"bot-{BOT_NUM}"
-    # Check if service exists with meeting ID format
+    # Check if service exists with meeting ID + request ID format
     found_service = None
     for svc_name in compose_data['services'].keys():
+        # Match: bot-{NUM}, bot-{MEETING_ID}-{NUM}, or bot-{MEETING_ID}-{REQUEST_ID}-{NUM}
         if svc_name == service_name or svc_name.endswith(f"-{BOT_NUM}"):
             found_service = svc_name
             break
@@ -373,9 +374,9 @@ try:
         while i < len(lines):
             line = lines[i]
             
-            # Detect bot service start - handle both bot-{NUM} and bot-{MEETING_ID}-{NUM} formats
-            # Match: bot-{NUM}: or bot-{MEETING_ID}-{NUM}:
-            if re.match(r'^\s*bot-(\d+-)?' + str(BOT_NUM) + r':', line):
+            # Detect bot service start - handle bot-{NUM}, bot-{MEETING_ID}-{NUM}, or bot-{MEETING_ID}-{REQUEST_ID}-{NUM} formats
+            # Match: bot-{NUM}:, bot-{MEETING_ID}-{NUM}:, or bot-{MEETING_ID}-{REQUEST_ID}-{NUM}:
+            if re.match(r'^\s*bot-(\d+-)*' + str(BOT_NUM) + r':', line):
                 in_bot_section = True
                 new_lines.append(line)
                 i += 1
@@ -384,7 +385,7 @@ try:
             # Detect end of bot service - handle both formats
             if in_bot_section and re.match(r'^\s+(bot-|\w+):', line):
                 # Check if this is still the same bot (handle both formats)
-                if not re.match(r'^\s*bot-(\d+-)?' + str(BOT_NUM) + r':', line):
+                if not re.match(r'^\s*bot-(\d+-)*' + str(BOT_NUM) + r':', line):
                     in_bot_section = False
                     in_command_section = False
                 in_bot_section = False

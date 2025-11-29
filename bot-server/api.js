@@ -20,6 +20,7 @@ app.post('/api/bots/create', async (req, res) => {
     
     const { 
       meetingId, 
+      requestId, // Unique ID for this bot creation request (timestamp)
       password, 
       joinUrl, 
       videoCount, 
@@ -32,9 +33,13 @@ app.post('/api/bots/create', async (req, res) => {
       timeoutSeconds
     } = req.body;
     
+    // Generate request ID if not provided (backward compatibility)
+    const uniqueRequestId = requestId || Date.now().toString();
+    
     // Log extracted values
     console.log('📋 Extracted values:', {
       meetingId,
+      requestId: uniqueRequestId,
       password: password ? '***' : undefined,
       joinUrl,
       videoCount,
@@ -138,10 +143,11 @@ app.post('/api/bots/create', async (req, res) => {
     // Pass HOST_PROJECT_PATH so generate-flexible-bots.sh can use it in volume mounts
     // Pass meetingType to determine if ZAK tokens should be generated
     // Pass nameType to determine which names file to use (Indian/International)
-    // Pass meetingId for unique container names and compose file names
+    // Pass meetingId and requestId for unique container names and compose file names
+    // requestId ensures each bot creation request gets its own compose file, even for same meeting
     const hostPath = process.env.HOST_PROJECT_PATH || '/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample';
     // Quote projectDir to handle paths with spaces
-    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
+    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" REQUEST_ID="${uniqueRequestId}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
     
     // Execute setup script
     // Increase timeout for large bot counts (10 bots can take 2-3 minutes)
@@ -198,7 +204,7 @@ app.post('/api/bots/create', async (req, res) => {
       console.error('   Stderr:', scriptError.stderr || '');
       
       // Check if compose file was generated despite error
-      const composeFilePath = path.join(projectDir, `compose-${meetingId}-bots.yaml`);
+      const composeFilePath = path.join(projectDir, `compose-${meetingId}-${uniqueRequestId}-bots.yaml`);
       if (fs.existsSync(composeFilePath)) {
         console.log(`✅ Compose file was generated: ${composeFilePath}`);
         // Continue with container startup even if script had warnings
@@ -230,12 +236,13 @@ app.post('/api/bots/create', async (req, res) => {
     }
     
     // Get container IDs from compose file
-    // Use meeting ID based compose file name
-    const composeFileName = `compose-${meetingId}-bots.yaml`;
+    // Use meeting ID + request ID for unique compose file name
+    // This ensures each bot creation request gets its own compose file
+    const composeFileName = `compose-${meetingId}-${uniqueRequestId}-bots.yaml`;
     console.log(`📋 Expected compose file: ${composeFileName}`);
-    console.log(`📋 Meeting ID used: ${meetingId}`);
-    console.log(`📋 Meeting ID type: ${typeof meetingId}`);
-    console.log(`📋 Meeting ID value: "${meetingId}"`);
+    console.log(`📋 Meeting ID: ${meetingId}`);
+    console.log(`📋 Request ID: ${uniqueRequestId}`);
+    console.log(`📋 This ensures unique compose file even for same meeting`);
     
     // Verify compose file exists before trying to use it
     const composeFilePath = path.join(projectDir, composeFileName);
@@ -263,10 +270,11 @@ app.post('/api/bots/create', async (req, res) => {
     const containerIds = [];
     // totalBots is already declared above (line 96)
     
-    // Generate container names based on meeting ID and bot numbers
-    // This ensures unique names per meeting, avoiding conflicts
+    // Generate container names based on meeting ID, request ID, and bot numbers
+    // This ensures unique names per bot creation request, avoiding conflicts
+    // Even if same meeting ID is used multiple times, each request gets unique containers
     for (let i = 1; i <= totalBots; i++) {
-      containerIds.push(`zoom-bot-${meetingId}-${i}`);
+      containerIds.push(`zoom-bot-${meetingId}-${uniqueRequestId}-${i}`);
     }
     
     // Start containers
@@ -286,8 +294,9 @@ app.post('/api/bots/create', async (req, res) => {
     console.log(`📋 Using compose file: "${projectDir}/${composeFileName}"`);
     console.log(`📋 Full compose file path: ${composeFilePath}`);
     console.log(`📋 Command to execute: ${startCommand}`);
-    console.log(`📋 Meeting ID: ${meetingId} - Containers: zoom-bot-${meetingId}-1 to zoom-bot-${meetingId}-${totalBots}`);
-    console.log(`📋 Force recreating containers to ensure ZAK tokens are used...`);
+    console.log(`📋 Meeting ID: ${meetingId}, Request ID: ${uniqueRequestId}`);
+    console.log(`📋 Containers: zoom-bot-${meetingId}-${uniqueRequestId}-1 to zoom-bot-${meetingId}-${uniqueRequestId}-${totalBots}`);
+    console.log(`📋 Each request gets unique containers, no conflicts with existing bots`);
     
     // Double-check compose file exists
     if (!fs.existsSync(composeFilePath)) {

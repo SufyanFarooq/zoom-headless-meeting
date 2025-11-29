@@ -230,11 +230,16 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       throw new Error(`Invalid videoCount or audioCount: video=${video}, audio=${audio}. At least one must be greater than 0.`);
     }
     
+    // Generate unique request ID (timestamp) to avoid conflicts when adding bots to same meeting
+    // This ensures each bot creation request gets its own compose file and containers
+    const requestId = Date.now().toString();
+    
     // Log request payload for debugging
     console.log('📤 Sending request to bot server:', {
       url: `${botServerUrl}/api/bots/create`,
       payload: {
         meetingId,
+        requestId,
         password: '***',
         joinUrl,
         videoCount: video,
@@ -256,6 +261,7 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
     
     const response = await axios.post(`${botServerUrl}/api/bots/create`, {
       meetingId,
+      requestId, // Unique ID for this bot creation request
       password,
       joinUrl,
       videoCount: video,
