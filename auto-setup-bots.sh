@@ -376,7 +376,8 @@ try:
             
             # Detect bot service start - handle bot-{NUM}, bot-{MEETING_ID}-{NUM}, or bot-{MEETING_ID}-{REQUEST_ID}-{NUM} formats
             # Match: bot-{NUM}:, bot-{MEETING_ID}-{NUM}:, or bot-{MEETING_ID}-{REQUEST_ID}-{NUM}:
-            if re.match(r'^\s*bot-(\d+-)*' + str(BOT_NUM) + r':', line):
+            # Pattern: bot- followed by optional digits-dashes, ending with -{BOT_NUM}:
+            if re.match(r'^\s*bot-(\d+-)*' + str(BOT_NUM) + r':', line) or re.match(r'^\s*bot-\d+-\d+-' + str(BOT_NUM) + r':', line):
                 in_bot_section = True
                 new_lines.append(line)
                 i += 1
@@ -385,7 +386,7 @@ try:
             # Detect end of bot service - handle both formats
             if in_bot_section and re.match(r'^\s+(bot-|\w+):', line):
                 # Check if this is still the same bot (handle both formats)
-                if not re.match(r'^\s*bot-(\d+-)*' + str(BOT_NUM) + r':', line):
+                if not (re.match(r'^\s*bot-(\d+-)*' + str(BOT_NUM) + r':', line) or re.match(r'^\s*bot-\d+-\d+-' + str(BOT_NUM) + r':', line)):
                     in_bot_section = False
                     in_command_section = False
                 in_bot_section = False

@@ -68,11 +68,20 @@ def update_compose_file(tokens):
         line = lines[i]
         
         # Detect bot section start
-        # Support both formats: bot-{meetingId}-{number} and bot-{number}
-        bot_match = re.match(r'^\s*bot-(\d+)(?:-(\d+))?:', line)
+        # Support formats: 
+        # - bot-{number}: (old format)
+        # - bot-{meetingId}-{number}: (previous format)
+        # - bot-{meetingId}-{requestId}-{number}: (new format with REQUEST_ID)
+        # Pattern: bot- followed by digits, optionally followed by more -digits groups
+        bot_match = re.match(r'^\s*bot-(\d+)(?:-(\d+))?(?:-(\d+))?:', line)
         if bot_match:
-            # Extract bot number (second number if meeting ID format, first if old format)
-            if bot_match.group(2):
+            # Extract bot number (last number group)
+            # Format: bot-{meetingId}-{requestId}-{number} -> group(3)
+            # Format: bot-{meetingId}-{number} -> group(2)
+            # Format: bot-{number} -> group(1)
+            if bot_match.group(3):
+                current_bot = int(bot_match.group(3))  # bot-{meetingId}-{requestId}-{number}
+            elif bot_match.group(2):
                 current_bot = int(bot_match.group(2))  # bot-{meetingId}-{number}
             else:
                 current_bot = int(bot_match.group(1))  # bot-{number}

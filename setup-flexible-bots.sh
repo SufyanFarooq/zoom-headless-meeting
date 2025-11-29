@@ -106,10 +106,18 @@ elif [ -z "$MEETING_TYPE" ]; then
 fi
 
 echo ""
-echo "📋 Meeting Type: $MEETING_TYPE"
+echo "📋 Meeting Type: '$MEETING_TYPE'"
+echo "   Meeting Type length: ${#MEETING_TYPE}"
+echo "   Meeting Type check: [\"$MEETING_TYPE\" = \"Profile Pic Member\"]"
 echo ""
 
-if [ "$MEETING_TYPE" = "Profile Pic Member" ]; then
+# Normalize meeting type (trim whitespace)
+MEETING_TYPE_NORMALIZED=$(echo "$MEETING_TYPE" | xargs)
+
+# Check if meeting type is Profile Pic Member
+# Use exact match but handle whitespace
+if [ "$MEETING_TYPE_NORMALIZED" = "Profile Pic Member" ]; then
+    echo "✅ Meeting type matches 'Profile Pic Member' - will generate ZAK tokens"
     if [ -f "$USERS_FILE" ] && [ -s "$USERS_FILE" ]; then
         echo ""
         echo "🔑 Step 2: Generating ZAK tokens for Profile Pic Member..."
@@ -237,7 +245,7 @@ fi
 echo ""
 echo "✅ Setup complete!"
 echo ""
-COMPOSE_FILE_NAME="compose-${MEETING_ID}-bots.yaml"
+COMPOSE_FILE_NAME="compose-${MEETING_ID}-${REQUEST_ID}-bots.yaml"
 echo "To start bots, run:"
 echo "   docker compose -f $COMPOSE_FILE_NAME up -d"
 echo ""
