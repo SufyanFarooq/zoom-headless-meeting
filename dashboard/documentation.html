@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - Zoom Services</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .doc-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .doc-content {
+            background: #2a2a2a;
+            padding: 40px;
+            border-radius: 8px;
+            line-height: 1.8;
+        }
+        .doc-content h1 {
+            color: #4a9eff;
+            font-size: 32px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #4a9eff;
+            padding-bottom: 15px;
+        }
+        .doc-content h2 {
+            color: #4a9eff;
+            font-size: 24px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #3a3a3a;
+        }
+        .doc-content h3 {
+            color: #4ade80;
+            font-size: 18px;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        .doc-content h4 {
+            color: #ffaa44;
+            font-size: 16px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .doc-content p {
+            margin-bottom: 15px;
+            color: #e0e0e0;
+            font-size: 15px;
+        }
+        .doc-content ul, .doc-content ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+            color: #e0e0e0;
+        }
+        .doc-content li {
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        .doc-content strong {
+            color: #ffffff;
+        }
+        .doc-content code {
+            background: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #4ade80;
+            font-size: 14px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #4a9eff;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .code-block {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            overflow-x: auto;
+            border-left: 4px solid #4a9eff;
+        }
+        .code-block code {
+            color: #e0e0e0;
+            font-size: 14px;
+            display: block;
+            white-space: pre-wrap;
+        }
+        .info-box {
+            background: #2a3a2a;
+            border-left: 4px solid #4ade80;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background: #3a2a1a;
+            border-left: 4px solid #ff8800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .step-box {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .step-box h4 {
+            margin-top: 0;
+        }
+        .table-doc {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .table-doc th {
+            background: #1a1a1a;
+            padding: 12px;
+            text-align: left;
+            color: #4a9eff;
+            border-bottom: 2px solid #4a9eff;
+        }
+        .table-doc td {
+            padding: 12px;
+            border-bottom: 1px solid #3a3a3a;
+            color: #e0e0e0;
+        }
+        .toc {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 30px;
+        }
+        .toc h3 {
+            margin-top: 0;
+            color: #4a9eff;
+        }
+        .toc ul {
+            list-style: none;
+            margin-left: 0;
+        }
+        .toc a {
+            color: #4ade80;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="doc-container">
+        <a href="index.html" class="back-link">← Back to Dashboard</a>
+        
+        <div class="doc-content">
+            <h1>Skylark Zoom Services - Documentation</h1>
+            
+            <p>Welcome to the comprehensive documentation for Skylark Zoom Services. This guide will help you understand how to add, use, and manage our Zoom bot service.</p>
+            
+            <div class="toc">
+                <h3>Table of Contents</h3>
+                <ul>
+                    <li><a href="#overview">1. Overview</a></li>
+                    <li><a href="#getting-started">2. Getting Started</a></li>
+                    <li><a href="#adding-app">3. Adding the App</a></li>
+                    <li><a href="#using-app">4. Using the App</a></li>
+                    <li><a href="#features">5. Features and Configuration</a></li>
+                    <li><a href="#managing">6. Managing Meetings</a></li>
+                    <li><a href="#removing">7. Removing the App</a></li>
+                    <li><a href="#troubleshooting">8. Troubleshooting</a></li>
+                </ul>
+            </div>
+            
+            <h2 id="overview">1. Overview</h2>
+            
+            <p>Skylark Zoom Services is a powerful platform that enables you to create and manage Zoom meetings with automated bot participants. The service allows you to:</p>
+            <ul>
+                <li>Create Zoom meetings with customizable bot participants</li>
+                <li>Configure video and audio bot settings</li>
+                <li>Schedule meetings for specific times</li>
+                <li>Manage multiple meetings simultaneously</li>
+                <li>Track usage and meeting statistics</li>
+            </ul>
+            
+            <div class="info-box">
+                <p><strong>Note:</strong> This service requires a valid Zoom account and appropriate Zoom API credentials to function properly.</p>
+            </div>
+            
+            <h2 id="getting-started">2. Getting Started</h2>
+            
+            <h3>2.1 Prerequisites</h3>
+            <p>Before you begin, ensure you have:</p>
+            <ul>
+                <li>A valid Zoom account (Pro, Business, or Enterprise recommended)</li>
+                <li>Zoom API credentials (Client ID and Client Secret)</li>
+                <li>Access to create and manage Zoom meetings</li>
+                <li>A modern web browser (Chrome, Firefox, Safari, or Edge)</li>
+            </ul>
+            
+            <h3>2.2 Account Setup</h3>
+            <p>To get started:</p>
+            <ol>
+                <li>Visit <code>https://skylarkzoom.online</code></li>
+                <li>Create an account using the registration form</li>
+                <li>Verify your email address (if required)</li>
+                <li>Log in to access the dashboard</li>
+            </ol>
+            
+            <h2 id="adding-app">3. Adding the App</h2>
+            
+            <h3>3.1 Installation Process</h3>
+            
+            <div class="step-box">
+                <h4>Step 1: Access the Dashboard</h4>
+                <p>After logging in, you'll be directed to the main dashboard where you can see your usage statistics and meeting management interface.</p>
+            </div>
+            
+            <div class="step-box">
+                <h4>Step 2: Configure Zoom Integration</h4>
+                <p>Before creating meetings, ensure your Zoom credentials are properly configured:</p>
+                <ul>
+                    <li>Navigate to your account settings</li>
+                    <li>Enter your Zoom Account ID</li>
+                    <li>Enter your Zoom Client ID</li>
+                    <li>Enter your Zoom Client Secret</li>
+                    <li>Save the configuration</li>
+                </ul>
+            </div>
+            
+            <div class="step-box">
+                <h4>Step 3: Verify Connection</h4>
+                <p>The system will automatically verify your Zoom credentials. If successful, you'll see a confirmation message. If there are errors, check:</p>
+                <ul>
+                    <li>Your Zoom account status</li>
+                    <li>API credentials are correct</li>
+                    <li>Required Zoom permissions are granted</li>
+                </ul>
+            </div>
+            
+            <div class="warning-box">
+                <p><strong>Security Note:</strong> Keep your Zoom API credentials secure. Never share them publicly or commit them to version control systems.</p>
+            </div>
+            
+            <h2 id="using-app">4. Using the App</h2>
+            
+            <h3>4.1 Creating a Meeting</h3>
+            
+            <p>To create a new meeting with bots:</p>
+            
+            <div class="step-box">
+                <h4>Meeting Form Fields</h4>
+                <table class="table-doc">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Description</th>
+                            <th>Requirements</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Meeting ID</strong></td>
+                            <td>Your Zoom meeting ID</td>
+                            <td>Valid Zoom meeting ID</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Meeting Password</strong></td>
+                            <td>Password for the Zoom meeting</td>
+                            <td>Meeting password (if required)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Total Members</strong></td>
+                            <td>Total number of bot participants</td>
+                            <td>Must be divisible by 10, cannot be zero</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Video Bots</strong></td>
+                            <td>Number of bots with video enabled</td>
+                            <td>Must be ≤ Total Members</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Audio Bots</strong></td>
+                            <td>Number of bots with audio enabled</td>
+                            <td>Must be ≤ Total Members</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Name</strong></td>
+                            <td>Name type for bots</td>
+                            <td>Indian or International</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Meeting Type</strong></td>
+                            <td>Type of bot participants</td>
+                            <td>Normal Member or Profile Pic Member</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Timeout</strong></td>
+                            <td>Meeting duration in seconds</td>
+                            <td>Default: 7200 (2 hours)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <h3>4.2 Step-by-Step Meeting Creation</h3>
+            
+            <ol>
+                <li><strong>Enter Meeting Details:</strong> Fill in the Meeting ID and Password from your Zoom meeting</li>
+                <li><strong>Set Participant Count:</strong> Enter the total number of members (e.g., 10, 20, 30, etc.)</li>
+                <li><strong>Configure Bots:</strong> Specify how many bots should have video and audio enabled</li>
+                <li><strong>Choose Name Type:</strong> Select "Indian" for Indian names or "International" for international names</li>
+                <li><strong>Select Meeting Type:</strong> Choose between normal members or profile picture members</li>
+                <li><strong>Set Timeout:</strong> Specify how long the meeting should run (in seconds)</li>
+                <li><strong>Submit:</strong> Click the "SUBMIT" button to start the meeting</li>
+            </ol>
+            
+            <div class="info-box">
+                <p><strong>Example:</strong> To create a meeting with 20 participants where 10 have video and all have audio, set Total Members to 20, Video Bots to 10, and Audio Bots to 20.</p>
+            </div>
+            
+            <h3>4.3 Scheduling Meetings</h3>
+            
+            <p>To schedule a meeting for a future time:</p>
+            <ol>
+                <li>Fill in all meeting details as described above</li>
+                <li>Check the "Enable Scheduling" checkbox</li>
+                <li>Enter the scheduled time in IST (Indian Standard Time) format</li>
+                <li>Click "SUBMIT"</li>
+            </ol>
+            
+            <p>The meeting will automatically start at the specified time. You can view and manage scheduled meetings in the "Scheduled Tasks" section.</p>
+            
+            <h2 id="features">5. Features and Configuration</h2>
+            
+            <h3>5.1 Custom Names</h3>
+            <p>You can add custom names for bot participants:</p>
+            <ol>
+                <li>Click "Add custom names" in the dashboard header</li>
+                <li>Select the name type (Indian or International)</li>
+                <li>Enter the custom name</li>
+                <li>Click "Add Name"</li>
+            </ol>
+            <p>Custom names will be available for use in future meetings.</p>
+            
+            <h3>5.2 Meeting Types</h3>
+            <ul>
+                <li><strong>Normal Member:</strong> Bots join with default Zoom avatars and standard appearance</li>
+                <li><strong>Profile Pic Member:</strong> Bots join with custom profile pictures from your uploaded collection</li>
+            </ul>
+            
+            <h3>5.3 Usage Tracking</h3>
+            <p>The dashboard displays your usage statistics:</p>
+            <ul>
+                <li>Total submitted meetings</li>
+                <li>Remaining capacity</li>
+                <li>Usage percentage</li>
+            </ul>
+            <p>Monitor your usage to ensure you stay within your plan limits.</p>
+            
+            <h2 id="managing">6. Managing Meetings</h2>
+            
+            <h3>6.1 Viewing Active Meetings</h3>
+            <p>The "All Meetings" section displays:</p>
+            <ul>
+                <li>Meeting ID</li>
+                <li>Total participants</li>
+                <li>Video and audio bot counts</li>
+                <li>Start time</li>
+                <li>Timeout duration</li>
+                <li>Name type</li>
+                <li>Meeting type</li>
+            </ul>
+            
+            <h3>6.2 Stopping Meetings</h3>
+            <p>To stop an active meeting:</p>
+            <ol>
+                <li>Locate the meeting in the "All Meetings" table</li>
+                <li>Click the "Action" button in the meeting's row</li>
+                <li>Confirm the action</li>
+            </ol>
+            <p>The meeting will be immediately terminated, and all bots will disconnect.</p>
+            
+            <h3>6.3 Downloading Meeting Details</h3>
+            <p>To download meeting information:</p>
+            <ol>
+                <li>Click "DOWNLOAD DETAIL'S" in the "All Meetings" section</li>
+                <li>A file will be downloaded containing all meeting data</li>
+            </ol>
+            
+            <h3>6.4 Managing Scheduled Tasks</h3>
+            <p>View and manage scheduled meetings in the "Scheduled Tasks" section:</p>
+            <ul>
+                <li>See all upcoming scheduled meetings</li>
+                <li>View scheduled time and configuration</li>
+                <li>Cancel scheduled meetings if needed</li>
+            </ul>
+            
+            <h2 id="removing">7. Removing the App</h2>
+            
+            <h3>7.1 Stopping All Meetings</h3>
+            <p>Before removing the app, ensure all active meetings are stopped:</p>
+            <ol>
+                <li>Review the "All Meetings" section</li>
+                <li>Stop any active meetings using the Action button</li>
+                <li>Cancel any scheduled meetings</li>
+            </ol>
+            
+            <h3>7.2 Account Deletion</h3>
+            <p>To remove the app and delete your account:</p>
+            <ol>
+                <li>Contact support at <code>support@skylarkzoom.online</code></li>
+                <li>Request account deletion</li>
+                <li>Confirm all meetings are stopped</li>
+                <li>Verify your identity (for security)</li>
+            </ol>
+            
+            <h3>7.3 Data Removal</h3>
+            <p>Upon account deletion:</p>
+            <ul>
+                <li>All meeting data will be removed</li>
+                <li>Custom names will be deleted</li>
+                <li>Account credentials will be removed</li>
+                <li>Usage history will be cleared</li>
+            </ul>
+            
+            <div class="warning-box">
+                <p><strong>Important:</strong> Account deletion is permanent and cannot be undone. Ensure you have downloaded any important data before requesting deletion.</p>
+            </div>
+            
+            <h3>7.4 Revoking Zoom Access</h3>
+            <p>After removing the app, revoke Zoom API access:</p>
+            <ol>
+                <li>Log in to your Zoom account</li>
+                <li>Navigate to Zoom App Marketplace</li>
+                <li>Find "Skylark Zoom Services" in your installed apps</li>
+                <li>Click "Uninstall" or "Remove"</li>
+                <li>Confirm the removal</li>
+            </ol>
+            
+            <h2 id="troubleshooting">8. Troubleshooting</h2>
+            
+            <h3>8.1 Common Issues</h3>
+            
+            <div class="step-box">
+                <h4>Issue: Meeting fails to start</h4>
+                <p><strong>Solutions:</strong></p>
+                <ul>
+                    <li>Verify Meeting ID and Password are correct</li>
+                    <li>Ensure the Zoom meeting exists and is accessible</li>
+                    <li>Check your Zoom account permissions</li>
+                    <li>Verify you haven't exceeded usage limits</li>
+                </ul>
+            </div>
+            
+            <div class="step-box">
+                <h4>Issue: Bots not joining</h4>
+                <p><strong>Solutions:</strong></p>
+                <ul>
+                    <li>Check meeting settings allow participants to join</li>
+                    <li>Verify Zoom account allows bot participation</li>
+                    <li>Review meeting logs for error messages</li>
+                    <li>Ensure network connectivity is stable</li>
+                </ul>
+            </div>
+            
+            <div class="step-box">
+                <h4>Issue: Authentication errors</h4>
+                <p><strong>Solutions:</strong></p>
+                <ul>
+                    <li>Verify Zoom API credentials are correct</li>
+                    <li>Check that credentials haven't expired</li>
+                    <li>Ensure required Zoom permissions are granted</li>
+                    <li>Regenerate API credentials if necessary</li>
+                </ul>
+            </div>
+            
+            <h3>8.2 Getting Help</h3>
+            <p>If you encounter issues not covered in this documentation:</p>
+            <ul>
+                <li>Visit our <a href="support.html" style="color: #4a9eff;">Support Center</a></li>
+                <li>Email us at <code>support@skylarkzoom.online</code></li>
+                <li>Include detailed error messages and steps to reproduce</li>
+            </ul>
+            
+            <h2>Additional Resources</h2>
+            
+            <p>For more information:</p>
+            <ul>
+                <li><a href="support.html" style="color: #4a9eff;">Support Center</a> - Get help with common issues</li>
+                <li><a href="privacy-policy.html" style="color: #4a9eff;">Privacy Policy</a> - Learn how we protect your data</li>
+                <li><a href="terms-of-use.html" style="color: #4a9eff;">Terms of Use</a> - Review service terms</li>
+            </ul>
+            
+            <div class="info-box" style="margin-top: 40px;">
+                <p><strong>Documentation Version:</strong> 1.0</p>
+                <p><strong>Last Updated:</strong> January 1, 2024</p>
+                <p>This documentation is regularly updated. Check back for the latest information and new features.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
