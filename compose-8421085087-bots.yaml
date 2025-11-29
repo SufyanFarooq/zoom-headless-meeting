@@ -1,0 +1,784 @@
+services:
+  bot-8421085087-1:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-1
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Arjun
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Arjun
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-2:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-2
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Priya
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Priya
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-3:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-3
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Rahul
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Rahul
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-4:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-4
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Ananya
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Ananya
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-5:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-5
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Vikram
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Vikram
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-6:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-6
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Kavya
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Kavya
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-7:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-7
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Aditya
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Aditya
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-8:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-8
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Isha
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Isha
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-9:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-9
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Rohan
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Rohan
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-10:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-10
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Meera
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Meera
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-11:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-11
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Siddharth
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Siddharth
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-12:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-12
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Neha
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Neha
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-13:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-13
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Karan
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Karan
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-14:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-14
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Pooja
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Pooja
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-15:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-15
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Aryan
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Aryan
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-16:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-16
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Divya
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Divya
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-17:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-17
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Rishabh
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Rishabh
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-18:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-18
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Shreya
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Shreya
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-19:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-19
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Kunal
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Kunal
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+  bot-8421085087-20:
+    image: zoom-bot:latest
+    container_name: zoom-bot-8421085087-20
+    volumes:
+    - /opt/zoom-bot-dashboard:/tmp/meeting-sdk-linux-sample
+    - build-cache:/tmp/meeting-sdk-linux-sample/build
+    environment:
+    - DISPLAY_NAME=Tanvi
+    - JOIN_URL=https://zoom.us/j/8421085087?pwd=123456
+    - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
+    - QT_QPA_PLATFORM=offscreen
+    - G_MESSAGES_DEBUG=
+    working_dir: /tmp/meeting-sdk-linux-sample
+    entrypoint:
+    - /tini
+    - --
+    - ./bin/entry-bot-optimized.sh
+    command:
+    - --join-url
+    - https://zoom.us/j/8421085087?pwd=123456
+    - --display-name
+    - Tanvi
+    - --config
+    - config.toml
+    - RawAudio
+    - --file
+    - dev-null.pcm
+    - --dir
+    - "/dev"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 192M
+        reservations:
+          cpus: '0.03'
+          memory: 96M
+    stop_grace_period: 2s
+    restart: 'no'
+
+volumes:
+  build-cache:
