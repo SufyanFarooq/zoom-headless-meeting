@@ -9,6 +9,7 @@ const namesRouter = require('./routes/names');
 const botServersRouter = require('./routes/bot-servers');
 const authRouter = require('./routes/auth');
 const { authenticate } = require('./middleware/auth');
+const { noCacheSensitiveData } = require('./middleware/cacheControl');
 const scheduler = require('./workers/scheduler');
 
 const app = express();
@@ -28,11 +29,12 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRouter);
 
 // Protected Routes (require authentication)
-app.use('/api/meetings', authenticate, meetingsRouter);
-app.use('/api/schedules', authenticate, schedulesRouter);
-app.use('/api/usage', authenticate, usageRouter);
-app.use('/api/names', authenticate, namesRouter);
-app.use('/api/bot-servers', authenticate, botServersRouter);
+// Apply no-cache middleware to prevent sensitive data caching
+app.use('/api/meetings', authenticate, noCacheSensitiveData, meetingsRouter);
+app.use('/api/schedules', authenticate, noCacheSensitiveData, schedulesRouter);
+app.use('/api/usage', authenticate, noCacheSensitiveData, usageRouter);
+app.use('/api/names', authenticate, noCacheSensitiveData, namesRouter);
+app.use('/api/bot-servers', authenticate, noCacheSensitiveData, botServersRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
