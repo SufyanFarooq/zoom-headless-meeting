@@ -29,12 +29,12 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRouter);
 
 // Protected Routes (require authentication)
-// Apply no-cache middleware to prevent sensitive data caching
-app.use('/api/meetings', authenticate, noCacheSensitiveData, meetingsRouter);
-app.use('/api/schedules', authenticate, noCacheSensitiveData, schedulesRouter);
-app.use('/api/usage', authenticate, noCacheSensitiveData, usageRouter);
-app.use('/api/names', authenticate, noCacheSensitiveData, namesRouter);
-app.use('/api/bot-servers', authenticate, noCacheSensitiveData, botServersRouter);
+// Apply no-cache middleware BEFORE authenticate to ensure headers are set even for 401 responses
+app.use('/api/meetings', noCacheSensitiveData, authenticate, meetingsRouter);
+app.use('/api/schedules', noCacheSensitiveData, authenticate, schedulesRouter);
+app.use('/api/usage', noCacheSensitiveData, authenticate, usageRouter);
+app.use('/api/names', noCacheSensitiveData, authenticate, namesRouter);
+app.use('/api/bot-servers', noCacheSensitiveData, authenticate, botServersRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
