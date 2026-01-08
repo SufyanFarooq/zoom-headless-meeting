@@ -98,6 +98,12 @@ server {
         add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
         add_header Access-Control-Allow-Headers "Content-Type, Authorization";
         
+        # Prevent caching of sensitive API responses (meeting IDs, passwords)
+        # Required for Zoom Marketplace security review
+        add_header Cache-Control "no-cache, no-store, must-revalidate, private" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        
         # Handle preflight requests
         if (\$request_method = OPTIONS) {
             return 204;

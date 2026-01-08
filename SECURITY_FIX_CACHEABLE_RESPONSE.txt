@@ -1,0 +1,132 @@
+SECURITY FIX - CACHEABLE HTTPS RESPONSE
+========================================
+
+Subject: Security Fix - Cacheable HTTPS Response Issue Resolved
+
+Dear Zoom Marketplace Security Review Team,
+
+Thank you for identifying the security issue regarding cacheable HTTPS responses containing sensitive information. We have implemented a comprehensive fix to prevent sensitive data (meeting IDs and passwords) from being cached.
+
+---
+
+ISSUE IDENTIFIED:
+-----------------
+FAIL: Cacheable HTTPS Response
+Impact: Sensitive Information Disclosure
+
+The application was allowing sensitive information such as Meeting ID and Meeting Password to be cached or stored in the local cache, which could be retrieved by other users who have access to the same computer.
+
+---
+
+FIX IMPLEMENTED:
+----------------
+
+We have implemented a multi-layered solution to prevent caching of sensitive data:
+
+1. APPLICATION-LEVEL FIX (Node.js/Express):
+   - Created cache-control middleware that adds no-cache headers to all API responses
+   - Applied middleware to all protected routes (meetings, schedules, etc.)
+   - Headers added: Cache-Control: no-cache, no-store, must-revalidate, private
+   - Additional headers: Pragma: no-cache, Expires: 0
+
+2. PROXY-LEVEL FIX (Nginx):
+   - Updated nginx configuration to add cache-control headers at proxy level
+   - Applied to all /api/* endpoints
+   - Ensures headers are present even if application headers are missed
+   - Headers: Cache-Control, Pragma, Expires
+
+3. MIDDLEWARE IMPLEMENTATION:
+   - Created dedicated cacheControl.js middleware module
+   - Automatically detects responses containing sensitive data fields
+   - Applies no-cache headers to prevent browser and proxy caching
+   - Works for both direct API responses and nested objects
+
+---
+
+TECHNICAL DETAILS:
+------------------
+
+FILES MODIFIED:
+1. api/middleware/cacheControl.js (NEW)
+   - Middleware to prevent sensitive data caching
+   - Detects sensitive fields: meeting_id, password, token, etc.
+
+2. api/server.js (UPDATED)
+   - Applied noCacheSensitiveData middleware to all protected routes
+   - Routes protected: /api/meetings, /api/schedules, /api/usage, etc.
+
+3. nginx.conf (UPDATED)
+   - Added cache-control headers to /api location block
+   - Prevents caching at reverse proxy level
+
+4. setup-public-access.sh (UPDATED)
+   - Updated production nginx configuration script
+   - Ensures fix is applied in production deployment
+
+HEADERS ADDED:
+- Cache-Control: no-cache, no-store, must-revalidate, private
+- Pragma: no-cache
+- Expires: 0
+
+---
+
+VERIFICATION:
+-------------
+
+The fix ensures:
+1. All API responses containing meeting_id or password include no-cache headers
+2. Headers are applied at both application and proxy levels
+3. Browser and proxy caching are prevented
+4. Sensitive data cannot be retrieved from browser cache
+5. Headers are present in all API endpoints returning sensitive data
+
+---
+
+TESTING:
+--------
+
+We have verified:
+1. API responses include proper Cache-Control headers
+2. Headers are present in GET, POST, PUT, DELETE responses
+3. Sensitive data endpoints (meetings, schedules) have no-cache headers
+4. Browser developer tools confirm headers are present
+5. No sensitive data is stored in browser cache
+
+---
+
+DEPLOYMENT STATUS:
+------------------
+
+The fix has been implemented and deployed to production. All API endpoints now include proper cache-control headers to prevent sensitive information disclosure.
+
+---
+
+CONCLUSION:
+-----------
+
+We have resolved the cacheable HTTPS response security issue by implementing comprehensive cache-control headers at both application and proxy levels. Sensitive information (meeting IDs and passwords) will no longer be cached by browsers or proxies, preventing potential information disclosure.
+
+The fix is production-ready and has been deployed. We appreciate your security review and identification of this important issue.
+
+Thank you,
+Abu Sufyan Farooq
+Skylark Zoom Services
+support@skylarkzoom.online
+https://skylarkzoom.online
+
+---
+
+SHORT VERSION FOR MARKETPLACE REPLY:
+====================================
+
+We have fixed the cacheable HTTPS response security issue. We implemented:
+
+1. Application-level fix: Added cache-control middleware to all API routes returning sensitive data
+2. Proxy-level fix: Updated nginx configuration to add no-cache headers to all /api endpoints
+
+Headers added: Cache-Control: no-cache, no-store, must-revalidate, private, Pragma: no-cache, Expires: 0
+
+All API responses containing meeting IDs and passwords now include proper headers to prevent caching. The fix has been deployed to production and verified.
+
+Thank you.
+
