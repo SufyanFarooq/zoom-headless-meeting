@@ -343,13 +343,30 @@ async function handleFormSubmit(e) {
             // Convert local datetime to UTC
             // datetime-local input gives time in user's local timezone
             // We need to convert it to UTC for backend
+            // datetime-local format: "YYYY-MM-DDTHH:mm" (no timezone info)
+            // JavaScript Date constructor treats this as LOCAL time
             const localDate = new Date(scheduledTime);
+            
+            // Validate date is valid
+            if (isNaN(localDate.getTime())) {
+                alert('Error: Invalid date/time format. Please select a valid date and time.');
+                return;
+            }
+            
+            // Convert to UTC ISO string and extract YYYY-MM-DDTHH:mm format
             const utcTime = localDate.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm in UTC
+            
+            console.log('Timezone conversion:', {
+                localInput: scheduledTime,
+                localDate: localDate.toString(),
+                utcISO: localDate.toISOString(),
+                utcTime: utcTime
+            });
             
             // Create scheduled task with UTC time
             const scheduleData = {
                 ...formData,
-                scheduledTimeIST: utcTime // Backend expects UTC format
+                scheduledTimeIST: utcTime // Backend expects UTC format (YYYY-MM-DDTHH:mm)
             };
             
             const response = await fetchWithAuth(`${API_BASE_URL}/schedules`, {

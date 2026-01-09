@@ -45,16 +45,26 @@ router.post('/', async (req, res) => {
     }
     
     // Create bots on bot server
-    const botResult = await createBots(
-      meetingId,
-      password,
-      total,
-      video,
-      audio,
-      nameType,
-      meetingType,
-      timeoutSeconds || 7200
-    );
+    let botResult;
+    try {
+      botResult = await createBots(
+        meetingId,
+        password,
+        total,
+        video,
+        audio,
+        nameType,
+        meetingType,
+        timeoutSeconds || 7200
+      );
+    } catch (botError) {
+      console.error('Error creating bots:', botError);
+      return res.status(500).json({ 
+        error: 'Failed to create bots',
+        message: botError.message || 'Bot creation failed. Please check meeting ID, password, and try again.',
+        details: process.env.NODE_ENV === 'development' ? botError.stack : undefined
+      });
+    }
     
     // Store meeting in database
     const meetingResult = await query(
