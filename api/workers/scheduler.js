@@ -36,9 +36,20 @@ class Scheduler {
          WHERE status = 'pending' 
          AND scheduled_time_ist <= NOW()
          AND scheduled_time_ist >= NOW() - INTERVAL '1 hour'
-         AND EXTRACT(EPOCH FROM (NOW() - scheduled_time_ist)) >= 0
          ORDER BY scheduled_time_ist ASC`
       );
+      
+      // Log query details for debugging
+      if (result.rows.length > 0) {
+        console.log(`🔍 Scheduler query found ${result.rows.length} task(s):`, 
+          result.rows.map(t => ({
+            id: t.id,
+            meeting_id: t.meeting_id,
+            scheduled_time: t.scheduled_time_ist,
+            time_diff_seconds: Math.floor((new Date() - new Date(t.scheduled_time_ist)) / 1000)
+          }))
+        );
+      }
       
       if (result.rows.length === 0) {
         console.log('⏰ No due scheduled tasks found');
@@ -118,21 +129,29 @@ class Scheduler {
           );
           
           console.log(`✅ Successfully executed scheduled task ${task.id} for meeting ${task.meeting_id}`);
+          console.log(`📦 Created meeting with containers:`, botResult.containerIds);
         } catch (error) {
           console.error(`❌ Error executing scheduled task ${task.id} for meeting ${task.meeting_id}:`, error);
           console.error('Error details:', {
             message: error.message,
             stack: error.stack,
             taskId: task.id,
-            meetingId: task.meeting_id
+            meetingId: task.meeting_id,
+            scheduledTime: task.scheduled_time_ist,
+            currentTime: new Date().toISOString()
           });
           // Mark as failed but don't stop other tasks
-          await query(
-            `UPDATE scheduled_tasks 
-             SET status = 'failed'
-             WHERE id = $1`,
-            [task.id]
-          );
+          try {
+            await query(
+              `UPDATE scheduled_tasks 
+               SET status = 'failed', executed_at = NOW()
+               WHERE id = $1`,
+              [task.id]
+            );
+            console.log(`⚠️ Task ${task.id} marked as failed`);
+          } catch (updateError) {
+            console.error(`❌ Failed to update task ${task.id} status:`, updateError);
+          }
         }
       }
     } catch (error) {
