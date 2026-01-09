@@ -287,13 +287,7 @@ app.post('/api/bots/create', async (req, res) => {
     console.log(`✅ Compose file exists: ${composeFilePath}`);
     const containerIds = [];
     // totalBots is already declared above (line 96)
-    
-    // Generate container names based on meeting ID, request ID, and bot numbers
-    // This ensures unique names per bot creation request, avoiding conflicts
-    // Even if same meeting ID is used multiple times, each request gets unique containers
-    for (let i = 1; i <= totalBots; i++) {
-      containerIds.push(`zoom-bot-${meetingId}-${uniqueRequestId}-${i}`);
-    }
+    // Note: containerIds will be populated AFTER containers are started (see below)
     
     // Start containers
     // Use docker-compose (standalone) instead of docker compose (plugin)

@@ -65,11 +65,12 @@ class Scheduler {
           
           // Create bots (same as regular meeting creation)
           // Use video_count and audio_count from scheduled_tasks table
-          // If not present or 0 (for old records), calculate 50/50 split as fallback
-          const videoCount = (task.video_count !== undefined && task.video_count !== null && task.video_count > 0)
+          // If not present (for old records), calculate 50/50 split as fallback
+          // Note: 0 is a valid value, so we only check for undefined/null, not > 0
+          const videoCount = (task.video_count !== undefined && task.video_count !== null)
             ? task.video_count 
             : Math.floor(task.members_count / 2);
-          const audioCount = (task.audio_count !== undefined && task.audio_count !== null && task.audio_count > 0)
+          const audioCount = (task.audio_count !== undefined && task.audio_count !== null)
             ? task.audio_count 
             : (task.members_count - videoCount);
           
