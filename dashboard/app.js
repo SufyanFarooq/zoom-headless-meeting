@@ -341,10 +341,11 @@ async function handleFormSubmit(e) {
     try {
         if (enableSchedule && scheduledTime) {
             // Convert local datetime to UTC
-            // datetime-local input gives time in user's local timezone
+            // datetime-local input gives time in user's local timezone (format: "YYYY-MM-DDTHH:mm")
+            // JavaScript Date constructor treats this as LOCAL time based on browser timezone
             // We need to convert it to UTC for backend
-            // datetime-local format: "YYYY-MM-DDTHH:mm" (no timezone info)
-            // JavaScript Date constructor treats this as LOCAL time
+            
+            // Parse the datetime-local input (no timezone info, treated as local)
             const localDate = new Date(scheduledTime);
             
             // Validate date is valid
@@ -353,14 +354,21 @@ async function handleFormSubmit(e) {
                 return;
             }
             
-            // Convert to UTC ISO string and extract YYYY-MM-DDTHH:mm format
-            const utcTime = localDate.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm in UTC
+            // Get UTC time components
+            const utcYear = localDate.getUTCFullYear();
+            const utcMonth = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+            const utcDay = String(localDate.getUTCDate()).padStart(2, '0');
+            const utcHours = String(localDate.getUTCHours()).padStart(2, '0');
+            const utcMinutes = String(localDate.getUTCMinutes()).padStart(2, '0');
+            const utcTime = `${utcYear}-${utcMonth}-${utcDay}T${utcHours}:${utcMinutes}`;
             
             console.log('Timezone conversion:', {
                 localInput: scheduledTime,
                 localDate: localDate.toString(),
+                localTime: `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}T${String(localDate.getHours()).padStart(2, '0')}:${String(localDate.getMinutes()).padStart(2, '0')}`,
                 utcISO: localDate.toISOString(),
-                utcTime: utcTime
+                utcTime: utcTime,
+                browserTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             });
             
             // Create scheduled task with UTC time
