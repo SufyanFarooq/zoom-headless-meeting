@@ -18,6 +18,9 @@ class Scheduler {
    */
   async checkAndExecuteSchedules() {
     try {
+      const nowUTC = new Date();
+      console.log(`⏰ Scheduler check at ${nowUTC.toISOString()} UTC`);
+      
       // Find all pending tasks that are due
       // scheduled_time_ist is stored as UTC (converted from IST)
       // We compare with NOW() which is also UTC in PostgreSQL
@@ -38,10 +41,11 @@ class Scheduler {
       );
       
       if (result.rows.length === 0) {
+        console.log('⏰ No due scheduled tasks found');
         return; // No due tasks
       }
       
-      console.log(`Found ${result.rows.length} due scheduled task(s)`);
+      console.log(`✅ Found ${result.rows.length} due scheduled task(s)`);
       
       // Execute each due task
       for (const task of result.rows) {
@@ -113,9 +117,15 @@ class Scheduler {
             [task.id]
           );
           
-          console.log(`✅ Successfully executed scheduled task ${task.id}`);
+          console.log(`✅ Successfully executed scheduled task ${task.id} for meeting ${task.meeting_id}`);
         } catch (error) {
-          console.error(`❌ Error executing scheduled task ${task.id}:`, error);
+          console.error(`❌ Error executing scheduled task ${task.id} for meeting ${task.meeting_id}:`, error);
+          console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            taskId: task.id,
+            meetingId: task.meeting_id
+          });
           // Mark as failed but don't stop other tasks
           await query(
             `UPDATE scheduled_tasks 
