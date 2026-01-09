@@ -302,12 +302,13 @@ app.post('/api/bots/create', async (req, res) => {
     console.log(`🚀 Starting containers...`);
     
     // IMPORTANT: Use container path for docker-compose
-    // The compose file is in the container at /app/bot-project/compose-{meetingId}-bots.yaml
+    // The compose file is in the container at /app/bot-project/compose-{meetingId}-{requestId}-bots.yaml
     // docker-compose will use the host Docker daemon via socket
     // Force recreate to ensure containers use latest compose file with ZAK tokens
     // Note: --force-recreate will only recreate containers defined in this compose file
     // Other meetings' containers will remain untouched
-    const startCommand = `docker-compose -f ${composeFileName} up -d --force-recreate`;
+    // Use full path to ensure docker-compose finds the file
+    const startCommand = `docker-compose -f "${composeFilePath}" up -d --force-recreate`;
     
     console.log(`📋 Using compose file: "${projectDir}/${composeFileName}"`);
     console.log(`📋 Full compose file path: ${composeFilePath}`);
@@ -344,15 +345,29 @@ app.post('/api/bots/create', async (req, res) => {
       console.error('❌ Docker-compose command failed:');
       console.error('   Command:', startCommand);
       console.error('   Working directory:', projectDir);
+      console.error('   Compose file name:', composeFileName);
       console.error('   Compose file path:', composeFilePath);
       console.error('   Compose file exists:', fs.existsSync(composeFilePath));
+      console.error('   Meeting ID:', meetingId);
+      console.error('   Request ID:', uniqueRequestId);
       console.error('   Error:', dockerError.message);
       console.error('   Stdout:', dockerError.stdout || '');
       console.error('   Stderr:', dockerError.stderr || '');
       
+      // List all compose files to help debug
+      try {
+        const { stdout: allComposeFiles } = await execAsync(`ls -la "${projectDir}"/compose-*.yaml 2>/dev/null || echo 'No compose files found'`, {
+          cwd: projectDir,
+          shell: '/bin/sh'
+        });
+        console.error('   All compose files in directory:', allComposeFiles);
+      } catch (listError) {
+        console.error('   Could not list compose files:', listError.message);
+      }
+      
       // Check if compose file exists
       if (!fs.existsSync(composeFilePath)) {
-        throw new Error(`Compose file ${composeFileName} does not exist at ${composeFilePath}. Script may have failed to generate it.`);
+        throw new Error(`Compose file ${composeFileName} does not exist at ${composeFilePath}. Expected format: compose-${meetingId}-${uniqueRequestId}-bots.yaml. Script may have failed to generate it.`);
       }
       
       // Re-throw with better error message
