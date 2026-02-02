@@ -65,6 +65,7 @@ async function verifyToken(token) {
         loadMeetings();
         loadSchedules();
         loadUsage();
+        loadNamesFiles();  // Populate Name dropdown
         
         // Display user info
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -95,8 +96,9 @@ function displayUserInfo(user) {
         }
         
         userInfo.innerHTML = `
-            <span style="color: #fff; font-weight: 500;">${user.username}</span>
-            <button onclick="logout()" style="padding: 8px 16px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 500;">Logout</button>
+            ${user.is_admin ? '<a href="admin.html" class="header-nav-link">Admin Panel</a>' : ''}
+            <span class="header-user">${user.username}</span>
+            <button type="button" onclick="logout()" class="header-logout">Logout</button>
         `;
     }
 }
@@ -152,19 +154,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Form submission (only if on dashboard page)
     const meetingForm = document.getElementById('meetingForm');
-    const addNamesForm = document.getElementById('addNamesForm');
     const totalMembersInput = document.getElementById('totalMembers');
-    const videoCountInput = document.getElementById('videoCount');
-    const audioCountInput = document.getElementById('audioCount');
     
-    if (meetingForm && addNamesForm && totalMembersInput && videoCountInput && audioCountInput) {
+    const nameTypeSelect = document.getElementById('nameType');
+    if (meetingForm && totalMembersInput) {
         meetingForm.addEventListener('submit', handleFormSubmit);
-        addNamesForm.addEventListener('submit', handleAddName);
         
-        // Members input validation
         totalMembersInput.addEventListener('input', validateTotalMembers);
-        videoCountInput.addEventListener('input', validateVideoAudio);
-        audioCountInput.addEventListener('input', validateVideoAudio);
+        if (nameTypeSelect) nameTypeSelect.addEventListener('change', validateTotalMembers);
     }
 });
 
@@ -184,19 +181,18 @@ async function loadMeetings() {
                     <td>${index + 1}</td>
                     <td>${meeting.meeting_id}</td>
                     <td>${meeting.members_count}</td>
-                    <td>${meeting.video_count || 0}</td>
-                    <td>${meeting.audio_count || 0}</td>
                     <td>${formatDate(meeting.started_at)}</td>
                     <td>${meeting.timeout_seconds}s</td>
                     <td>${meeting.name_type}</td>
                     <td>${meeting.meeting_type}</td>
                     <td>
+                        <button class="btn-action btn-refill" onclick="refillMeeting(${meeting.id})" id="refill-btn-${meeting.id}">Refill</button>
                         <button class="btn-action" onclick="stopMeeting(${meeting.id})" id="stop-btn-${meeting.id}">Stop</button>
                     </td>
                 `;
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="10" class="no-data">No active meetings</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="no-data">No active meetings</td></tr>';
         }
     } catch (error) {
         console.error('Error loading meetings:', error);
@@ -264,7 +260,7 @@ async function loadUsage() {
             const { submitted, remaining, limit } = data.usage;
             const submittedPercent = (submitted / limit) * 100;
             
-            document.getElementById('usageText').textContent = `Usage: ${submitted} / ${limit}`;
+            document.getElementById('usageText').textContent = `${submitted} / ${limit}`;
             document.getElementById('usageChart').style.setProperty('--submitted-percent', `${submittedPercent}%`);
         }
     } catch (error) {
@@ -277,22 +273,17 @@ async function handleFormSubmit(e) {
     e.preventDefault();
     
     const totalMembersEl = document.getElementById('totalMembers');
-    const videoCountEl = document.getElementById('videoCount');
-    const audioCountEl = document.getElementById('audioCount');
     
-    if (!totalMembersEl || !videoCountEl || !audioCountEl) {
+    if (!totalMembersEl) {
         alert('Form elements not found. Please refresh the page.');
-        console.error('Form elements missing:', { totalMembersEl, videoCountEl, audioCountEl });
         return;
     }
     
     const totalMembers = parseInt(totalMembersEl.value) || 0;
-    const videoCount = parseInt(videoCountEl.value) || 0;
-    const audioCount = parseInt(audioCountEl.value) || 0;
+    const videoCount = 0;
+    const audioCount = totalMembers;  // All members join as audio bots
     
-    // Validate video + audio = total
-    if (!validateVideoAudioCounts(totalMembers, videoCount, audioCount)) {
-        console.error('Validation failed:', { totalMembers, videoCount, audioCount });
+    if (!validateTotalMembers()) {
         return;
     }
     
@@ -341,40 +332,15 @@ async function handleFormSubmit(e) {
     try {
         if (enableSchedule && scheduledTime) {
             // Convert local datetime to UTC
-            // datetime-local input gives time in user's local timezone (format: "YYYY-MM-DDTHH:mm")
-            // JavaScript Date constructor treats this as LOCAL time based on browser timezone
+            // datetime-local input gives time in user's local timezone
             // We need to convert it to UTC for backend
-            
-            // Parse the datetime-local input (no timezone info, treated as local)
             const localDate = new Date(scheduledTime);
-            
-            // Validate date is valid
-            if (isNaN(localDate.getTime())) {
-                alert('Error: Invalid date/time format. Please select a valid date and time.');
-                return;
-            }
-            
-            // Get UTC time components
-            const utcYear = localDate.getUTCFullYear();
-            const utcMonth = String(localDate.getUTCMonth() + 1).padStart(2, '0');
-            const utcDay = String(localDate.getUTCDate()).padStart(2, '0');
-            const utcHours = String(localDate.getUTCHours()).padStart(2, '0');
-            const utcMinutes = String(localDate.getUTCMinutes()).padStart(2, '0');
-            const utcTime = `${utcYear}-${utcMonth}-${utcDay}T${utcHours}:${utcMinutes}`;
-            
-            console.log('Timezone conversion:', {
-                localInput: scheduledTime,
-                localDate: localDate.toString(),
-                localTime: `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}-${String(localDate.getDate()).padStart(2, '0')}T${String(localDate.getHours()).padStart(2, '0')}:${String(localDate.getMinutes()).padStart(2, '0')}`,
-                utcISO: localDate.toISOString(),
-                utcTime: utcTime,
-                browserTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-            });
+            const utcTime = localDate.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm in UTC
             
             // Create scheduled task with UTC time
             const scheduleData = {
                 ...formData,
-                scheduledTimeIST: utcTime // Backend expects UTC format (YYYY-MM-DDTHH:mm)
+                scheduledTimeIST: utcTime // Backend expects UTC format
             };
             
             const response = await fetchWithAuth(`${API_BASE_URL}/schedules`, {
@@ -433,6 +399,7 @@ async function handleFormSubmit(e) {
 // Validate total members count
 function validateTotalMembers() {
     const totalInput = document.getElementById('totalMembers');
+    const nameTypeSelect = document.getElementById('nameType');
     if (!totalInput) return false;
     
     const totalValue = parseInt(totalInput.value) || 0;
@@ -442,11 +409,20 @@ function validateTotalMembers() {
         if (errorElement) errorElement.textContent = 'Must be divisible by 10 and not zero (max 500)';
         totalInput.style.borderColor = '#ff4444';
         return false;
-    } else {
-        if (errorElement) errorElement.textContent = '';
-        totalInput.style.borderColor = '#3a3a3a';
-        return true;
     }
+    
+    // Check: Total Members must be <= names in selected file
+    const nameCount = nameTypeSelect?.options[nameTypeSelect.selectedIndex]?.getAttribute('data-count');
+    const namesAvailable = parseInt(nameCount || '0', 10);
+    if (namesAvailable > 0 && totalValue > namesAvailable) {
+        if (errorElement) errorElement.textContent = `Selected file has only ${namesAvailable} names. Reduce Total Members or add more names.`;
+        totalInput.style.borderColor = '#ff4444';
+        return false;
+    }
+    
+    if (errorElement) errorElement.textContent = '';
+    totalInput.style.borderColor = '#3a3a3a';
+    return true;
 }
 
 // Validate video and audio counts
@@ -531,6 +507,39 @@ function validateVideoAudioCounts(totalMembers, videoCount, audioCount) {
     }
     
     return isValid;
+}
+
+// Refill meeting - add same number of bots to same meeting
+async function refillMeeting(meetingId) {
+    const refillButton = document.getElementById(`refill-btn-${meetingId}`);
+    const originalText = refillButton?.textContent || 'Refill';
+    if (refillButton) {
+        refillButton.disabled = true;
+        refillButton.textContent = 'Refilling...';
+        refillButton.style.opacity = '0.6';
+    }
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/meetings/${meetingId}/refill`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+        if (response.ok) {
+            alert(result.message || `Refill: ${result.added} bots added to meeting`);
+            loadMeetings();
+            loadUsage();
+        } else {
+            alert(`Error: ${result.error || result.message}`);
+        }
+    } catch (error) {
+        console.error('Error refilling meeting:', error);
+        alert('Failed to refill meeting. Please try again.');
+    } finally {
+        if (refillButton) {
+            refillButton.disabled = false;
+            refillButton.textContent = originalText;
+            refillButton.style.opacity = '1';
+        }
+    }
 }
 
 // Stop meeting
@@ -648,7 +657,14 @@ async function cancelSchedule(scheduleId) {
 function toggleSchedule() {
     const enableSchedule = document.getElementById('enableSchedule').checked;
     const scheduleGroup = document.getElementById('scheduleGroup');
+    const scheduledInput = document.getElementById('scheduledTime');
     scheduleGroup.style.display = enableSchedule ? 'block' : 'none';
+    if (enableSchedule && scheduledInput) {
+        // Set min to now so past date/time cannot be selected
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        scheduledInput.min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
 }
 
 // Reset form
@@ -671,48 +687,28 @@ function formatDateTime(date) {
     return date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 }
 
-// Download details
+// Download details - open report page
 function downloadDetails() {
-    // TODO: Implement CSV download
-    alert('Download feature coming soon!');
+    window.location.href = 'download-report.html';
 }
 
-// Show add names modal
-function showAddNamesModal() {
-    document.getElementById('addNamesModal').style.display = 'block';
-}
-
-// Close add names modal
-function closeAddNamesModal() {
-    document.getElementById('addNamesModal').style.display = 'none';
-}
-
-// Handle add name
-async function handleAddName(e) {
-    e.preventDefault();
-    
-    const nameType = document.getElementById('nameTypeSelect').value;
-    const name = document.getElementById('customName').value;
-    
+// Load name files into dropdown (with counts for validation)
+async function loadNamesFiles() {
     try {
-        const response = await fetchWithAuth(`${API_BASE_URL}/names`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, nameType })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            alert(`Name "${name}" added to ${nameType} names!`);
-            document.getElementById('addNamesForm').reset();
-            closeAddNamesModal();
-        } else {
-            alert(`Error: ${result.error || result.message}`);
-        }
-    } catch (error) {
-        console.error('Error adding name:', error);
-        alert('Failed to add name. Please try again.');
+        const response = await fetchWithAuth(`${API_BASE_URL}/names/files?withCounts=1`);
+        const data = await response.json();
+        const select = document.getElementById('nameType');
+        if (!select || !data.success) return;
+        const files = data.files || [];
+        select.innerHTML = files.map(f => {
+            const name = f.name || f;
+            const count = (typeof f === 'object' && f.count != null) ? f.count : 0;
+            return `<option value="${name}" data-count="${count}">${name} (${count} names)</option>`;
+        }).join('');
+        validateTotalMembers();
+    } catch (e) {
+        console.error('Error loading names:', e);
     }
 }
+
 

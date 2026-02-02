@@ -60,19 +60,21 @@ RUN echo 'Acquire::AllowInsecureRepositories "true";' > /etc/apt/apt.conf.d/99al
     && rm -rf /var/cache/apt/archives/* \
     && rm -rf /tmp/apt-cache/*
 
-# Install ALSA with dummy module support
+# Install ALSA + Pulse plugins so Zoom SDK can detect virtual audio devices
+# libasound2-plugins provides pulse plugin for ALSA->PulseAudio routing
 RUN apt-get update --allow-insecure-repositories -o Dir::Cache::archives=/tmp/apt-cache \
     && apt-get install -y --allow-unauthenticated --no-install-recommends -o Dir::Cache::archives=/tmp/apt-cache \
-    libasound2 libasound2-plugins alsa alsa-utils alsa-oss \
+    libasound2 libasound2-plugins libasound2-dev alsa alsa-utils alsa-oss \
     linux-modules-extra-$(uname -r) 2>/dev/null || true \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/* \
     && rm -rf /tmp/apt-cache/*
 
-# Install Pulseaudio
+# Install Pulseaudio and Xvfb (virtual display for Zoom desktop app video icon compatibility)
+# Zoom desktop client needs a display to recognize video capability - Xvfb provides that in headless
 RUN apt-get update --allow-insecure-repositories -o Dir::Cache::archives=/tmp/apt-cache \
-    && apt-get install -y --allow-unauthenticated --no-install-recommends -o Dir::Cache::archives=/tmp/apt-cache pulseaudio pulseaudio-utils \
+    && apt-get install -y --allow-unauthenticated --no-install-recommends -o Dir::Cache::archives=/tmp/apt-cache pulseaudio pulseaudio-utils xvfb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/* \

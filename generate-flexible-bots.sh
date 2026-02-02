@@ -34,8 +34,10 @@ else
     echo "✅ Using Request ID: $REQUEST_ID"
 fi
 
-# Select names file based on name type
-if [ "$NAME_TYPE" = "International" ]; then
+# Select names file: profile-pics/names/Type.txt, fallback to legacy
+if [ -d "profile-pics/names" ] && [ -f "profile-pics/names/${NAME_TYPE}.txt" ]; then
+    NAMES_FILE="profile-pics/names/${NAME_TYPE}.txt"
+elif [ "$NAME_TYPE" = "International" ]; then
     NAMES_FILE="profile-pics/names-international.txt"
 else
     NAMES_FILE="profile-pics/names.txt"
@@ -143,6 +145,7 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
     - JOIN_URL=${JOIN_URL}
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
+    - DISPLAY=:99
     - G_MESSAGES_DEBUG=
     working_dir: /tmp/meeting-sdk-linux-sample
     entrypoint:
@@ -163,10 +166,10 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
       resources:
         limits:
           cpus: '0.3'
-          memory: 256M
+          memory: 512M
         reservations:
           cpus: '0.05'
-          memory: 128M
+          memory: 256M
     stop_grace_period: 2s
     restart: 'no'
 EOF
@@ -191,6 +194,7 @@ if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
     - JOIN_URL=${JOIN_URL}
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
+    - DISPLAY=:99
     - G_MESSAGES_DEBUG=
     working_dir: /tmp/meeting-sdk-linux-sample
     entrypoint:
@@ -213,10 +217,10 @@ if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
       resources:
         limits:
           cpus: '0.2'
-          memory: 192M
+          memory: 512M
         reservations:
           cpus: '0.03'
-          memory: 96M
+          memory: 256M
     stop_grace_period: 2s
     restart: 'no'
 EOF

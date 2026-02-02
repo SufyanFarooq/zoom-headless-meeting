@@ -22,11 +22,20 @@ WORK_DIR = os.getcwd()
 
 # Get compose file name from command line argument or use default
 if len(sys.argv) > 1:
-    COMPOSE_FILE = os.path.join(WORK_DIR, sys.argv[1])
+    arg = sys.argv[1]
+    if os.path.isabs(arg) and os.path.exists(arg):
+        COMPOSE_FILE = arg
+        WORK_DIR = os.path.dirname(arg)
+    elif os.path.exists(arg):
+        COMPOSE_FILE = os.path.abspath(arg)
+        WORK_DIR = os.path.dirname(COMPOSE_FILE)
+    else:
+        COMPOSE_FILE = os.path.join(WORK_DIR, arg)
 else:
     COMPOSE_FILE = os.path.join(WORK_DIR, "compose-50-bots.yaml")
 
 TOKENS_FILE = os.path.join(WORK_DIR, "bot-zak-tokens.env")
+NAME_OFFSET = int(os.environ.get("NAME_OFFSET", "0") or "0")
 
 def load_tokens():
     """Load ZAK tokens from env file"""
@@ -68,23 +77,15 @@ def update_compose_file(tokens):
         line = lines[i]
         
         # Detect bot section start
-        # Support formats: 
+        # Support formats:
         # - bot-{number}: (old format)
         # - bot-{meetingId}-{number}: (previous format)
         # - bot-{meetingId}-{requestId}-{number}: (new format with REQUEST_ID)
-        # Pattern: bot- followed by digits, optionally followed by more -digits groups
-        bot_match = re.match(r'^\s*bot-(\d+)(?:-(\d+))?(?:-(\d+))?:', line)
+        # Pattern: bot- followed by any characters, ending with -{number}:
+        bot_match = re.match(r'^\s*bot-.*-(\d+):', line)
         if bot_match:
-            # Extract bot number (last number group)
-            # Format: bot-{meetingId}-{requestId}-{number} -> group(3)
-            # Format: bot-{meetingId}-{number} -> group(2)
-            # Format: bot-{number} -> group(1)
-            if bot_match.group(3):
-                current_bot = int(bot_match.group(3))  # bot-{meetingId}-{requestId}-{number}
-            elif bot_match.group(2):
-                current_bot = int(bot_match.group(2))  # bot-{meetingId}-{number}
-            else:
-                current_bot = int(bot_match.group(1))  # bot-{number}
+            # Extract bot number (last number in the bot name)
+            current_bot = int(bot_match.group(1))  # The (\d+) at the end captures the bot number
             new_lines.append(line)
             i += 1
             continue
@@ -93,72 +94,50 @@ def update_compose_file(tokens):
         # ZAK token should be placed BEFORE RawVideo/RawAudio subcommands
         # IMPORTANT: --zak is a global option, must come BEFORE subcommands
         # Correct order: --config config.toml -> --zak -> RawVideo -> RawAudio
-        if current_bot and tokens.get(current_bot):
-            # Skip ALL existing --zak entries and their tokens (remove them)
-            if '--zak' in line:
-                # Skip --zak line
-                i += 1
-                # Skip token line (long JWT token > 100 chars)
-                if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
+        if current_bot is not None:
+            zak_bot_num = NAME_OFFSET + current_bot
+            if tokens.get(zak_bot_num):
+                if '--zak' in line:
                     i += 1
-                continue
-            # Skip orphaned JWT tokens (long tokens without --zak flag before them)
-            elif re.match(r'^\s+- "', line) and len(line) > 100 and i > 0 and '--zak' not in lines[i-1]:
-                # Check if this is a JWT token (starts with eyJ)
-                if 'eyJ' in line:
+                    if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
+                        i += 1
+                    continue
+                elif re.match(r'^\s+- "', line) and len(line) > 100 and i > 0 and '--zak' not in lines[i-1]:
+                    if 'eyJ' in line:
+                        i += 1
+                        continue
+                if re.search(r'config\.toml', line):
+                    new_lines.append(line)
                     i += 1
+                    while i < len(lines):
+                        if '--zak' in lines[i]:
+                            i += 1
+                            if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
+                                i += 1
+                            continue
+                        elif re.search(r'RawVideo|RawAudio', lines[i]):
+                            break
+                        elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[i]):
+                            break
+                        i += 1
+                    config_indent = re.match(r'^(\s+)-\s+config\.toml', line)
+                    base_indent = config_indent.group(1) if config_indent else "    "
+                    item_indent = base_indent
+                    new_lines.append(f'{item_indent}- "--zak"')
+                    new_lines.append(f'{item_indent}- "{tokens[zak_bot_num]}"')
+                    updated_count += 1
                     continue
             
-            # Strategy: Find config.toml and insert --zak right after it (BEFORE subcommands)
-            if re.search(r'config\.toml', line):
-                # Found config.toml, insert --zak after it (BEFORE RawVideo/RawAudio)
-                new_lines.append(line)
-                i += 1
-                
-                # Skip any existing --zak entries
-                while i < len(lines):
-                    if '--zak' in lines[i]:
-                        i += 1
-                        if i < len(lines) and re.match(r'^\s+- "', lines[i]) and len(lines[i]) > 100:
-                            i += 1
-                        continue
-                    # Stop if we hit RawVideo or RawAudio (subcommands)
-                    elif re.search(r'RawVideo|RawAudio', lines[i]):
-                        break
-                    # Stop if we hit deploy or other sections
-                    elif re.match(r'^\s+(deploy|volumes|environment|entrypoint):', lines[i]):
-                        break
-                    i += 1
-                
-                # Detect indentation from config.toml line
-                config_indent = re.match(r'^(\s+)-\s+config\.toml', line)
-                if config_indent:
-                    base_indent = config_indent.group(1)  # exact spaces before "- config.toml"
-                else:
-                    base_indent = "    "  # fallback to 4 spaces (correct format)
-
-                item_indent = base_indent  # same indent as other list items
-
-                # write zak
-                new_lines.append(f'{item_indent}- "--zak"')
-                new_lines.append(f'{item_indent}- "{tokens[current_bot]}"')
-                updated_count += 1
-                # end write zak
-                # end of zak insertion
-                continue
-            
+        if current_bot is not None and tokens.get(NAME_OFFSET + current_bot):
             # Also ensure --dir /dev exists for RawAudio
-            if re.search(r'--dir', line):
-                # Found --dir, check if /dev exists
+            # Skip if line already contains /dev (combined format like "RawAudio --file x.pcm --dir /dev")
+            if re.search(r'--dir', line) and not re.search(r'/dev', line):
                 new_lines.append(line)
                 i += 1
-                
-                if i < len(lines) and re.search(r'"/dev"', lines[i]):
-                    # /dev exists
+                if i < len(lines) and re.search(r'["\']?/dev["\']?', lines[i]):
                     new_lines.append(lines[i])
                     i += 1
                 else:
-                    # /dev missing, add it
                     new_lines.append('      - "/dev"')
                 continue
         
@@ -176,6 +155,8 @@ def main():
     print("🔄 Updating compose file with ZAK tokens...")
     print(f"   Compose file: {COMPOSE_FILE}")
     print(f"   Tokens file: {TOKENS_FILE}")
+    if NAME_OFFSET > 0:
+        print(f"   Name offset: {NAME_OFFSET} (2nd+ batch → BOT{NAME_OFFSET+1}, BOT{NAME_OFFSET+2}...)")
     print("")
     
     import time

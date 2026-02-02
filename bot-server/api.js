@@ -2,6 +2,7 @@ const express = require('express');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
+const fs = require('fs');
 
 const execAsync = promisify(exec);
 
@@ -30,7 +31,8 @@ app.post('/api/bots/create', async (req, res) => {
       accountId,
       clientId,
       clientSecret,
-      timeoutSeconds
+      timeoutSeconds,
+      useSingleZak  // true = 1 ZAK for all bots (fast), false = per-user ZAK
     } = req.body;
     
     // Generate request ID if not provided (backward compatibility)
@@ -119,8 +121,12 @@ app.post('/api/bots/create', async (req, res) => {
       });
     }
     
+    const totalBotsForLog = video + audio;
+    const zakTimeEst = meetingType === 'Profile Pic Member' 
+      ? Math.ceil(totalBotsForLog / 20) + 5  // ~20 parallel, +5s overhead
+      : 0;
     console.log(`Creating bots: ${video} video, ${audio} audio`);
-    console.log(`⏳ Estimated time: ${Math.ceil((video + audio) * 2)} seconds (ZAK token generation)`);
+    console.log(`⏳ Estimated time: ~${zakTimeEst + Math.ceil(totalBotsForLog / 10) + 15}s (ZAK ${zakTimeEst}s + containers ~${Math.ceil(totalBotsForLog/10)}s)`);
     
     // Get project directory
     // In Docker: mounted at /app/bot-project
@@ -165,15 +171,16 @@ app.post('/api/bots/create', async (req, res) => {
     // Pass NAME_OFFSET to continue names from where we left off (prevents duplicates)
     const hostPath = process.env.HOST_PROJECT_PATH || '/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample';
     // Quote projectDir to handle paths with spaces
-    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && HOST_PROJECT_PATH="${hostPath}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" MEETING_ID="${meetingId}" REQUEST_ID="${uniqueRequestId}" NAME_OFFSET="${nameOffset}" bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret}`;
+    const useSingleZakEnv = (useSingleZak === true || useSingleZak === 'true') ? 'true' : 'false';
+    const timeoutSecs = parseInt(timeoutSeconds, 10) || 7200;
+    console.log(`⏱️  Timeout: ${timeoutSecs}s (from request: ${timeoutSeconds}, bots will leave meeting after this)`);
+    // Pass timeout as 9th arg (reliable in Docker/exec); env TIMEOUT_SECONDS may not propagate
+    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret} ${meetingId} ${uniqueRequestId} ${timeoutSecs}`;
     
     // Execute setup script
-    // Increase timeout for large bot counts (10 bots can take 2-3 minutes)
-    // ZAK token generation: ~1-2 seconds per bot (sequential API calls)
-    // Compose file generation: ~1-2 seconds
-    // Container startup: ~5-10 seconds
+    // With parallel ZAK: ~20s for 150 bots. Container startup: ~2-3s per 10 containers
     const totalBots = video + audio;
-    const scriptTimeout = Math.max(180000, totalBots * 15000); // 15 seconds per bot, minimum 3 minutes
+    const scriptTimeout = Math.max(180000, totalBots * 5000); // 5s per bot (parallel ZAK), min 3 min
     
     // Validate timeout is a valid number
     if (isNaN(scriptTimeout) || scriptTimeout <= 0) {
@@ -406,13 +413,56 @@ app.post('/api/bots/create', async (req, res) => {
 });
 
 /**
+ * POST /api/bots/containers-status - Check which containers are still running
+ * Used by API to auto-update meeting status when bots leave (e.g. timeout)
+ */
+app.post('/api/bots/containers-status', async (req, res) => {
+  try {
+    let { containerIds } = req.body;
+    console.log('[STATUS] Request. containerIds type:', typeof containerIds, 'isArray:', Array.isArray(containerIds), 'len:', Array.isArray(containerIds) ? containerIds.length : 0);
+    if (!containerIds || !Array.isArray(containerIds)) {
+      return res.status(400).json({ error: 'containerIds array required' });
+    }
+    containerIds = containerIds.map(id => String(id).trim()).filter(id => id && id.startsWith('zoom-bot-'));
+    console.log('[STATUS] After filter:', containerIds.length, 'first:', containerIds[0]);
+
+    const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
+    const running = [];
+    const stopped = [];
+
+    for (const name of containerIds) {
+      try {
+        const { stdout } = await execAsync(
+          `docker ps -a --filter "name=^${name}$" --format "{{.Status}}"`,
+          { cwd: projectDir, shell: '/bin/sh', timeout: 2000 }
+        );
+        const status = (stdout || '').trim();
+        if (status && !status.includes('Exited')) {
+          running.push(name);
+        } else {
+          stopped.push(name);
+        }
+      } catch {
+        stopped.push(name);
+      }
+    }
+
+    console.log('[STATUS] Result: running=', running.length, 'stopped=', stopped.length, 'allStopped=', running.length === 0);
+    res.json({ running, stopped, allStopped: running.length === 0 });
+  } catch (error) {
+    console.error('[STATUS] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/bots/stop - Stop bots
  */
 app.post('/api/bots/stop', async (req, res) => {
   try {
     let { containerIds } = req.body;
+    console.log('[STOP] Request received. containerCount:', Array.isArray(containerIds) ? containerIds.length : 0, 'first:', Array.isArray(containerIds) ? containerIds[0] : 'N/A');
     
-    // Handle both array and string formats
     if (!containerIds) {
       return res.status(400).json({ error: 'containerIds required' });
     }
@@ -438,7 +488,7 @@ app.post('/api/bots/stop', async (req, res) => {
       return res.status(400).json({ error: 'No valid container IDs provided' });
     }
     
-    const projectDir = path.join(__dirname, '..');
+    const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
     
     // Stop containers - use parallel batching for better performance
     const results = [];
@@ -460,6 +510,8 @@ app.post('/api/bots/stop', async (req, res) => {
       })
       .filter(id => id && id.length > 0);
     
+    console.log('[STOP] projectDir:', projectDir, 'cleanIds count:', cleanIds.length);
+    
     // Process in batches
     for (let i = 0; i < cleanIds.length; i += batchSize) {
       const batch = cleanIds.slice(i, i + batchSize);
@@ -475,9 +527,14 @@ app.post('/api/bots/stop', async (req, res) => {
               timeout: 2000
             });
             
-            // If container doesn't exist or already stopped
+            // If container doesn't exist or already stopped - remove (docker rm -f works on exited)
             if (!stdout || stdout.trim() === '' || stdout.includes('Exited')) {
-              console.log(`ℹ️  Container ${containerId} already stopped or doesn't exist`);
+              try {
+                await execAsync(`docker rm -f ${containerId}`, { cwd: projectDir, shell: '/bin/sh', timeout: 5000 });
+                console.log(`✅ Removed exited container: ${containerId}`);
+              } catch (rmErr) {
+                if (!rmErr.message.includes('No such container')) console.warn(`⚠️ docker rm ${containerId}:`, rmErr.message);
+              }
               return { id: containerId, status: 'already_stopped' };
             }
           } catch (checkError) {
@@ -485,13 +542,18 @@ app.post('/api/bots/stop', async (req, res) => {
             console.log(`⚠️  Could not check status of ${containerId}, attempting stop...`);
           }
           
-          // Try to stop the container
+          // Stop and remove container
           await execAsync(`docker stop ${containerId}`, { 
             cwd: projectDir, 
             shell: '/bin/sh',
-            timeout: 5000 // 5 second timeout per container
+            timeout: 5000
           });
-          console.log(`✅ Stopped container: ${containerId}`);
+          try {
+            await execAsync(`docker rm ${containerId}`, { cwd: projectDir, shell: '/bin/sh', timeout: 3000 });
+            console.log(`✅ Stopped and removed container: ${containerId}`);
+          } catch (rmErr) {
+            console.log(`✅ Stopped container: ${containerId} (rm: ${rmErr.message})`);
+          }
           return { id: containerId, status: 'stopped' };
         } catch (error) {
           // If error says container doesn't exist or already stopped, that's OK
@@ -516,10 +578,34 @@ app.post('/api/bots/stop', async (req, res) => {
       }
     }
     
+    // Remove compose file: zoom-bot-{meetingId}-{requestId}-{n} -> compose-{meetingId}-{requestId}-bots.yaml
+    const firstId = cleanIds[0] || '';
+    const match = firstId.match(/^zoom-bot-(\d+)-(\d+)-\d+$/);
+    console.log('[STOP] Parse firstId:', firstId, 'match:', !!match, 'expected compose: compose-' + (match ? `${match[1]}-${match[2]}-bots.yaml` : '?'));
+    if (match) {
+      const [, meetingId, requestId] = match;
+      const composeFile = path.join(projectDir, `compose-${meetingId}-${requestId}-bots.yaml`);
+      const exists = fs.existsSync(composeFile);
+      console.log('[STOP] Compose file:', composeFile, 'exists:', exists);
+      if (fs.existsSync(composeFile)) {
+        try {
+          fs.unlinkSync(composeFile);
+          console.log(`✅ Deleted compose file: compose-${meetingId}-${requestId}-bots.yaml`);
+        } catch (e) {
+          console.warn(`⚠️  Could not delete compose file: ${e.message}`);
+        }
+      } else {
+        console.warn(`⚠️  Compose file not found: ${composeFile}`);
+      }
+    } else {
+      console.warn(`⚠️  Could not parse meeting/request from container name: ${firstId}`);
+    }
+
     const successCount = results.filter(r => r.status === 'stopped' || r.status === 'already_stopped').length;
     const failCount = results.filter(r => r.status === 'failed').length;
     const alreadyStoppedCount = results.filter(r => r.status === 'already_stopped').length;
     
+    console.log('[STOP] Done. successCount:', successCount, 'failCount:', failCount);
     res.json({
       success: true,
       message: `Stopped ${successCount} of ${containerIds.length} containers (${alreadyStoppedCount} were already stopped)`,
@@ -534,6 +620,99 @@ app.post('/api/bots/stop', async (req, res) => {
       error: 'Failed to stop bots',
       message: error.message 
     });
+  }
+});
+
+/**
+ * POST /api/bots/cleanup-compose - Remove containers and delete compose file by meetingId+requestId
+ * Use when stop didn't run (e.g. API unreachable). No auth - for internal/cron use.
+ */
+app.post('/api/bots/cleanup-compose', async (req, res) => {
+  try {
+    const { meetingId, requestId } = req.body;
+    console.log('[CLEANUP-COMPOSE] Request:', { meetingId, requestId });
+    if (!meetingId || !requestId) {
+      return res.status(400).json({ error: 'meetingId and requestId required' });
+    }
+    const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
+    const prefix = `zoom-bot-${meetingId}-${requestId}`;
+    const composeFile = path.join(projectDir, `compose-${meetingId}-${requestId}-bots.yaml`);
+
+    const { stdout: namesOut } = await execAsync(
+      `docker ps -a --filter "name=^${prefix}-" --format "{{.Names}}"`,
+      { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
+    );
+    const containerNames = (namesOut || '').trim().split('\n').filter(Boolean);
+    let removed = 0;
+    for (const name of containerNames) {
+      try {
+        await execAsync(`docker rm -f ${name}`, { cwd: projectDir, shell: '/bin/sh', timeout: 5000 });
+        removed++;
+        console.log(`✅ Removed container: ${name}`);
+      } catch (e) {
+        console.warn(`⚠️ Could not remove ${name}:`, e.message);
+      }
+    }
+    let composeDeleted = false;
+    if (fs.existsSync(composeFile)) {
+      try {
+        fs.unlinkSync(composeFile);
+        composeDeleted = true;
+        console.log(`✅ Deleted compose: compose-${meetingId}-${requestId}-bots.yaml`);
+      } catch (e) {
+        console.warn(`⚠️ Could not delete compose:`, e.message);
+      }
+    }
+    console.log('[CLEANUP-COMPOSE] Done. removed:', removed, 'composeDeleted:', composeDeleted);
+    res.json({ success: true, removed, composeDeleted, containers: containerNames });
+  } catch (error) {
+    console.error('[CLEANUP-COMPOSE] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/bots/cleanup-by-meeting - Find and clean ALL compose files + containers for a meetingId
+ * Use when container_ids missing or stop failed. Finds compose-{meetingId}-*-bots.yaml
+ */
+app.post('/api/bots/cleanup-by-meeting', async (req, res) => {
+  try {
+    const { meetingId } = req.body;
+    console.log('[CLEANUP-BY-MEETING] Request meetingId:', meetingId);
+    if (!meetingId) {
+      return res.status(400).json({ error: 'meetingId required' });
+    }
+    const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
+    const files = fs.readdirSync(projectDir).filter(f => f.startsWith(`compose-${meetingId}-`) && f.endsWith('-bots.yaml'));
+    let totalRemoved = 0;
+    const cleaned = [];
+    for (const file of files) {
+      const m = file.match(/^compose-(\d+)-(\d+)-bots\.yaml$/);
+      if (m) {
+        const [, mid, rid] = m;
+        const prefix = `zoom-bot-${mid}-${rid}`;
+        const { stdout: namesOut } = await execAsync(
+          `docker ps -a --filter "name=^${prefix}-" --format "{{.Names}}"`,
+          { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
+        ).catch(() => ({ stdout: '' }));
+        const names = (namesOut || '').trim().split('\n').filter(Boolean);
+        for (const name of names) {
+          try {
+            await execAsync(`docker rm -f ${name}`, { cwd: projectDir, shell: '/bin/sh', timeout: 5000 });
+            totalRemoved++;
+          } catch (_) {}
+        }
+        try {
+          fs.unlinkSync(path.join(projectDir, file));
+          cleaned.push(file);
+        } catch (_) {}
+      }
+    }
+    console.log('[CLEANUP-BY-MEETING] Done. totalRemoved:', totalRemoved, 'cleaned:', cleaned);
+    res.json({ success: true, totalRemoved, cleaned });
+  } catch (error) {
+    console.error('[CLEANUP-BY-MEETING] Error:', error.message);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -604,6 +783,19 @@ app.get('/api/bots/capacity', async (req, res) => {
   }
 });
 
+// Manual ZAK refresh trigger (POST or GET)
+const doRefreshZak = async (req, res) => {
+  try {
+    const { refreshZak } = require('./zakRefresh');
+    const ok = await refreshZak();
+    res.json({ success: ok });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+};
+app.post('/api/bots/refresh-zak', doRefreshZak);
+app.get('/api/bots/refresh-zak', doRefreshZak);
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -612,5 +804,12 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🤖 Bot Server API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  // ZAK pre-generate job: every 2 hours, saves to zak-token.env
+  try {
+    const { startZakRefreshJob } = require('./zakRefresh');
+    startZakRefreshJob();
+  } catch (e) {
+    console.log('[ZAK] Refresh job not started:', e.message);
+  }
 });
 

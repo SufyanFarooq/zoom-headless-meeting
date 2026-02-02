@@ -8,7 +8,11 @@ const usageRouter = require('./routes/usage');
 const namesRouter = require('./routes/names');
 const botServersRouter = require('./routes/bot-servers');
 const authRouter = require('./routes/auth');
+const reportsRouter = require('./routes/reports');
+const costSettingsRouter = require('./routes/costSettings');
+const adminRouter = require('./routes/admin');
 const { authenticate } = require('./middleware/auth');
+const { requireAdmin } = require('./middleware/requireAdmin');
 const { noCacheSensitiveData } = require('./middleware/cacheControl');
 const scheduler = require('./workers/scheduler');
 
@@ -35,6 +39,9 @@ app.use('/api/schedules', noCacheSensitiveData, authenticate, schedulesRouter);
 app.use('/api/usage', noCacheSensitiveData, authenticate, usageRouter);
 app.use('/api/names', noCacheSensitiveData, authenticate, namesRouter);
 app.use('/api/bot-servers', noCacheSensitiveData, authenticate, botServersRouter);
+app.use('/api/reports', noCacheSensitiveData, authenticate, reportsRouter);
+app.use('/api/cost-settings', noCacheSensitiveData, authenticate, costSettingsRouter);
+app.use('/api/admin', noCacheSensitiveData, authenticate, requireAdmin, adminRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -6,6 +6,7 @@ Config::Config() :
         m_rawRecordVideoCmd(m_app.add_subcommand("RawVideo", "Enable Video Raw Recording"))
     {
     m_app.set_config("--config", "config.toml");
+    m_app.require_subcommand(0, 2);  // Allow both RawAudio + RawVideo for audio-only with video icon
 
     m_app.add_option("-m, --meeting-id", m_meetingId,"Meeting ID of the meeting");
     m_app.add_option("-p, --password", m_password,"Password of the meeting");
@@ -63,12 +64,15 @@ int Config::read(int ac, char **av) {
         cerr << "RawVideo subcommand NOT activated" << endl;
     }
 
-    // If RawAudio is used (not RawVideo), clear video input file from config
-    // This prevents config.toml [RawVideo] section from affecting audio-only bots
+    // If RawAudio only (no RawVideo), clear video input - audio-only without video icon path
+    // If both RawAudio + RawVideo: keep video for Desktop icon (continuous black frames)
     if (m_rawRecordAudioCmd->parsed() && !m_rawRecordVideoCmd->parsed()) {
-        cerr << "Clearing video input file for audio-only bot..." << endl;
+        cerr << "Clearing video input file for audio-only bot (no RawVideo)..." << endl;
         m_videoInputFile.clear();
-        cerr << "Video input file AFTER clearing: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
+        m_videoFile.clear();
+    } else if (m_rawRecordAudioCmd->parsed() && m_rawRecordVideoCmd->parsed() && m_videoInputFile.empty()) {
+        cerr << "Audio+Video icon mode: RawAudio + RawVideo (isAudioOnly=false for Desktop icon)" << endl;
+        m_videoInputFile = "black";  // Sentinel: isAudioOnly=false, send black frames, skip recording
     }
 
    return 0;
@@ -158,6 +162,10 @@ const string& Config::videoFile() const {
 
 const string& Config::videoInputFile() const {
     return m_videoInputFile;
+}
+
+bool Config::isVideoIconOnlyMode() const {
+    return m_videoInputFile == "black";
 }
 
 const string& Config::profilePicturePath() const {

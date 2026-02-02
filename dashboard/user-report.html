@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Report - Zoom Services Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .user-badge { display: inline-block; padding: 5px 12px; background: #2a3a4a; border-radius: 6px; color: #4a9eff; font-weight: 500; margin-left: 6px; font-size: 13px; }
+        .result-area { margin-top: 20px; padding: 20px; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 6px; min-height: 280px; font-family: monospace; font-size: 13px; color: #4ade80; line-height: 1.6; white-space: pre-wrap; word-break: break-word; box-sizing: border-box; }
+        .result-area:empty::before { content: 'Select date range and click Generate Report'; color: #666; }
+        .report-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div class="page-layout">
+        <p class="page-breadcrumb"><a href="index.html">Dashboard</a> / <a href="admin.html">Admin</a> / Report</p>
+        <div class="page-header">
+            <div>
+                <h1>User Report <span class="user-badge" id="userLabel">—</span></h1>
+                <p class="subtitle">Generate usage report for this account</p>
+            </div>
+            <a href="admin.html" class="btn-nav">← Back to Admin</a>
+        </div>
+
+        <section class="page-section">
+            <h2>Report</h2>
+            <div class="form-grid-3" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <select id="currency">
+                        <option value="INR">₹ INR</option>
+                        <option value="USD">$ USD</option>
+                        <option value="EUR">€ EUR</option>
+                    </select>
+                </div>
+            </div>
+            <div class="report-actions">
+                <button class="btn-success" onclick="generateReport()">Generate Report</button>
+                <button type="button" class="btn-secondary" onclick="copyResult()">📋 Copy</button>
+            </div>
+            <div class="result-area" id="resultArea"></div>
+        </section>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' && window.location.port === '8080' ? 'http://localhost:3000/api' : '/api';
+        const params = new URLSearchParams(window.location.search);
+        const userId = params.get('userId');
+        const userName = params.get('name') || 'User';
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken');
+            return { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
+        }
+
+        function initDates() {
+            const today = new Date();
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(lastMonth.getMonth() - 1);
+            const pad = n => String(n).padStart(2, '0');
+            document.getElementById('endDate').value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+            document.getElementById('startDate').value = `${lastMonth.getFullYear()}-${pad(lastMonth.getMonth()+1)}-${pad(lastMonth.getDate())}`;
+        }
+
+        const CURRENCY_SYMBOLS = { INR: '₹', USD: '$', EUR: '€' };
+
+        function formatReport(byDate, costRates, symbol) {
+            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            const dates = Object.keys(byDate || {}).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+            const lines = [];
+            let totalDue = 0;
+            const r = costRates || { normal: 0, profile: 0, webinar: 0 };
+            for (const d of dates) {
+                const [, m, day] = d.split('-');
+                const monthName = months[parseInt(m,10)-1];
+                if (!monthName || isNaN(parseInt(day,10))) continue;
+                const { normal = 0, pic = 0, webinar = 0 } = byDate[d];
+                const parts = [];
+                if (normal > 0) parts.push(`Normal:${normal}`);
+                if (pic > 0) parts.push(`Pic:${pic}`);
+                if (webinar > 0) parts.push(`Webinar:${webinar}`);
+                const str = parts.length ? parts.join(',') : '0';
+                const price = (normal * r.normal) + (pic * r.profile) + (webinar * r.webinar);
+                totalDue += price;
+                const dayNum = parseInt(day,10);
+                const sym = symbol || '₹';
+                if (parts.length) {
+                    lines.push(`*${dayNum} ${monthName} - ${str},  = ${sym}${price.toFixed(1)}*`);
+                } else {
+                    lines.push(`*${dayNum} ${monthName} - 0 = ${sym}0*`);
+                }
+            }
+            if (dates.length > 0) {
+                const [, m, day] = dates[dates.length - 1].split('-');
+                const monthName = months[parseInt(m,10)-1];
+                const sym = symbol || '₹';
+                lines.push(`*Total Due till ${parseInt(day,10)} ${monthName} = ${sym}${totalDue.toFixed(1)}*`);
+            }
+            return lines.join('\n') || 'No data for selected range.';
+        }
+
+        async function generateReport() {
+            if (!userId) { document.getElementById('resultArea').textContent = 'Invalid user'; return; }
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const currency = document.getElementById('currency').value || 'INR';
+            if (!start || !end) { document.getElementById('resultArea').textContent = 'Please select date range'; return; }
+            try {
+                const [reportRes, costRes] = await Promise.all([
+                    fetch(`${API_BASE}/admin/reports?userId=${userId}&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`, { headers: getAuthHeaders() }),
+                    fetch(`${API_BASE}/cost-settings`, { headers: getAuthHeaders() })
+                ]);
+                const reportData = await reportRes.json();
+                const costData = await costRes.json();
+                if (!reportRes.ok) throw new Error(reportData.error || 'Failed');
+                const settings = costData.settings || {};
+                const costRates = settings[currency] || { normal: 0, profile: 0, webinar: 0 };
+                const symbol = CURRENCY_SYMBOLS[currency] || '₹';
+                document.getElementById('resultArea').textContent = formatReport(reportData.byDate, costRates, symbol);
+            } catch (e) {
+                document.getElementById('resultArea').textContent = 'Error: ' + e.message;
+            }
+        }
+
+        function copyResult() {
+            const el = document.getElementById('resultArea');
+            const text = el.textContent;
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard')).catch(() => alert('Copy failed'));
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('authToken')) { window.location.href = 'login.html'; return; }
+            document.getElementById('userLabel').textContent = decodeURIComponent(userName);
+            initDates();
+        });
+    </script>
+</body>
+</html>

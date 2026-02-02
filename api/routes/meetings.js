@@ -45,33 +45,24 @@ router.post('/', async (req, res) => {
     }
     
     // Create bots on bot server
-    let botResult;
-    try {
-      botResult = await createBots(
-        meetingId,
-        password,
-        total,
-        video,
-        audio,
-        nameType,
-        meetingType,
-        timeoutSeconds || 7200
-      );
-    } catch (botError) {
-      console.error('Error creating bots:', botError);
-      return res.status(500).json({ 
-        error: 'Failed to create bots',
-        message: botError.message || 'Bot creation failed. Please check meeting ID, password, and try again.',
-        details: process.env.NODE_ENV === 'development' ? botError.stack : undefined
-      });
-    }
+    const botResult = await createBots(
+      meetingId,
+      password,
+      total,
+      video,
+      audio,
+      nameType,
+      meetingType,
+      timeoutSeconds || 7200
+    );
     
-    // Store meeting in database
+    // Store meeting in database (with user who created it)
+    const userId = req.user?.id || null;
     const meetingResult = await query(
       `INSERT INTO meetings 
        (meeting_id, password, members_count, name_type, meeting_type, status, 
-        timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)
        RETURNING *`,
       [
         meetingId,
@@ -84,7 +75,8 @@ router.post('/', async (req, res) => {
         botResult.serverId,
         botResult.containerIds,
         botResult.videoCount,
-        botResult.audioCount
+        botResult.audioCount,
+        userId
       ]
     );
     
@@ -111,14 +103,20 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
+    const userId = req.user?.id;
     
-    let queryText = 'SELECT * FROM meetings ORDER BY created_at DESC';
+    let queryText = 'SELECT * FROM meetings';
     let params = [];
     
-    if (status) {
-      queryText = 'SELECT * FROM meetings WHERE status = $1 ORDER BY created_at DESC';
-      params = [status];
+    if (userId) {
+      queryText += ' WHERE user_id = $1';
+      params.push(userId);
     }
+    if (status) {
+      queryText += (params.length ? ' AND' : ' WHERE') + ' status = $' + (params.length + 1);
+      params.push(status);
+    }
+    queryText += ' ORDER BY created_at DESC';
     
     const result = await query(queryText, params);
     
@@ -132,6 +130,81 @@ router.get('/', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to get meetings',
       message: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/meetings/:id/refill - Copy meeting details and create new meeting request (same meeting ID, same bots count)
+ * Does NOT merge/sum with existing record - creates a fresh meeting row
+ */
+router.post('/:id/refill', async (req, res) => {
+  try {
+    const meetingResult = await query(
+      'SELECT * FROM meetings WHERE id = $1',
+      [req.params.id]
+    );
+    if (meetingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+    const src = meetingResult.rows[0];
+    if (src.status !== 'active') {
+      return res.status(400).json({ error: 'Meeting is not active' });
+    }
+    if (src.user_id && req.user?.id && src.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not allowed to refill this meeting' });
+    }
+
+    const membersCount = parseInt(src.members_count);
+    const video = 0;
+    const audio = membersCount;
+
+    const botResult = await createBots(
+      src.meeting_id,
+      src.password,
+      membersCount,
+      video,
+      audio,
+      src.name_type,
+      src.meeting_type,
+      src.timeout_seconds || 7200
+    );
+
+    const userId = req.user?.id || src.user_id || null;
+    await query(
+      `INSERT INTO meetings 
+       (meeting_id, password, members_count, name_type, meeting_type, status, 
+        timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)
+       RETURNING *`,
+      [
+        src.meeting_id,
+        src.password,
+        membersCount,
+        src.name_type,
+        src.meeting_type,
+        'active',
+        src.timeout_seconds || 7200,
+        botResult.serverId,
+        botResult.containerIds,
+        video,
+        audio,
+        userId
+      ]
+    );
+
+    await updateUsage(membersCount);
+
+    res.json({
+      success: true,
+      added: membersCount,
+      message: `Refill: ${membersCount} bots added to meeting ${src.meeting_id}`
+    });
+  } catch (error) {
+    console.error('Error refilling meeting:', error);
+    res.status(500).json({
+      error: 'Failed to refill meeting',
+      message: error.message
     });
   }
 });
@@ -183,6 +256,9 @@ router.delete('/:id', async (req, res) => {
     if (meeting.status === 'stopped') {
       return res.status(400).json({ error: 'Meeting already stopped' });
     }
+    if (meeting.user_id && req.user?.id && meeting.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not allowed to stop this meeting' });
+    }
     
     // Stop bots on bot server
     // container_ids is stored as PostgreSQL array, convert to proper array
@@ -191,8 +267,10 @@ router.delete('/:id', async (req, res) => {
       if (Array.isArray(meeting.container_ids)) {
         containerIds = meeting.container_ids.map(id => String(id).trim()).filter(id => id);
       } else if (typeof meeting.container_ids === 'string') {
-        // Handle string format (comma-separated or newline-separated)
-        containerIds = meeting.container_ids.split(/[,\n\r]+/).map(id => id.trim()).filter(id => id);
+        const s = meeting.container_ids.replace(/^\{|\}$/g, '').trim();
+        containerIds = s ? s.split(/[,\n\r]+/).map(id => id.trim().replace(/^"|"$/g, '')).filter(Boolean) : [];
+      } else if (meeting.container_ids && typeof meeting.container_ids === 'object') {
+        containerIds = Object.values(meeting.container_ids).map(id => String(id).trim()).filter(Boolean);
       }
     }
     
@@ -202,17 +280,24 @@ router.delete('/:id', async (req, res) => {
       return String(id).trim().replace(/[^a-zA-Z0-9_-]/g, '');
     }).filter(id => id && id.length > 0);
     
-    // Try to stop bots, but don't fail if it times out
-    // Bots may already be disconnected, so we proceed with marking meeting as stopped
     let stopBotsResult = null;
+    console.log(`[STOP] Meeting ${meeting.id}: meeting_id=${meeting.meeting_id}, bot_server_id=${meeting.bot_server_id}, container_ids count=${containerIds.length}`);
     if (containerIds.length > 0) {
-      try {
-        stopBotsResult = await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
-      } catch (error) {
-        console.error('Error stopping bots (continuing anyway):', error.message);
-        // Continue even if bot stopping fails - bots may already be disconnected
-        // We'll still mark the meeting as stopped
-      }
+      console.log(`[STOP] First 2 container_ids:`, JSON.stringify(containerIds.slice(0, 2)));
+    } else {
+      console.log(`[STOP] container_ids from DB:`, JSON.stringify(meeting.container_ids));
+    }
+    try {
+      stopBotsResult = await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
+      console.log(`[STOP] stopBots succeeded`);
+    } catch (error) {
+      console.error(`[STOP] stopBots FAILED:`, {
+        message: error.message,
+        code: error.code,
+        status: error.response?.status,
+        data: error.response?.data,
+        configUrl: error.config?.url
+      });
     }
     
     // Update meeting status (always do this, even if bot stopping failed)

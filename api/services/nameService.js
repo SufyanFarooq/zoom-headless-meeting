@@ -1,80 +1,142 @@
 const fs = require('fs');
 const path = require('path');
 
-const NAMES_INDIAN_FILE = path.join(__dirname, '../../profile-pics/names.txt');
-const NAMES_INTERNATIONAL_FILE = path.join(__dirname, '../../profile-pics/names-international.txt');
+const PROFILE_PICS = path.join(__dirname, '../../profile-pics');
+const NAMES_DIR = path.join(PROFILE_PICS, 'names');
+const NAMES_INDIAN_FILE = path.join(PROFILE_PICS, 'names.txt');
+const NAMES_INTERNATIONAL_FILE = path.join(PROFILE_PICS, 'names-international.txt');
 
-/**
- * Read names from file
- */
+function ensureNamesDir() {
+  if (!fs.existsSync(NAMES_DIR)) {
+    fs.mkdirSync(NAMES_DIR, { recursive: true });
+    if (fs.existsSync(NAMES_INDIAN_FILE)) {
+      fs.copyFileSync(NAMES_INDIAN_FILE, path.join(NAMES_DIR, 'Indian.txt'));
+    }
+    if (fs.existsSync(NAMES_INTERNATIONAL_FILE)) {
+      fs.copyFileSync(NAMES_INTERNATIONAL_FILE, path.join(NAMES_DIR, 'International.txt'));
+    }
+  }
+}
+
+function getFilePath(nameType) {
+  const safe = String(nameType).replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!safe) return null;
+  return path.join(NAMES_DIR, `${safe}.txt`);
+}
+
 function readNamesFromFile(filePath) {
   try {
-    if (!fs.existsSync(filePath)) {
-      console.warn(`Names file not found: ${filePath}`);
-      return [];
-    }
-    
+    if (!fs.existsSync(filePath)) return [];
     const content = fs.readFileSync(filePath, 'utf8');
-    const names = content
+    return content
       .split('\n')
       .map(line => line.trim())
       .filter(line => line && !line.startsWith('#'));
-    
-    return names;
   } catch (error) {
     console.error(`Error reading names file ${filePath}:`, error);
     return [];
   }
 }
 
-/**
- * Get names for bots based on name type
- */
 function getNamesForBots(count, nameType) {
-  let names = [];
-  
-  if (nameType === 'Indian') {
-    names = readNamesFromFile(NAMES_INDIAN_FILE);
-  } else if (nameType === 'International') {
-    names = readNamesFromFile(NAMES_INTERNATIONAL_FILE);
-  } else {
-    // Default to Indian if unknown
-    names = readNamesFromFile(NAMES_INDIAN_FILE);
+  ensureNamesDir();
+  let filePath = getFilePath(nameType);
+  if (!filePath || !fs.existsSync(filePath)) {
+    if (nameType === 'Indian') filePath = NAMES_INDIAN_FILE;
+    else if (nameType === 'International') filePath = NAMES_INTERNATIONAL_FILE;
+    else filePath = NAMES_INDIAN_FILE;
   }
-  
-  // If not enough names, cycle through available names
+  const names = readNamesFromFile(filePath);
   const result = [];
   for (let i = 0; i < count; i++) {
-    if (names.length > 0) {
-      result.push(names[i % names.length]);
-    } else {
-      // Fallback: generate generic names
-      result.push(`Bot-${i + 1}`);
-    }
+    result.push(names.length > 0 ? names[i % names.length] : `Bot-${i + 1}`);
   }
-  
   return result;
 }
 
-/**
- * Update names file (for adding custom names via dashboard)
- */
 function addCustomName(name, nameType) {
-  const filePath = nameType === 'Indian' ? NAMES_INDIAN_FILE : NAMES_INTERNATIONAL_FILE;
-  
+  ensureNamesDir();
+  const filePath = getFilePath(nameType) || (nameType === 'International' ? path.join(NAMES_DIR, 'International.txt') : path.join(NAMES_DIR, 'Indian.txt'));
   try {
-    // Append name to file
     fs.appendFileSync(filePath, `\n${name}`, 'utf8');
     return true;
-  } catch (error) {
-    console.error(`Error adding custom name to ${filePath}:`, error);
+  } catch (e) {
+    console.error('Error adding name:', e);
     return false;
   }
+}
+
+function listNameFiles() {
+  ensureNamesDir();
+  try {
+    const files = fs.readdirSync(NAMES_DIR).filter(f => f.endsWith('.txt'));
+    return files.map(f => f.replace(/\.txt$/, '')).sort();
+  } catch (e) {
+    return ['Indian', 'International'];
+  }
+}
+
+function listNameFilesWithCounts() {
+  const names = listNameFiles();
+  return names.map(name => {
+    const namesList = readNamesFromFile(getFilePath(name));
+    return { name, count: namesList.length };
+  });
+}
+
+function getFileContent(nameType) {
+  ensureNamesDir();
+  const filePath = getFilePath(nameType);
+  if (!filePath || !fs.existsSync(filePath)) return '';
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+function saveFileContent(nameType, content) {
+  ensureNamesDir();
+  const filePath = getFilePath(nameType);
+  if (!filePath) throw new Error('Invalid name type');
+  fs.writeFileSync(filePath, content || '', 'utf8');
+  return true;
+}
+
+function createNameFile(name) {
+  ensureNamesDir();
+  const filePath = getFilePath(name);
+  if (!filePath) throw new Error('Invalid name');
+  if (fs.existsSync(filePath)) throw new Error('File already exists');
+  fs.writeFileSync(filePath, '', 'utf8');
+  return true;
+}
+
+function renameNameFile(oldName, newName) {
+  ensureNamesDir();
+  const oldPath = getFilePath(oldName);
+  const newPath = getFilePath(newName);
+  if (!oldPath || !newPath) throw new Error('Invalid name');
+  if (!fs.existsSync(oldPath)) throw new Error('File not found');
+  if (fs.existsSync(newPath)) throw new Error('Target file already exists');
+  fs.renameSync(oldPath, newPath);
+  return true;
+}
+
+function deleteNameFile(name) {
+  ensureNamesDir();
+  const filePath = getFilePath(name);
+  if (!filePath || !fs.existsSync(filePath)) throw new Error('File not found');
+  fs.unlinkSync(filePath);
+  return true;
 }
 
 module.exports = {
   getNamesForBots,
   addCustomName,
-  readNamesFromFile
+  readNamesFromFile,
+  listNameFiles,
+  listNameFilesWithCounts,
+  getFileContent,
+  saveFileContent,
+  createNameFile,
+  renameNameFile,
+  deleteNameFile
 };
 

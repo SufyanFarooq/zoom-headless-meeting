@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  bot-5067498331-1770064741554-1:
+    image: zoom-bot:latest
+    container_name: zoom-bot-5067498331-1770064741554-1
+    command:
+      - --join-url
+      - https://zoom.us/j/5067498331?pwd=123456
+      - --display-name
+      - Arjun
+      - --config
+      - config.toml
+      - "--zak"
+      - "eyJ0eXAiOiJKV1QiLCJzdiI6IjAwMDAwMiIsInptX3NrbSI6InptX28ybSIsImFsZyI6IkhTMjU2In0.eyJhdWQiOiJjbGllbnRzbSIsInVpZCI6IlBHaERya2RpVEhhVXNTajlXMzJMQ1EiLCJ6aWQiOiJlMzE1MzcwNGRiY2Q0NWFkYmNlNmYzYmQyNzc2ZjhhZCIsImlzcyI6IndlYiIsInNrIjoiMCIsInN0eSI6MTAwLCJ3Y2QiOiJ1czA2IiwiY2x0IjowLCJleHAiOjE3NzAwNzE1MzcsImlhdCI6MTc3MDA2NDMzNywiYWlkIjoia09qclhlZEJSd0dsYkdpQ3l6UU95USIsImNpZCI6IiJ9.FO4brUrLUxQgqH9-M5B2fsebPepcN0fUf4R738H-21k"
+      - RawAudio
+      - --file
+      - dev-null.pcm
+      - --dir
+      - "/dev"

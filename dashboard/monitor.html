@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor User - Zoom Services Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .user-badge { display: inline-block; padding: 5px 12px; background: #2a3a4a; border-radius: 6px; color: #4a9eff; font-weight: 500; margin-left: 6px; font-size: 13px; }
+        .refresh-note { color: #666; font-size: 12px; margin-top: 14px; }
+        .status-active { color: #4ade80; font-weight: 500; }
+        .status-stopped { color: #888; }
+    </style>
+</head>
+<body>
+    <div class="page-layout">
+        <p class="page-breadcrumb"><a href="index.html">Dashboard</a> / <a href="admin.html">Admin</a> / Monitor</p>
+        <div class="page-header">
+            <div>
+                <h1>User Monitor <span class="user-badge" id="userLabel">—</span></h1>
+                <p class="subtitle">View meetings and activity for this account</p>
+            </div>
+            <a href="admin.html" class="btn-nav">← Back to Admin</a>
+        </div>
+
+        <section class="page-section">
+            <h2>Meetings</h2>
+            <div class="table-container" style="overflow-x:auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Meeting ID</th>
+                            <th>Bots</th>
+                            <th>Started</th>
+                            <th>Timeout</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="meetingsBody">
+                        <tr><td colspan="7" class="no-data">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="refresh-note">Auto-refreshes every 10 seconds</p>
+        </section>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' && window.location.port === '8080' ? 'http://localhost:3000/api' : '/api';
+        const params = new URLSearchParams(window.location.search);
+        const userId = params.get('userId');
+        const userName = params.get('name') || 'User';
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken');
+            return { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
+        }
+
+        async function loadMeetings() {
+            if (!userId) {
+                document.getElementById('userLabel').textContent = 'Invalid';
+                document.getElementById('meetingsBody').innerHTML = '<tr><td colspan="7" class="no-data">Invalid or missing user</td></tr>';
+                return;
+            }
+            document.getElementById('userLabel').textContent = decodeURIComponent(userName);
+            try {
+                const res = await fetch(`${API_BASE}/admin/meetings?userId=${userId}`, { headers: getAuthHeaders() });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                renderMeetings(data.meetings || []);
+            } catch (e) {
+                document.getElementById('meetingsBody').innerHTML = `<tr><td colspan="7" class="no-data">Error: ${e.message}</td></tr>`;
+            }
+        }
+
+        function renderMeetings(meetings) {
+            const tbody = document.getElementById('meetingsBody');
+            if (!meetings.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data">No meetings found</td></tr>';
+                return;
+            }
+            tbody.innerHTML = meetings.map((m, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td><strong>${escapeHtml(m.meeting_id)}</strong></td>
+                    <td>${m.members_count}</td>
+                    <td>${m.started_at ? new Date(m.started_at).toLocaleString() : '—'}</td>
+                    <td>${m.timeout_seconds}s</td>
+                    <td>${m.meeting_type || '—'}</td>
+                    <td><span class="status-${m.status === 'active' ? 'active' : 'stopped'}">${m.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function escapeHtml(s) {
+            if (!s) return '';
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('authToken')) { window.location.href = 'login.html'; return; }
+            loadMeetings();
+            setInterval(loadMeetings, 10000);
+        });
+    </script>
+</body>
+</html>

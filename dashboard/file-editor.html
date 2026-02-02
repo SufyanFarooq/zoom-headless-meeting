@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Editor - Custom Names</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .file-editor-page { min-height: 100vh; display: flex; flex-direction: column; background: #1a1a1a; }
+        .file-editor-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 24px; background: #2a2a2a; border-bottom: 1px solid #3a3a3a;
+        }
+        .file-editor-header h1 { font-size: 20px; color: #4a9eff; }
+        .file-editor-actions { display: flex; gap: 10px; align-items: center; }
+        .file-editor-body {
+            flex: 1; display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 70px);
+        }
+        .file-editor-files {
+            padding: 20px; background: #222; border-right: 1px solid #3a3a3a;
+        }
+        .file-editor-files h2 { font-size: 14px; color: #888; margin-bottom: 16px; text-transform: uppercase; }
+        .file-editor-files ul { list-style: none; padding: 0; margin: 0; }
+        .file-editor-files li {
+            padding: 12px 14px; cursor: pointer; border-radius: 6px; margin-bottom: 4px;
+            font-size: 14px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .file-editor-files li:hover { background: #333; }
+        .file-editor-files li.active { background: #3a5a8a; color: #fff; }
+        .file-editor-files .file-count { font-size: 12px; color: #888; }
+        .file-editor-files li.active .file-count { color: #aaa; }
+        .file-editor-main {
+            display: flex; flex-direction: column;
+        }
+        .file-editor-toolbar {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 20px; background: #252525; border-bottom: 1px solid #3a3a3a;
+        }
+        .file-editor-toolbar .status { font-size: 14px; color: #aaa; }
+        .file-editor-toolbar .status strong { color: #fff; }
+        .file-editor-content {
+            flex: 1; padding: 20px;
+        }
+        .file-editor-content textarea {
+            width: 100%; height: calc(100vh - 180px); min-height: 400px;
+            padding: 16px; background: #1a1a1a; border: 1px solid #3a3a3a;
+            border-radius: 6px; color: #fff; font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px; line-height: 1.6; resize: none;
+        }
+        .file-editor-content textarea:focus { outline: none; border-color: #4a9eff; }
+        .file-editor-content textarea::placeholder { color: #666; }
+        .btn-fe { border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 500; }
+        .btn-fe-back { background: #4a9eff; color: #fff; }
+        .btn-fe-new { background: #4a9eff; color: #fff; }
+        .btn-fe-rename { background: #ff9800; color: #fff; }
+        .btn-fe-delete { background: #f44336; color: #fff; }
+        .btn-fe-save { background: #4caf50; color: #fff; padding: 10px 24px; }
+        .btn-fe:hover { opacity: 0.9; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal-box { background: #2a2a2a; padding: 24px; border-radius: 8px; min-width: 320px; }
+        .modal-box h3 { margin-bottom: 16px; color: #4a9eff; }
+        .modal-box input { width: 100%; padding: 12px; margin-bottom: 16px; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 4px; color: #fff; font-size: 14px; }
+        .modal-box .btns { display: flex; gap: 10px; justify-content: flex-end; }
+    </style>
+</head>
+<body class="file-editor-page">
+    <header class="file-editor-header">
+        <h1>&lt; /&gt; Div File Editor</h1>
+        <div class="file-editor-actions">
+            <a href="index.html" class="btn-fe btn-fe-back">← Back</a>
+            <button type="button" class="btn-fe btn-fe-new" onclick="showNewFileDialog()">New File</button>
+            <button type="button" class="btn-fe btn-fe-rename" onclick="showRenameDialog()">Rename File</button>
+            <button type="button" class="btn-fe btn-fe-delete" onclick="deleteCurrentFile()">Delete File</button>
+        </div>
+    </header>
+
+    <div class="file-editor-body">
+        <aside class="file-editor-files">
+            <h2>Files</h2>
+            <ul id="namesFilesList">
+                <li class="empty">Loading…</li>
+            </ul>
+        </aside>
+        <main class="file-editor-main">
+            <div class="file-editor-toolbar">
+                <span class="status">Editing: <strong id="namesCurrentFile">—</strong> (<span id="namesFileSize">0 bytes</span>, <span id="namesCount">0 names</span>)</span>
+                <button type="button" class="btn-fe btn-fe-save" onclick="saveNamesFile()">Save</button>
+            </div>
+            <div class="file-editor-content">
+                <textarea id="namesContent" placeholder="One name per line. Add names here and click Save."></textarea>
+            </div>
+        </main>
+    </div>
+
+    <div id="newFileDialog" class="modal-overlay">
+        <div class="modal-box">
+            <h3>New File</h3>
+            <input type="text" id="newFileName" placeholder="e.g. Nepal, Pak, Bangladesh">
+            <div class="btns">
+                <button type="button" class="btn-fe btn-fe-save" onclick="createNewFile()">Create</button>
+                <button type="button" class="btn-fe btn-fe-delete" onclick="closeNewFileDialog()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="renameFileDialog" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Rename File</h3>
+            <input type="text" id="renameFileName" placeholder="New name">
+            <div class="btns">
+                <button type="button" class="btn-fe btn-fe-save" onclick="renameFile()">Rename</button>
+                <button type="button" class="btn-fe btn-fe-delete" onclick="closeRenameDialog()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="file-editor.js"></script>
+</body>
+</html>

@@ -92,7 +92,7 @@ router.post('/login', async (req, res) => {
     
     // Find user by username or email
     const result = await query(
-      'SELECT id, username, email, password_hash FROM users WHERE username = $1 OR email = $1',
+      'SELECT id, username, email, password_hash, COALESCE(is_admin, false) as is_admin FROM users WHERE username = $1 OR email = $1',
       [username]
     );
     
@@ -129,7 +129,8 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        is_admin: user.is_admin || false
       }
     });
   } catch (error) {
@@ -309,9 +310,9 @@ router.get('/me', async (req, res) => {
     // Verify token
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // Get user from database
+    // Get user from database (auth/me - include is_admin)
     const result = await query(
-      'SELECT id, username, email FROM users WHERE id = $1',
+      'SELECT id, username, email, COALESCE(is_admin, false) as is_admin FROM users WHERE id = $1',
       [decoded.userId]
     );
     

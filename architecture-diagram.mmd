@@ -1,0 +1,73 @@
+graph TB
+    subgraph "User Layer"
+        User[User Browser]
+    end
+    
+    subgraph "Presentation Layer"
+        Nginx[Nginx Web Server<br/>Port 8080<br/>Static Files + Reverse Proxy]
+    end
+    
+    subgraph "Application Layer"
+        API[Node.js Express API<br/>Port 3000<br/>REST API + Scheduler]
+        Scheduler[node-cron Scheduler<br/>Background Jobs]
+    end
+    
+    subgraph "Data Layer"
+        DB[(PostgreSQL Database<br/>Port 5432<br/>Meetings, Users, Schedules)]
+    end
+    
+    subgraph "Bot Orchestration Layer"
+        BotAPI[Bot Server API<br/>Port 3001<br/>Docker Orchestration]
+    end
+    
+    subgraph "Bot Execution Layer"
+        Docker[Docker Engine<br/>Container Runtime]
+        Bot1[C++ Bot Container 1<br/>Zoom Meeting SDK]
+        Bot2[C++ Bot Container 2<br/>Zoom Meeting SDK]
+        BotN[C++ Bot Container N<br/>Zoom Meeting SDK]
+    end
+    
+    subgraph "External Services"
+        ZoomSDK[Zoom Meeting SDK<br/>Meeting Participation]
+        ZoomAPI[Zoom REST API<br/>Authentication & Config]
+        ZoomCloud[Zoom Cloud Services<br/>Meeting Rooms]
+    end
+    
+    User -->|HTTPS| Nginx
+    Nginx -->|Proxy /api/*| API
+    Nginx -->|Serve Static Files| User
+    
+    API -->|Query/Store| DB
+    API -->|Create/Stop Bots| BotAPI
+    API -->|Authenticate| ZoomAPI
+    
+    Scheduler -->|Poll Every 30s| DB
+    Scheduler -->|Trigger Meeting| API
+    
+    BotAPI -->|Docker API| Docker
+    Docker -->|Run Containers| Bot1
+    Docker -->|Run Containers| Bot2
+    Docker -->|Run Containers| BotN
+    
+    Bot1 -->|SDK Auth| ZoomSDK
+    Bot2 -->|SDK Auth| ZoomSDK
+    BotN -->|SDK Auth| ZoomSDK
+    
+    ZoomSDK -->|Join Meeting| ZoomCloud
+    ZoomAPI -->|Account Info| ZoomCloud
+    
+    style User fill:#e1f5ff
+    style Nginx fill:#fff4e1
+    style API fill:#e8f5e9
+    style DB fill:#f3e5f5
+    style BotAPI fill:#fff3e0
+    style Docker fill:#e0f2f1
+    style Bot1 fill:#fce4ec
+    style Bot2 fill:#fce4ec
+    style BotN fill:#fce4ec
+    style ZoomSDK fill:#ffebee
+    style ZoomAPI fill:#ffebee
+    style ZoomCloud fill:#ffebee
+
+
+

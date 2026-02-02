@@ -13,6 +13,16 @@ mkdir -p out
 export QT_LOGGING_RULES="*.debug=false;*.warning=false;*.info=false;*.critical=false"
 export QT_QPA_PLATFORM=offscreen
 
+# Start Xvfb (virtual display) - Zoom desktop app needs this to show video icon for participants
+# Without it, web shows disabled icon but desktop app shows no icon at all
+setup-xvfb() {
+  export DISPLAY=:99
+  if [ ! -S "/tmp/.X11-unix/X99" ]; then
+    Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
+    sleep 2
+  fi
+}
+
 setup-pulseaudio() {
   # Enable dbus
   if [[  ! -d /var/run/dbus ]]; then
@@ -50,30 +60,57 @@ setup-pulseaudio() {
   # Wait for pulseaudio to start
   sleep 1
 
-  # Create a virtual speaker output (minimal)
+  # Create virtual sink + source so Zoom SDK detects audio device (fixes raw audio status 12)
   pactl load-module module-null-sink sink_name=SpeakerOutput > /dev/null 2>&1
   pactl set-default-sink SpeakerOutput > /dev/null 2>&1
   pactl set-default-source SpeakerOutput.monitor > /dev/null 2>&1
 
-  # Also create a dummy source for microphone
+  # DummyMic - Zoom SDK needs to detect a microphone for raw audio subscription
   pactl load-module module-null-source source_name=DummyMic > /dev/null 2>&1
   pactl set-default-source DummyMic > /dev/null 2>&1 || true
 
-  # Verify audio devices are available
+  # ALSA -> PulseAudio: Zoom may use ALSA directly; route to Pulse virtual devices
+  mkdir -p ~/.config
+  cat > ~/.asoundrc << 'ASOUND'
+pcm.!default { type pulse }
+ctl.!default { type pulse }
+ASOUND
+
+  # Verify audio devices
   if command -v pactl > /dev/null 2>&1; then
-    # Check if default sink exists
-    if ! pactl list short sinks | grep -q SpeakerOutput; then
-      echo "Warning: PulseAudio sink not created properly" > /dev/null 2>&1
+    if ! pactl list short sources 2>/dev/null | grep -q -E "DummyMic|SpeakerOutput"; then
+      echo "Warning: PulseAudio virtual source not created" >&2
     fi
   fi
 
-  # Make config file
   echo -e "[General]\nsystem.audio.type=default" > ~/.config/zoomus.conf 2>/dev/null
 }
 
 build() {
+  # Start Xvfb early - Zoom desktop app needs virtual display to show video icon
+  setup-xvfb
+  
   # Log build start
   echo "Starting build process..." >&2
+
+  # CRITICAL: Detect cross-platform build cache (e.g. Mac .o files in Linux container)
+  # Shared volume /tmp/build-cache may contain artifacts from different host
+  CURRENT_PLATFORM=$(uname -m)-$(uname -s)
+  if [[ -d "$BUILD" ]] && [[ -f "$BUILD/.platform" ]]; then
+    CACHED_PLATFORM=$(cat "$BUILD/.platform" 2>/dev/null || echo "")
+    if [[ "$CACHED_PLATFORM" != "$CURRENT_PLATFORM" ]]; then
+      echo "Platform mismatch: cache=$CACHED_PLATFORM current=$CURRENT_PLATFORM - cleaning build..." >&2
+      rm -rf "$BUILD"/* "$BUILD"/.[!.]* 2>/dev/null || rm -rf "$BUILD"/* 2>/dev/null
+    fi
+  fi
+  # Also check: if .o files exist, verify they're ELF (Linux) not Mach-O (Mac)
+  if [[ -f "$BUILD/CMakeFiles/zoomsdk.dir/src/Zoom.cpp.o" ]]; then
+    OFORMAT=$(file -b "$BUILD/CMakeFiles/zoomsdk.dir/src/Zoom.cpp.o" 2>/dev/null || echo "")
+    if echo "$OFORMAT" | grep -qi "Mach-O"; then
+      echo "Build cache contains Mac object files but running on $(uname -s) - cleaning..." >&2
+      rm -rf "$BUILD"/* "$BUILD"/.[!.]* 2>/dev/null || rm -rf "$BUILD"/* 2>/dev/null
+    fi
+  fi
   
   # Check if build directory exists but is incomplete (no executable)
   if [[ -d "$BUILD" ]] && [[ ! -f "$BUILD/zoomsdk" ]]; then
@@ -98,11 +135,11 @@ build() {
   if [[ ! -d "$BUILD" ]] || [[ -z "$(ls -A $BUILD 2>/dev/null)" ]] || [[ ! -f "$BUILD/CMakeCache.txt" ]]; then
     echo "Running cmake configuration..." >&2
     # Ensure log directory exists before writing to it
-    mkdir -p /tmp/meeting-sdk-linux-sample/out
+    mkdir -p /tmp/build-logs
     
     # Try preset first, but if it fails due to vcpkg, try without preset
     # Use PIPESTATUS to capture cmake's exit code, not tee's
-    cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log
+    cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/build-logs/cmake.log
     CMAKE_EXIT_CODE=${PIPESTATUS[0]}
     
     if [ $CMAKE_EXIT_CODE -ne 0 ]; then
@@ -112,17 +149,20 @@ build() {
         -DCMAKE_BUILD_TYPE=Debug \
         -DCMAKE_CXX_STANDARD=20 \
         -DCMAKE_CXX_STANDARD_REQUIRED=ON \
-        2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log
+        2>&1 | tee /tmp/build-logs/cmake.log
       CMAKE_EXIT_CODE=${PIPESTATUS[0]}
       
       if [ $CMAKE_EXIT_CODE -ne 0 ]; then
         echo "ERROR: CMake configuration failed" >&2
-        cat /tmp/meeting-sdk-linux-sample/out/cmake.log >&2
+        cat /tmp/build-logs/cmake.log >&2
         exit 1
       fi
     fi
+    # Stamp platform so we detect cross-host cache reuse
+    echo "$CURRENT_PLATFORM" > "$BUILD/.platform" 2>/dev/null || true
   else
     echo "Build directory exists, skipping cmake..." >&2
+    mkdir -p /tmp/build-logs
     # Check if executable exists and was built on a different system (GLIBC mismatch)
     if [ -f "$BUILD/zoomsdk" ]; then
       # Check if executable requires newer GLIBC than available
@@ -132,12 +172,12 @@ build() {
         # Force rebuild by removing executable and build artifacts
         rm -f "$BUILD/zoomsdk" "$BUILD/CMakeCache.txt" 2>/dev/null || true
         # Re-run cmake configuration
-        cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log || {
+        cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/build-logs/cmake.log || {
           cmake -B "$BUILD" -S . \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=20 \
             -DCMAKE_CXX_STANDARD_REQUIRED=ON \
-            2>&1 | tee /tmp/meeting-sdk-linux-sample/out/cmake.log
+            2>&1 | tee /tmp/build-logs/cmake.log
         }
       fi
     fi
@@ -171,6 +211,7 @@ build() {
   # Build only if needed
   if [[ "$NEED_REBUILD" == "true" ]]; then
     echo "Building application..." >&2
+    mkdir -p /tmp/build-logs
     # Reduce parallelism to avoid OOM (use 1 job to minimize memory usage)
     # This prevents "Killed signal terminated program cc1plus" errors
     # Also limit compiler memory usage with flags to reduce memory footprint
@@ -178,24 +219,37 @@ build() {
     export CXXFLAGS="${CXXFLAGS} -fno-var-tracking -fno-var-tracking-assignments -Os"
     # Set CMAKE_CXX_FLAGS via cmake to ensure it's used
     cmake -B "$BUILD" -DCMAKE_CXX_FLAGS="${CXXFLAGS}" 2>/dev/null || true
-    cmake --build "$BUILD" -j1 2>&1 | tee /tmp/meeting-sdk-linux-sample/out/build.log || {
-      echo "ERROR: Build failed" >&2
-      cat /tmp/meeting-sdk-linux-sample/out/build.log >&2
+    cmake --build "$BUILD" -j1 2>&1 | tee /tmp/build-logs/build.log
+    BUILD_EXIT=${PIPESTATUS[0]}
+    if [ $BUILD_EXIT -ne 0 ]; then
+      # If "file format not recognized" = cross-platform cache (Mac .o on Linux)
+      if [ -f /tmp/build-logs/build.log ] && grep -q "file format not recognized\|file not recognized" /tmp/build-logs/build.log 2>/dev/null; then
+        echo "Cross-platform build cache detected - cleaning and retrying..." >&2
+        rm -rf "$BUILD"/* "$BUILD"/.[!.]* 2>/dev/null || rm -rf "$BUILD"/* 2>/dev/null
+        cmake -B "$BUILD" -S . --preset debug 2>/dev/null || cmake -B "$BUILD" -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=20 2>/dev/null
+        echo "$CURRENT_PLATFORM" > "$BUILD/.platform" 2>/dev/null || true
+        cmake --build "$BUILD" -j1 2>&1 | tee /tmp/build-logs/build.log
+        BUILD_EXIT=${PIPESTATUS[0]}
+      fi
+      if [ $BUILD_EXIT -ne 0 ]; then
+        echo "ERROR: Build failed" >&2
+        [ -f /tmp/build-logs/build.log ] && cat /tmp/build-logs/build.log >&2
+      fi
       # If build failed due to OOM, suggest increasing memory or building outside container
-      if grep -q "Killed\|signal terminated\|out of memory" /tmp/meeting-sdk-linux-sample/out/build.log 2>/dev/null; then
+      if [ $BUILD_EXIT -ne 0 ] && [ -f /tmp/build-logs/build.log ] && grep -q "Killed\|signal terminated\|out of memory" /tmp/build-logs/build.log 2>/dev/null; then
         echo "" >&2
         echo "⚠️  Build failed due to out of memory (OOM)." >&2
         echo "💡 Solutions:" >&2
-        echo "   1. Increase container memory limit in compose-50-bots.yaml:" >&2
-        echo "      memory: 512M  # or 1G (change from 256M)" >&2
+        echo "   1. Increase container memory limit in compose file:" >&2
+        echo "      memory: 1G  # or higher (currently 512M may be too low)" >&2
         echo "   2. Build outside container and copy executable" >&2
         echo "   3. Use a build service with more memory" >&2
         echo "" >&2
-        echo "Current memory limit: 256M (too low for compilation)" >&2
+        echo "Current memory limit may be too low for C++ compilation" >&2
       fi
       unset CXXFLAGS
       exit 1
-    }
+    fi
     unset CXXFLAGS
   else
     echo "Executable exists and up to date, skipping build..." >&2
@@ -332,7 +386,7 @@ run() {
     
     # Run - keep stderr for errors (redirect to file for debugging)
     # Log errors to file for debugging
-    ERROR_LOG="/tmp/meeting-sdk-linux-sample/out/error.log"
+    ERROR_LOG="/tmp/build-logs/error.log"
     mkdir -p "$(dirname "$ERROR_LOG")"
     
     # Check if executable exists before running
@@ -363,14 +417,22 @@ run() {
         echo "  Total --zak count: $zak_count" >&2
     fi
     
+    # Timeout: leave meeting after TIMEOUT_SECONDS (from dashboard)
+    run_zoomsdk() {
+        if [ -n "${TIMEOUT_SECONDS:-}" ] && [ "$TIMEOUT_SECONDS" -gt 0 ] 2>/dev/null; then
+            echo "⏱  Bot will leave meeting after ${TIMEOUT_SECONDS}s" >&2
+            timeout "$TIMEOUT_SECONDS" ./"$BUILD"/zoomsdk "$@"
+        else
+            ./"$BUILD"/zoomsdk "$@"
+        fi
+    }
+
     while [ $retry_count -lt $max_retries ]; do
-        # Try to run the executable
-        # Use PIPESTATUS to capture the actual application exit code, not tee's exit code
-        ./"$BUILD"/zoomsdk "$@" 2>&1 | tee -a "$ERROR_LOG"
+        run_zoomsdk "$@" 2>&1 | tee -a "$ERROR_LOG"
         EXIT_CODE=${PIPESTATUS[0]}
         
-        # If application succeeded, exit successfully
-        if [ $EXIT_CODE -eq 0 ]; then
+        # 0=normal exit, 124=timeout (bot left after TIMEOUT_SECONDS)
+        if [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 124 ]; then
             exit 0
         fi
         

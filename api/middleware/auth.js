@@ -38,9 +38,9 @@ const authenticate = async (req, res, next) => {
     const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // Get user from database
+    // Get user from database (include is_admin for admin routes)
     const result = await query(
-      'SELECT id, username, email FROM users WHERE id = $1',
+      'SELECT id, username, email, COALESCE(is_admin, false) as is_admin FROM users WHERE id = $1',
       [decoded.userId]
     );
     

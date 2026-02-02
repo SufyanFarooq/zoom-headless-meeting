@@ -35,48 +35,47 @@ function calculateBotDistribution(membersCount, meetingType) {
 
 /**
  * Select best bot server based on priority and capacity
- * Priority: Server 1 (priority=1) is used first, then Server 2 (priority=2)
- * Only moves to Server 2 when Server 1 is full
+ * Uses priority if column exists; otherwise selects by current_load
  */
 async function selectBestServer(membersCount) {
   try {
-    // First, try Server 1 (priority = 1)
-    const server1Result = await query(
-      `SELECT id, server_name, server_url, capacity, current_load, priority
+    // Try query with priority first (Server 1 = 1, Server 2 = 2)
+    try {
+      const withPriority = await query(
+        `SELECT id, server_name, server_url, capacity, current_load, priority
+         FROM bot_servers 
+         WHERE status = 'active' 
+         AND (capacity - current_load) >= $1
+         ORDER BY COALESCE(priority, 100) ASC, current_load ASC
+         LIMIT 1`,
+        [membersCount]
+      );
+      if (withPriority.rows.length > 0) {
+        console.log(`✅ Selected server (${withPriority.rows[0].server_name}) - Load: ${withPriority.rows[0].current_load}/${withPriority.rows[0].capacity}`);
+        return withPriority.rows[0];
+      }
+    } catch (priorityErr) {
+      if (!priorityErr.message?.includes('priority')) throw priorityErr;
+      // Fallback: priority column doesn't exist
+    }
+
+    // Fallback: select without priority column
+    const result = await query(
+      `SELECT id, server_name, server_url, capacity, current_load
        FROM bot_servers 
        WHERE status = 'active' 
-       AND priority = 1
        AND (capacity - current_load) >= $1
        ORDER BY current_load ASC
        LIMIT 1`,
       [membersCount]
     );
-    
-    if (server1Result.rows.length > 0) {
-      console.log(`✅ Selected Server 1 (${server1Result.rows[0].server_name}) - Load: ${server1Result.rows[0].current_load}/${server1Result.rows[0].capacity}`);
-      return server1Result.rows[0];
+
+    if (result.rows.length > 0) {
+      console.log(`✅ Selected server (${result.rows[0].server_name}) - Load: ${result.rows[0].current_load}/${result.rows[0].capacity}`);
+      return result.rows[0];
     }
-    
-    // Server 1 is full, try Server 2 (priority = 2)
-    console.log('⚠️  Server 1 is full, trying Server 2...');
-    const server2Result = await query(
-      `SELECT id, server_name, server_url, capacity, current_load, priority
-       FROM bot_servers 
-       WHERE status = 'active' 
-       AND priority = 2
-       AND (capacity - current_load) >= $1
-       ORDER BY current_load ASC
-       LIMIT 1`,
-      [membersCount]
-    );
-    
-    if (server2Result.rows.length > 0) {
-      console.log(`✅ Selected Server 2 (${server2Result.rows[0].server_name}) - Load: ${server2Result.rows[0].current_load}/${server2Result.rows[0].capacity}`);
-      return server2Result.rows[0];
-    }
-    
-    // No server available
-    throw new Error('No available bot server with sufficient capacity. Server 1 and Server 2 are both full.');
+
+    throw new Error('No available bot server with sufficient capacity.');
   } catch (error) {
     console.error('Error selecting bot server:', error);
     throw error;
@@ -103,8 +102,9 @@ async function updateServerLoad(serverId, loadChange) {
 
 /**
  * Create bots on bot server
+ * @param {number} [preferredServerId] - If provided, use this server (e.g. for refill to same server)
  */
-async function createBots(meetingId, password, membersCount, videoCount, audioCount, nameType, meetingType, timeoutSeconds) {
+async function createBots(meetingId, password, membersCount, videoCount, audioCount, nameType, meetingType, timeoutSeconds, preferredServerId) {
   try {
     // Validate parameters - catch mis-assigned values early
     console.log('🔍 createBots called with:', {
@@ -146,8 +146,15 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       throw new Error(`Invalid audioCount: received "${audioCount}" but expected a number. Parameters may be in wrong order. Received: videoCount="${videoCount}", audioCount="${audioCount}", nameType="${nameType}", meetingType="${meetingType}"`);
     }
     
-    // Select best server
-    const server = await selectBestServer(membersCount);
+    // Select server: use preferredServerId for refill, otherwise select best
+    let server;
+    if (preferredServerId) {
+      const serverResult = await query('SELECT id, server_name, server_url FROM bot_servers WHERE id = $1 AND status = $2', [preferredServerId, 'active']);
+      if (serverResult.rows.length === 0) throw new Error('Preferred bot server not found');
+      server = serverResult.rows[0];
+    } else {
+      server = await selectBestServer(membersCount);
+    }
     
     // Build join URL
     const joinUrl = `https://zoom.us/j/${meetingId}?pwd=${password}`;
@@ -162,11 +169,9 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
     }
     
     // Call bot server API to create bots
-    let botServerUrl = server.server_url;
+    let botServerUrl = process.env.BOT_SERVER_URL || server.server_url;
     
-    // Fix Docker networking: In Docker Compose, containers communicate via service names
-    // Replace localhost/127.0.0.1 with service name for internal Docker network
-    // Check if we're running in Docker (via environment or network)
+    if (!process.env.BOT_SERVER_URL) {
     const isDocker = process.env.DB_HOST && process.env.DB_HOST !== 'localhost';
     
     if (isDocker && botServerUrl) {
@@ -182,9 +187,9 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
         }
       }
     } else if (botServerUrl && botServerUrl.includes('localhost')) {
-      // For non-Docker or external access, use 127.0.0.1 instead of localhost
       botServerUrl = botServerUrl.replace(/localhost/g, '127.0.0.1');
       console.log(`🔧 Fixed bot server URL: ${server.server_url} -> ${botServerUrl}`);
+    }
     }
     
     // Ensure videoCount and audioCount are numbers
@@ -259,6 +264,9 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       }
     });
     
+    // useSingleZak: 1 token for all bots = faster (default true for Profile Pic)
+    const useSingleZak = meetingType === 'Profile Pic Member';
+
     const response = await axios.post(`${botServerUrl}/api/bots/create`, {
       meetingId,
       requestId, // Unique ID for this bot creation request
@@ -271,7 +279,8 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       accountId,
       clientId,
       clientSecret,
-      timeoutSeconds
+      timeoutSeconds,
+      useSingleZak
     }, {
       timeout: 180000 // 3 minute timeout (bot setup can take 2+ minutes for many bots)
     });
@@ -296,67 +305,108 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
 }
 
 /**
- * Stop bots on bot server
+ * Get bot server URL for a server ID
  */
-async function stopBots(meetingId, containerIds, serverId) {
-  try {
-    // Get server info
-    const serverResult = await query(
-      'SELECT server_url FROM bot_servers WHERE id = $1',
-      [serverId]
-    );
-    
-    if (serverResult.rows.length === 0) {
-      throw new Error('Bot server not found');
-    }
-    
-    let serverUrl = serverResult.rows[0].server_url;
-    
-    // Fix Docker networking
+async function getBotServerUrl(serverId) {
+  let serverUrl = process.env.BOT_SERVER_URL;
+  if (!serverUrl) {
+    const serverResult = await query('SELECT server_url FROM bot_servers WHERE id = $1', [serverId]);
+    if (serverResult.rows.length === 0) throw new Error('Bot server not found');
+    serverUrl = serverResult.rows[0].server_url;
     const isDocker = process.env.DB_HOST && process.env.DB_HOST !== 'localhost';
-    
-    if (isDocker && serverUrl) {
-      if (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) {
-        const urlMatch = serverUrl.match(/^(https?:\/\/)([^:]+)(:\d+)?/);
-        if (urlMatch) {
-          const protocol = urlMatch[1];
-          const port = urlMatch[3] || ':3001';
-          serverUrl = `${protocol}bot-server${port}`;
-        }
-      }
+    if (isDocker && (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1'))) {
+      const urlMatch = serverUrl.match(/^(https?:\/\/)([^:]+)(:\d+)?/);
+      if (urlMatch) serverUrl = `${urlMatch[1]}bot-server${urlMatch[3] || ':3001'}`;
     } else if (serverUrl && serverUrl.includes('localhost')) {
       serverUrl = serverUrl.replace(/localhost/g, '127.0.0.1');
     }
-    
-    // Call bot server API to stop bots
-    // Calculate timeout: 
-    // - For parallel batching: ~2 seconds per batch (10 containers) + buffer
-    // - Minimum 60 seconds, maximum 10 minutes
-    // - For 80 bots: ~16 batches = 32 seconds + 30s buffer = 62 seconds minimum
-    const batches = Math.ceil(containerIds.length / 10);
-    const timeoutMs = Math.min(Math.max(batches * 2000 + 30000, 60000), 600000);
-    
-    await axios.post(`${serverUrl}/api/bots/stop`, {
-      containerIds
-    }, {
-      timeout: timeoutMs
-    });
-    
-    // Update server load
-    if (containerIds && containerIds.length > 0) {
-      await updateServerLoad(serverId, -containerIds.length);
+  }
+  return serverUrl;
+}
+
+/**
+ * Stop bots on bot server - removes containers and deletes compose file
+ */
+async function stopBots(meetingId, containerIds, serverId) {
+  const serverUrl = await getBotServerUrl(serverId);
+  const batches = Math.ceil((containerIds?.length || 0) / 10);
+  const timeoutMs = Math.min(Math.max(batches * 2000 + 30000, 60000), 600000);
+
+  if (containerIds && containerIds.length > 0) {
+    console.log(`[stopBots] Calling ${serverUrl}/api/bots/stop with ${containerIds.length} containers`);
+    try {
+      const res = await axios.post(`${serverUrl}/api/bots/stop`, { containerIds }, { timeout: timeoutMs });
+      console.log(`[stopBots] /stop response:`, res.status, res.data?.message);
+    } catch (err) {
+      console.error(`[stopBots] /stop FAILED:`, err.code, err.message, err.response?.data);
+      const first = containerIds[0] || '';
+      const m = first.match(/^zoom-bot-(\d+)-(\d+)-\d+$/);
+      if (m) {
+        console.log(`[stopBots] Fallback: cleanup-compose meetingId=${m[1]} requestId=${m[2]}`);
+        try {
+          const res2 = await axios.post(`${serverUrl}/api/bots/cleanup-compose`, { meetingId: m[1], requestId: m[2] }, { timeout: 15000 });
+          console.log(`[stopBots] cleanup-compose OK:`, res2.data);
+          if (containerIds.length > 0) await updateServerLoad(serverId, -containerIds.length);
+          return true;
+        } catch (e2) {
+          console.error(`[stopBots] cleanup-compose FAILED:`, e2.code, e2.message);
+        }
+      }
+      throw err;
     }
-    
-    return true;
+  } else {
+    console.log(`[stopBots] No container_ids, calling cleanup-by-meeting for ${meetingId}`);
+    try {
+      const res = await axios.post(`${serverUrl}/api/bots/cleanup-by-meeting`, { meetingId }, { timeout: 15000 });
+      console.log(`[stopBots] cleanup-by-meeting OK:`, res.data);
+    } catch (err) {
+      console.error(`[stopBots] cleanup-by-meeting FAILED:`, err.code, err.message);
+      throw new Error(`Cleanup failed: ${err.message}`);
+    }
+  }
+
+  if (containerIds && containerIds.length > 0) {
+    await updateServerLoad(serverId, -containerIds.length);
+  }
+  return true;
+}
+
+/**
+ * Check if containers are still running (for auto-cleanup when bots leave due to timeout)
+ */
+async function checkContainersStatus(serverId, containerIds) {
+  try {
+    let serverUrl = process.env.BOT_SERVER_URL;
+    if (!serverUrl) {
+      const serverResult = await query(
+        'SELECT server_url FROM bot_servers WHERE id = $1',
+        [serverId]
+      );
+      if (serverResult.rows.length === 0) return { allStopped: false };
+      serverUrl = serverResult.rows[0].server_url;
+      const isDocker = process.env.DB_HOST && process.env.DB_HOST !== 'localhost';
+      if (isDocker && (serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1'))) {
+        const urlMatch = serverUrl.match(/^(https?:\/\/)([^:]+)(:\d+)?/);
+        if (urlMatch) serverUrl = `${urlMatch[1]}bot-server${urlMatch[3] || ':3001'}`;
+      } else if (serverUrl && serverUrl.includes('localhost')) {
+        serverUrl = serverUrl.replace(/localhost/g, '127.0.0.1');
+      }
+    }
+
+    const { data } = await axios.post(`${serverUrl}/api/bots/containers-status`, {
+      containerIds
+    }, { timeout: 10000 });
+    return { allStopped: data.allStopped === true };
   } catch (error) {
-    console.error('Error stopping bots:', error);
-    throw error;
+    console.error('[checkContainersStatus] FAILED:', error.code, error.message, error.config?.url);
+    return { allStopped: false };
   }
 }
 
 module.exports = {
   createBots,
   stopBots,
+  checkContainersStatus,
   calculateBotDistribution,
   selectBestServer,
   updateServerLoad

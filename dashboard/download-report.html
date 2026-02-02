@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Report - Zoom Services</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .result-header h3 { margin: 0; font-size: 15px; }
+        .result-textarea { width: 100%; min-height: 220px; padding: 16px; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 6px; color: #4ade80; font-family: monospace; font-size: 13px; resize: vertical; box-sizing: border-box; }
+        .result-textarea::placeholder { color: #4ade80; opacity: 0.5; }
+        .btn-copy { background: transparent; border: none; color: #888; cursor: pointer; padding: 4px; font-size: 14px; }
+        .btn-copy:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="page-layout">
+        <p class="page-breadcrumb"><a href="index.html">Dashboard</a> / Download Report</p>
+        <div class="page-header">
+            <div>
+                <h1>Download Report</h1>
+                <p class="subtitle">Generate and send cost details for your account</p>
+            </div>
+            <div class="form-row"><a href="index.html" class="btn-nav">🏠 Dashboard</a></div>
+        </div>
+
+        <section class="page-section">
+            <div class="form-grid-2" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+            <div class="form-grid-2" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label>Zoom Email (Your Account)</label>
+                    <input type="email" id="zoomEmail" placeholder="Your Zoom account email">
+                </div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <select id="currency">
+                        <option value="INR">₹ INR (Indian Rupee)</option>
+                        <option value="USD">$ USD (US Dollar)</option>
+                        <option value="EUR">€ EUR (Euro)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:16px">
+                <label>Receiver Email</label>
+                <input type="email" id="receiverEmail" placeholder="Email to receive report">
+            </div>
+            <div class="form-row" style="gap:12px">
+                <button type="button" class="btn-success" onclick="sendEmail()">✈️ Send Email</button>
+                <button type="button" class="btn-primary" onclick="calculateCost()">📄 Calculate Cost</button>
+            </div>
+        </section>
+
+        <section class="page-section">
+            <div class="result-header">
+                <h3>Result</h3>
+                <button class="btn-copy" onclick="copyResult()" title="Copy">📋 Copy</button>
+            </div>
+            <textarea id="resultArea" class="result-textarea" placeholder="Select dates and click Calculate Cost..." readonly></textarea>
+        </section>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' && window.location.port === '8080' ? 'http://localhost:3000/api' : '/api';
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken');
+            return { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
+        }
+
+        function checkAuth() {
+            if (!localStorage.getItem('authToken')) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        }
+
+        function initDates() {
+            const today = new Date();
+            const lastMonth = new Date(today);
+            lastMonth.setMonth(lastMonth.getMonth() - 1);
+            const pad = n => String(n).padStart(2, '0');
+            document.getElementById('endDate').value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+            document.getElementById('startDate').value = `${lastMonth.getFullYear()}-${pad(lastMonth.getMonth()+1)}-${pad(lastMonth.getDate())}`;
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user.email) document.getElementById('zoomEmail').value = user.email;
+        }
+
+        const CURRENCY_SYMBOLS = { INR: '₹', USD: '$', EUR: '€' };
+
+        function formatReport(byDate, costRates, symbol) {
+            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            const dates = Object.keys(byDate || {}).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+            const lines = [];
+            let totalDue = 0;
+            const r = costRates || { normal: 0, profile: 0, webinar: 0 };
+            for (const d of dates) {
+                const [y, m, day] = d.split('-');
+                const monthName = months[parseInt(m,10)-1];
+                if (!monthName || isNaN(parseInt(day,10))) continue;
+                const { normal = 0, pic = 0, webinar = 0 } = byDate[d];
+                const parts = [];
+                if (normal > 0) parts.push(`Normal:${normal}`);
+                if (pic > 0) parts.push(`Pic:${pic}`);
+                if (webinar > 0) parts.push(`Webinar:${webinar}`);
+                const str = parts.length ? parts.join(',') : '0';
+                const price = (normal * r.normal) + (pic * r.profile) + (webinar * r.webinar);
+                totalDue += price;
+                const dayNum = parseInt(day,10);
+                const sym = symbol || '₹';
+                if (parts.length) {
+                    lines.push(`*${dayNum} ${monthName} - ${str},  = ${sym}${price.toFixed(1)}*`);
+                } else {
+                    lines.push(`*${dayNum} ${monthName} - 0 = ${sym}0*`);
+                }
+            }
+            if (dates.length > 0) {
+                const lastD = dates[dates.length - 1];
+                const [y, m, day] = lastD.split('-');
+                const monthName = months[parseInt(m,10)-1];
+                const sym = symbol || '₹';
+                lines.push(`*Total Due till ${parseInt(day,10)} ${monthName} = ${sym}${totalDue.toFixed(1)}*`);
+            }
+            return lines.join('\n') || 'No data for selected range.';
+        }
+
+        async function calculateCost() {
+            if (!checkAuth()) return;
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const currency = document.getElementById('currency').value || 'INR';
+            if (!start || !end) {
+                document.getElementById('resultArea').value = 'Please select Start Date and End Date.';
+                return;
+            }
+            try {
+                const [reportRes, costRes] = await Promise.all([
+                    fetch(`${API_BASE}/reports?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`, { headers: getAuthHeaders() }),
+                    fetch(`${API_BASE}/cost-settings`, { headers: getAuthHeaders() })
+                ]);
+                const reportData = await reportRes.json();
+                const costData = await costRes.json();
+                if (!reportRes.ok) {
+                    document.getElementById('resultArea').value = `Error: ${reportData.error || reportData.message || reportRes.statusText}`;
+                    return;
+                }
+                const settings = costData.settings || {};
+                const costRates = settings[currency] || { normal: 0, profile: 0, webinar: 0 };
+                const symbol = CURRENCY_SYMBOLS[currency] || '₹';
+                document.getElementById('resultArea').value = formatReport(reportData.byDate, costRates, symbol);
+            } catch (e) {
+                document.getElementById('resultArea').value = `Error: ${e.message}`;
+            }
+        }
+
+        function sendEmail() {
+            alert('Send Email feature will be implemented later.');
+        }
+
+        function copyResult() {
+            const ta = document.getElementById('resultArea');
+            ta.select();
+            document.execCommand('copy');
+            alert('Copied to clipboard');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            initDates();
+        });
+    </script>
+</body>
+</html>

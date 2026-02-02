@@ -1,6 +1,6 @@
 const { query } = require('../db');
-const { createBots } = require('../services/botService');
-const { updateUsage } = require('../services/usageService');
+const { createBots, checkContainersStatus, stopBots } = require('../services/botService');
+const { updateUsage, decreaseUsage } = require('../services/usageService');
 const cron = require('node-cron');
 
 /**
@@ -97,12 +97,12 @@ class Scheduler {
             task.timeout_seconds || 7200
           );
           
-          // Create meeting record
+          // Create meeting record (preserve user_id from scheduled task)
           await query(
             `INSERT INTO meetings 
              (meeting_id, password, members_count, name_type, meeting_type, status, 
-              timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+              timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at, user_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)`,
             [
               task.meeting_id,
               task.password,
@@ -114,7 +114,8 @@ class Scheduler {
               botResult.serverId,
               botResult.containerIds,
               botResult.videoCount,
-              botResult.audioCount
+              botResult.audioCount,
+              task.user_id || null
             ]
           );
           
@@ -158,6 +159,91 @@ class Scheduler {
     } catch (error) {
       console.error('Error in scheduler:', error);
     }
+
+    // Cleanup: mark meetings as stopped when all containers have exited (e.g. timeout)
+    try {
+      console.log('[CLEANUP] Running checkAndCleanupStoppedMeetings...');
+      await this.checkAndCleanupStoppedMeetings();
+    } catch (cleanupError) {
+      console.error('[CLEANUP] Error:', cleanupError.message);
+    }
+  }
+
+  /**
+   * Check active meetings - if all containers stopped, mark meeting as stopped
+   */
+  async checkAndCleanupStoppedMeetings() {
+    try {
+      const result = await query(
+        `SELECT id, meeting_id, members_count, container_ids, bot_server_id, timeout_seconds, started_at
+         FROM meetings WHERE status = 'active' AND container_ids IS NOT NULL AND array_length(container_ids, 1) > 0`
+      );
+      if (result.rows.length === 0) return;
+      if (result.rows.length > 0) {
+        console.log(`[CLEANUP] Found ${result.rows.length} active meeting(s) to check`);
+      }
+
+      for (const meeting of result.rows) {
+        let containerIds = meeting.container_ids;
+        if (!Array.isArray(containerIds)) {
+          if (typeof containerIds === 'string') {
+            const s = containerIds.replace(/^\{|\}$/g, '').trim();
+            containerIds = s ? s.split(/[,\n\r]+/).map(id => id.trim().replace(/^"|"$/g, '')).filter(Boolean) : [];
+          } else if (containerIds && typeof containerIds === 'object') {
+            containerIds = Object.values(containerIds).map(id => String(id).trim()).filter(Boolean);
+          } else {
+            containerIds = [];
+          }
+        }
+        if (containerIds.length === 0) {
+          console.log(`[CLEANUP] Meeting ${meeting.meeting_id} skipped - no container_ids (raw: ${typeof meeting.container_ids})`);
+          continue;
+        }
+
+        let allStopped = false;
+        try {
+          const status = await checkContainersStatus(meeting.bot_server_id, containerIds);
+          allStopped = status.allStopped === true;
+        } catch (statusErr) {
+          console.error(`[CLEANUP] checkContainersStatus FAILED for ${meeting.meeting_id}:`, statusErr.message);
+          continue;
+        }
+        console.log(`[CLEANUP] Meeting ${meeting.meeting_id} (id ${meeting.id}): allStopped=${allStopped}, containers=${containerIds.length}`);
+        if (allStopped) {
+          try {
+            console.log(`[CLEANUP] Calling stopBots for meeting ${meeting.meeting_id} (id ${meeting.id})`);
+            await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
+          } catch (stopErr) {
+            console.error(`[CLEANUP] stopBots FAILED for ${meeting.meeting_id}:`, stopErr.message, stopErr.code);
+          }
+          await query(
+            `UPDATE meetings SET status = 'stopped', stopped_at = NOW() WHERE id = $1`,
+            [meeting.id]
+          );
+          await decreaseUsage(meeting.members_count);
+          console.log(`🧹 Auto-marked meeting ${meeting.meeting_id} (id ${meeting.id}) as stopped`);
+        } else {
+          const timeoutSec = meeting.timeout_seconds || 7200;
+          const started = meeting.started_at ? new Date(meeting.started_at) : null;
+          const elapsedSec = started ? (Date.now() - started.getTime()) / 1000 : 0;
+          if (elapsedSec > timeoutSec + 60) {
+            console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: allStopped=false but elapsed ${Math.floor(elapsedSec)}s > timeout ${timeoutSec}s+60, forcing cleanup-by-meeting`);
+            try {
+              await stopBots(meeting.meeting_id, [], meeting.bot_server_id);
+              await query(`UPDATE meetings SET status = 'stopped', stopped_at = NOW() WHERE id = $1`, [meeting.id]);
+              await decreaseUsage(meeting.members_count);
+              console.log(`🧹 Force-cleaned meeting ${meeting.meeting_id} (id ${meeting.id})`);
+            } catch (e) {
+              console.error(`[CLEANUP] Force cleanup failed:`, e.message);
+            }
+          } else {
+            console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: containers still running, skip`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in checkAndCleanupStoppedMeetings:', error);
+    }
   }
   
   /**
@@ -186,7 +272,18 @@ class Scheduler {
       timezone: 'UTC' // Database stores times in UTC
     });
     
-    console.log('⏰ Scheduler will run at the next minute mark (:00 seconds)');
+    // Cleanup every 30 seconds - catch exited containers (timeout) quickly
+    this.cleanupInterval = setInterval(() => {
+      this.checkAndCleanupStoppedMeetings().catch(e => console.error('[CLEANUP] Error:', e.message));
+    }, 30000);
+    
+    // Run cleanup once after 10s (catch any exited containers from before restart)
+    setTimeout(() => {
+      console.log('[CLEANUP] Initial run after startup...');
+      this.checkAndCleanupStoppedMeetings().catch(e => console.error('[CLEANUP] Init error:', e.message));
+    }, 10000);
+    
+    console.log('⏰ Scheduler: cron every minute, cleanup every 30s');
   }
   
   /**
@@ -196,6 +293,10 @@ class Scheduler {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
+    }
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
     this.isRunning = false;
     console.log('Scheduler stopped');

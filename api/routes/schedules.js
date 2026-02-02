@@ -93,10 +93,11 @@ router.post('/', async (req, res) => {
       ? parseInt(audioCount)
       : (parseInt(membersCount) - video);
     
+    const userId = req.user?.id || null;
     const result = await query(
       `INSERT INTO scheduled_tasks 
-       (meeting_id, password, members_count, video_count, audio_count, name_type, meeting_type, scheduled_time_ist, timeout_seconds)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (meeting_id, password, members_count, video_count, audio_count, name_type, meeting_type, scheduled_time_ist, timeout_seconds, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         meetingId,
@@ -107,7 +108,8 @@ router.post('/', async (req, res) => {
         nameType,
         meetingType,
         scheduledTimeUTC,
-        timeoutSeconds || 7200
+        timeoutSeconds || 7200,
+        userId
       ]
     );
     
@@ -144,14 +146,20 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
+    const userId = req.user?.id;
     
-    let queryText = 'SELECT * FROM scheduled_tasks ORDER BY scheduled_time_ist ASC';
+    let queryText = 'SELECT * FROM scheduled_tasks';
     let params = [];
     
-    if (status) {
-      queryText = 'SELECT * FROM scheduled_tasks WHERE status = $1 ORDER BY scheduled_time_ist ASC';
-      params = [status];
+    if (userId) {
+      queryText += ' WHERE user_id = $1';
+      params.push(userId);
     }
+    if (status) {
+      queryText += (params.length ? ' AND' : ' WHERE') + ' status = $' + (params.length + 1);
+      params.push(status);
+    }
+    queryText += ' ORDER BY scheduled_time_ist ASC';
     
     const result = await query(queryText, params);
     
@@ -194,13 +202,15 @@ router.get('/', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const result = await query(
-      `UPDATE scheduled_tasks 
-       SET status = 'cancelled'
-       WHERE id = $1 AND status = 'pending'
-       RETURNING *`,
-      [req.params.id]
-    );
+    const userId = req.user?.id;
+    let queryText = `UPDATE scheduled_tasks SET status = 'cancelled' WHERE id = $1 AND status = 'pending'`;
+    const params = [req.params.id];
+    if (userId) {
+      queryText += ' AND user_id = $2';
+      params.push(userId);
+    }
+    queryText += ' RETURNING *';
+    const result = await query(queryText, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Scheduled task not found or already executed/cancelled' });

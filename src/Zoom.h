@@ -119,6 +119,25 @@ class Zoom : public Singleton<Zoom> {
                     SDKError muteErr = audioCtl->MuteAudio(myUserID, false);
                     if (!hasError(muteErr)) {
                         Log::success("Audio muted on join (user ID: " + to_string(myUserID) + ")");
+                        // Video mute in same flow (user ID available) - like audio
+                        if (m_config.useRawAudio() && m_config.videoInputFile().empty()) {
+                            auto* vh = GetRawdataVideoSourceHelper();
+                            if (vh && !m_videoSource) m_videoSource = new ZoomSDKVideoSource();
+                            if (vh && m_videoSource && !hasError(vh->setExternalVideoSource(m_videoSource))) {
+                                auto* vc = m_meetingService->GetMeetingVideoController();
+                                if (vc) {
+                                    vc->UnmuteVideo();
+                                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                                    for (int r = 0; r < 6; r++) {
+                                        if (!hasError(vc->MuteVideo())) {
+                                            Log::success("Video muted (user ID: " + to_string(myUserID) + ") - icon should appear");
+                                            break;
+                                        }
+                                        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         Log::error("Failed to mute audio on join: " + to_string(muteErr));
                         // Retry after delay if failed
@@ -142,8 +161,9 @@ class Zoom : public Singleton<Zoom> {
             // Start muting attempt immediately
             tryMute(0);
             
-            // Also set up periodic muting check to ensure it stays muted
+            // Periodic mute check - audio + video (like audio, keep video muted)
             thread([&, audioCtl]() {
+                auto* videoCtl = m_meetingService->GetMeetingVideoController();
                 for (int i = 0; i < 20; i++) {
                     std::this_thread::sleep_for(std::chrono::seconds(2));
                     auto* participantCtl = m_meetingService->GetMeetingParticipantsController();
@@ -152,213 +172,24 @@ class Zoom : public Singleton<Zoom> {
                         if (participantsList && participantsList->GetCount() > 0) {
                             unsigned int uid = participantsList->GetItem(0);
                             audioCtl->MuteAudio(uid, false);
+                            if (videoCtl && m_config.useRawAudio() && m_config.videoInputFile().empty())
+                                videoCtl->MuteVideo();
                         }
                     }
                 }
             }).detach();
         }
 
-        // Setup video sending even if recording is disabled
+        // Setup video - from backup: register source + mute for audio-only (no frames)
         string videoFile = m_config.videoInputFile();
-        Log::info("Checking video input file: " + (videoFile.empty() ? "EMPTY" : videoFile));
-        
-        // For audio-only bots (RawAudio with no video input), explicitly mute video
         bool isAudioOnly = m_config.useRawAudio() && videoFile.empty();
-        Log::info("onJoin: useRawAudio=" + string(m_config.useRawAudio() ? "true" : "false") + 
-                  ", videoFile=" + (videoFile.empty() ? "EMPTY" : videoFile) + 
-                  ", isAudioOnly=" + string(isAudioOnly ? "true" : "false"));
-        if (isAudioOnly) {
-            Log::info("Audio-only bot detected - disabling video...");
-            
-            // Video settings: We joined with video ON, will mute manually
-            // No need to auto-turn-off since we'll handle muting in this callback
-            auto* videoSettings = m_settingService->GetVideoSettings();
-            if (videoSettings) {
-                // Keep auto-turn-off disabled - we'll mute manually for desktop app compatibility
-                videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
-            }
-            
-            // CRITICAL FIX: For audio-only bots to show video disabled icon
-            // Problem: When video source is nullptr, Zoom SDK doesn't register video capability
-            // Solution: Create a dummy video source, register it, then mute video
-            // This ensures Zoom SDK knows video exists (but is disabled), so icon shows
-            
-            // Step 1: Create a dummy video source to register video capability
-            // We'll create it but never send frames - just to register capability
-            auto* videoSourceHelper = GetRawdataVideoSourceHelper();
-            if (videoSourceHelper) {
-                // Create a minimal video source object (but don't start sending)
-                // This registers video capability with Zoom SDK
-                if (!m_videoSource) {
-                    m_videoSource = new ZoomSDKVideoSource();
-                }
-                
-                // Set the video source to register capability
-                SDKError sourceErr = videoSourceHelper->setExternalVideoSource(m_videoSource);
-                if (!hasError(sourceErr)) {
-                    Log::info("Video source registered for audio-only bot (capability enabled)");
-                    
-                    // CRITICAL FIX: Unmute video first to trigger onStartSend() callback
-                    // Desktop app needs video to be "active" (unmuted) to recognize capability
-                    auto* videoCtl = m_meetingService->GetMeetingVideoController();
-                    if (videoCtl) {
-                        Log::info("Unmuting video to trigger onStartSend() callback...");
-                        SDKError unmuteErr = videoCtl->UnmuteVideo();
-                        if (!hasError(unmuteErr)) {
-                            Log::success("Video unmuted - onStartSend() should fire soon");
-                        } else {
-                            Log::info("Failed to unmute video: " + to_string(unmuteErr) + " - will retry");
-                        }
-                    }
-                    
-                    // CRITICAL: Desktop app needs at least one frame to recognize video capability
-                    // Send a black frame after video source is ready (onStartSend callback)
-                    thread([&]() {
-                        // Wait for video source to be initialized and ready
-                        // onStartSend() callback sets m_isReady = true (fires after UnmuteVideo)
-                        int maxWait = 15; // Wait up to 7.5 seconds for onStartSend()
-                        bool isReady = false;
-                        for (int i = 0; i < maxWait; i++) {
-                            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                            if (m_videoSource && m_videoSource->isReady() && m_videoSource->getSender()) {
-                                isReady = true;
-                                Log::info("Video source is ready (onStartSend() fired) - sending black frame...");
-                                break;
-                            }
-                            if (i == 5) {
-                                // Retry unmute if not ready after 2.5 seconds
-                                auto* videoCtl = m_meetingService->GetMeetingVideoController();
-                                if (videoCtl) {
-                                    Log::info("Retrying video unmute to trigger onStartSend()...");
-                                    videoCtl->UnmuteVideo();
-                                }
-                            }
-                        }
-                        
-                        if (isReady) {
-                            Log::info("Sending continuous black frames to register video capability for desktop app...");
-                            
-                            // Create a minimal black frame (640x480 I420 format)
-                            unsigned int width = 640;
-                            unsigned int height = 480;
-                            int frameLength = width * height * 3 / 2; // I420: Y + U + V
-                            char* blackFrame = new char[frameLength];
-                            memset(blackFrame, 0, frameLength); // All zeros = black frame
-                            
-                            // CRITICAL FIX: Desktop app needs continuous frames (not just 5)
-                            // Send black frames continuously for 3 seconds at ~15 FPS
-                            // This ensures desktop app fully recognizes video capability
-                            auto* sender = m_videoSource->getSender();
-                            if (sender) {
-                                const int totalFrames = 45; // 3 seconds at 15 FPS
-                                const int frameDelayMs = 66; // ~15 FPS (1000/15 = 66ms)
-                                
-                                for (int i = 0; i < totalFrames; i++) {
-                                    SDKError frameErr = sender->sendVideoFrame(
-                                        blackFrame,
-                                        width,
-                                        height,
-                                        frameLength,
-                                        0, // rotation
-                                        FrameDataFormat_I420_FULL
-                                    );
-                                    
-                                    if (!hasError(frameErr)) {
-                                        if (i % 15 == 0 || i == totalFrames - 1) {
-                                            Log::success("Black frame " + to_string(i+1) + "/" + to_string(totalFrames) + " sent");
-                                        }
-                                    } else {
-                                        if (i < 5) {
-                                            Log::info("Failed to send black frame " + to_string(i+1) + ": " + to_string(frameErr));
-                                        }
-                                    }
-                                    
-                                    // Maintain ~15 FPS timing
-                                    std::this_thread::sleep_for(std::chrono::milliseconds(frameDelayMs));
-                                }
-                                
-                                Log::success("Sent " + to_string(totalFrames) + " continuous black frames (3 seconds) - desktop app should recognize video capability");
-                            }                            
-                            delete[] blackFrame;
-                            
-                            // Wait a bit then mute after sending frames
-                            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                            Log::info("Continuous black frames sent - now muting video to show disabled icon");
-                        } else {
-                            Log::info("Video source not ready after 7.5 seconds - black frame not sent");
-                        }
-                    }).detach();
-                } else {
-                    Log::error("Failed to register video source: " + to_string(sourceErr));
-                    // Fallback: clear source and try mute-only approach
-                    videoSourceHelper->setExternalVideoSource(nullptr);
-                }
-            }
-            
-            // Step 2: Aggressively mute video to show disabled icon
-            // Desktop app requires more aggressive approach: enable then disable
-            // This ensures video capability is fully registered before muting
-            auto* videoCtl = m_meetingService->GetMeetingVideoController();
-            if (videoCtl) {
-                thread([&, videoCtl]() {
-                    // Wait for meeting to fully initialize (desktop app needs more time)
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                    
-                    // Strategy for desktop app: Enable video first, then mute
-                    // Desktop app requires video to be "activated" before muting works properly
-                    // This ensures the desktop app recognizes video capability exists
-                    
-                    // Step 1: Try to enable video first (even though isVideoOff=true)
-                    // This activates video capability in desktop app
-                    SDKError unmuteErr = videoCtl->UnmuteVideo();
-                    if (!hasError(unmuteErr)) {
-                        Log::info("Video enabled (for capability registration)");
-                        // Wait a bit for video to activate
-                        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-                    } else {
-                        Log::info("Could not enable video (expected if isVideoOff=true): " + to_string(unmuteErr));
-                    }
-                    
-                    // Step 2: Now mute video - desktop app should recognize it now
-                    // Immediate mute attempt
-                    SDKError muteErr = videoCtl->MuteVideo();
-                    if (!hasError(muteErr)) {
-                        Log::success("Video muted immediately (500ms) - icon should appear");
-                    } else {
-                        Log::error("First mute failed: " + to_string(muteErr) + " - will retry");
-                    }
-                    
-                    // More aggressive retries with longer delays for desktop app
-                    // Desktop app may need more time to register video state
-                    int delays[] = {200, 500, 1000, 2000, 3000};
-                    for (int i = 0; i < 5; i++) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(delays[i]));
-                        SDKError err = videoCtl->MuteVideo();
-                        if (!hasError(err)) {
-                            Log::info("Video muted at " + to_string(500 + delays[i]) + "ms - icon should appear");
-                        } else {
-                            Log::info("Mute attempt " + to_string(i+1) + " failed: " + to_string(err));
-                        }
-                    }
-                    
-                    // Final check: Try one more time after a longer delay
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-                    SDKError finalErr = videoCtl->MuteVideo();
-                    if (!hasError(finalErr)) {
-                        Log::success("Final video mute successful - icon should be visible");
-                    } else {
-                        Log::info("Final mute attempt failed: " + to_string(finalErr));
-                    }
-                    
-                    Log::info("Video mute attempts completed - icon should be visible in desktop app");
-                }).detach();
-            } else {
-                Log::error("Video controller not available");
-            }
-        } else if (!videoFile.empty()) {
+        Log::info("Checking video input file: " + (videoFile.empty() ? "EMPTY" : videoFile) + ", isAudioOnly=" + string(isAudioOnly ? "true" : "false"));
+        
+        // Video setup: audio-only done in tryMute (with user ID); video bots use setupVideoSending
+        if (!videoFile.empty()) {
             Log::info("Calling setupVideoSending()...");
             setupVideoSending();
-        } else {
+        } else if (!m_config.useRawAudio()) {
             Log::error("Video input file is empty - video sending will not start");
         }
 
@@ -388,11 +219,8 @@ class Zoom : public Singleton<Zoom> {
             }).detach();
         }
 
-        // Only request recording permission if VIDEO recording is needed
-        // Audio subscription is done above without permission
-        if (!m_config.useRawVideo())  
+        if (!m_config.useRawVideo())
             return;
-
 
         function<void(bool)> onRecordingPrivilegeChanged = [&](bool canRec) {
             if (!canRec) {

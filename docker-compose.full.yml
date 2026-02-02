@@ -32,6 +32,7 @@ services:
     container_name: zoom-dashboard-api
     environment:
       DB_HOST: postgres
+      BOT_SERVER_URL: http://bot-server:3001
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-zoom_bots}
       DB_USER: ${DB_USER:-postgres}
@@ -66,6 +67,16 @@ services:
       - zoom-network
     restart: unless-stopped
 
+  # Bot image (build only - used by dynamically created bot containers)
+  # Run: docker compose -f docker-compose.full.yml build zoom-bot
+  zoom-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zoom-bot:latest
+    profiles:
+      - build  # Only build when explicitly requested: docker compose --profile build build zoom-bot
+
   # Bot Server API (optional - for single server)
   bot-server:
     build:
@@ -77,6 +88,14 @@ services:
       SERVER_CAPACITY: ${SERVER_CAPACITY:-100}
       BOT_PROJECT_DIR: /app/bot-project
       HOST_PROJECT_PATH: "${HOST_PROJECT_PATH:-/opt/zoom-headless-meeting}"
+      ZOOM_ACCOUNT_ID: ${ZOOM_ACCOUNT_ID}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET}
+      ZOOM_REFRESH_TOKEN: ${ZOOM_REFRESH_TOKEN:-}
+      ZOOM_BOT_EMAIL: ${ZOOM_BOT_EMAIL:-}
+      ZOOM_OAUTH_CLIENT_ID: ${ZOOM_OAUTH_CLIENT_ID:-}
+      ZOOM_OAUTH_CLIENT_SECRET: ${ZOOM_OAUTH_CLIENT_SECRET:-}
+      ZAK_USE_REFRESH_ONLY: ${ZAK_USE_REFRESH_ONLY:-}
     ports:
       - "${BOT_SERVER_PORT:-3001}:3001"
     volumes:

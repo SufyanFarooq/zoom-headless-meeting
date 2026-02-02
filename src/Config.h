@@ -90,6 +90,7 @@ public:
     bool separateParticipantAudio() const;
     
     const string& videoInputFile() const;
+    bool isVideoIconOnlyMode() const;  // RawAudio+RawVideo, black frames only, no recording
     
     const string& profilePicturePath() const;
 };

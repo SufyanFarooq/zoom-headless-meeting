@@ -142,20 +142,14 @@ SDKError Zoom::join() {
     param.customer_key = nullptr;
     param.webinarToken = nullptr;
     
-    // For audio-only bots (RawAudio with no video input), disable video
     bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
-    // Desktop app fix: Join with video ON, then mute immediately after join
-    // This ensures desktop app recognizes video capability exists
-    // Web browser works with isVideoOff=true, but desktop app needs video enabled first
-    param.isVideoOff = false;  // Join with video ON (will mute in onJoin callback)
-    param.isAudioOff = true;  // Join muted
+    param.isVideoOff = false;  // Join with video ON - backup: mute in onJoin for disabled icon
+    param.isAudioOff = true;
     
     if (isAudioOnly) {
-        Log::info("Audio-only bot: joining with video ON (will mute in onJoin for desktop app compatibility)");
-        // Video will be muted aggressively in onJoin callback
-        // This ensures both web browser and desktop app show the disabled icon
+        Log::info("Audio-only bot: joining with video ON (will mute in onJoin)");
     } else {
-        Log::info("Video bot: joining with video ON (isVideoOff=false)");
+        Log::info("Video bot: joining with video ON");
     }
 
     if (!m_config.zak().empty()) {
@@ -180,17 +174,10 @@ SDKError Zoom::join() {
         audioSettings->EnableAutoJoinAudio(false);
     }
     
-    // For audio-only bots: Join with video ON, but we'll mute in onJoin
-    // Don't auto-turn-off video - we'll handle it manually for desktop app compatibility
     if (isAudioOnly) {
         auto* videoSettings = m_settingService->GetVideoSettings();
-        if (videoSettings) {
-            // Don't auto-turn-off - we'll mute manually in onJoin callback
-            // This ensures desktop app recognizes video capability before muting
-            videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
-        }
+        if (videoSettings) videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
     }
-
     return m_meetingService->Join(joinParam);
 }
 
@@ -204,10 +191,7 @@ SDKError Zoom::start() {
     normalUser.vanityID = nullptr;
     normalUser.customer_key = nullptr;
     normalUser.isAudioOff = true;  // Start muted
-    
-    // For audio-only bots (RawAudio with no video input), disable video
-    bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
-    normalUser.isVideoOff = isAudioOnly;
+    normalUser.isVideoOff = m_config.useRawAudio() && m_config.videoInputFile().empty();
 
     err = m_meetingService->Start(startParam);
     hasError(err, "start meeting");
@@ -345,6 +329,13 @@ SDKError Zoom::setupVideoSending() {
     if (hasError(err, "set video source"))
         return err;
 
+    // Zoom sample: UnmuteVideo immediately after setExternalVideoSource (no wait)
+    auto* videoCtlImmediate = m_meetingService->GetMeetingVideoController();
+    if (videoCtlImmediate) {
+        videoCtlImmediate->UnmuteVideo();
+        Log::info("UnmuteVideo called immediately (Zoom sample flow)");
+    }
+
     auto* videoSettings = m_settingService->GetVideoSettings();
     if (videoSettings) {
         videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
@@ -435,9 +426,9 @@ SDKError Zoom::setupVideoSending() {
     return SDKERR_SUCCESS;
 }
 
+bool Zoom::isMeetingStart() {
     return m_config.isMeetingStart();
 }
-
 
 bool Zoom::hasError(const SDKError e, const string& action) {
     auto isError = e != SDKERR_SUCCESS;
@@ -452,3 +443,4 @@ bool Zoom::hasError(const SDKError e, const string& action) {
         }
     }
     return isError;
+}

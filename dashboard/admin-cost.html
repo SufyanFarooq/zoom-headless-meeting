@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cost Settings - Zoom Services Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .cost-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .cost-card { background: #1a1a1a; border-radius: 8px; padding: 20px; border: 1px solid #3a3a3a; }
+        .cost-card h3 { color: #4a9eff; font-size: 14px; margin: 0 0 16px 0; font-weight: 600; }
+        .cost-fields { display: grid; gap: 12px; }
+        .cost-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+        .cost-row input { min-height: 42px; padding: 10px 12px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 14px; width: 100%; box-sizing: border-box; }
+        .cost-row input:focus { outline: none; border-color: #4a9eff; }
+        .cost-row .label { display: block; color: #888; font-size: 12px; margin-bottom: 4px; }
+        .cost-row .sym { color: #666; font-size: 12px; width: 24px; text-align: right; }
+        .cost-actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #3a3a3a; }
+        .saved-msg { color: #4ade80; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="page-layout">
+        <p class="page-breadcrumb"><a href="index.html">Dashboard</a> / <a href="admin.html">Admin</a> / Cost Settings</p>
+        <div class="page-header">
+            <div>
+                <h1>Cost Settings</h1>
+                <p class="subtitle">Set per-bot cost by currency. Reports use these rates.</p>
+            </div>
+            <a href="admin.html" class="btn-nav">← Back to Admin</a>
+        </div>
+
+        <section class="page-section">
+            <h2>Rates per Currency</h2>
+            <div id="costForms">
+                <p class="no-data">Loading...</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' && window.location.port === '8080' ? 'http://localhost:3000/api' : '/api';
+        const CURRENCIES = [
+            { code: 'INR', symbol: '₹', label: 'Indian Rupee' },
+            { code: 'USD', symbol: '$', label: 'US Dollar' },
+            { code: 'EUR', symbol: '€', label: 'Euro' }
+        ];
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken');
+            return { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
+        }
+
+        async function checkAdmin() {
+            const token = localStorage.getItem('authToken');
+            if (!token) { window.location.href = 'login.html'; return false; }
+            try {
+                const res = await fetch(`${API_BASE}/auth/me`, { headers: getAuthHeaders() });
+                const data = await res.json();
+                if (!res.ok || !data.user?.is_admin) {
+                    alert('Admin access required');
+                    window.location.href = 'index.html';
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                window.location.href = 'login.html';
+                return false;
+            }
+        }
+
+        async function loadCostSettings() {
+            try {
+                const res = await fetch(`${API_BASE}/admin/cost-settings`, { headers: getAuthHeaders() });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                renderForms(data.settings || {});
+            } catch (e) {
+                document.getElementById('costForms').innerHTML = `<p class="no-data">Error: ${e.message}</p>`;
+            }
+        }
+
+        function renderForms(settings) {
+            const html = `<div class="cost-grid">` + CURRENCIES.map(c => {
+                const s = settings[c.code] || { normal: 0, profile: 0, webinar: 0 };
+                return `
+                <div class="cost-card">
+                    <h3>${c.symbol} ${c.label} (${c.code})</h3>
+                    <div class="cost-fields">
+                        <div class="cost-row">
+                            <div><span class="label">Normal (per bot)</span><br><input type="number" step="0.01" min="0" id="norm-${c.code}" value="${s.normal}" placeholder="0"></div>
+                            <span class="sym">${c.symbol}</span>
+                        </div>
+                        <div class="cost-row">
+                            <div><span class="label">Profile Pic (per bot)</span><br><input type="number" step="0.01" min="0" id="prof-${c.code}" value="${s.profile}" placeholder="0"></div>
+                            <span class="sym">${c.symbol}</span>
+                        </div>
+                        <div class="cost-row">
+                            <div><span class="label">Webinar (per bot)</span><br><input type="number" step="0.01" min="0" id="web-${c.code}" value="${s.webinar}" placeholder="0"></div>
+                            <span class="sym">${c.symbol}</span>
+                        </div>
+                    </div>
+                    <div class="cost-actions">
+                        <button class="btn-success" onclick="saveCost('${c.code}')">Save</button>
+                        <span class="saved-msg" id="saved-${c.code}"></span>
+                    </div>
+                </div>
+                `;
+            }).join('') + `</div>`;
+            document.getElementById('costForms').innerHTML = html;
+        }
+
+        async function saveCost(currency) {
+            const normal = parseFloat(document.getElementById(`norm-${currency}`).value) || 0;
+            const profile = parseFloat(document.getElementById(`prof-${currency}`).value) || 0;
+            const webinar = parseFloat(document.getElementById(`web-${currency}`).value) || 0;
+            try {
+                const res = await fetch(`${API_BASE}/admin/cost-settings`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        currency,
+                        normal_cost_per_bot: normal,
+                        profile_cost_per_bot: profile,
+                        webinar_cost_per_bot: webinar
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                const el = document.getElementById(`saved-${currency}`);
+                if (el) { el.textContent = 'Saved'; setTimeout(() => { el.textContent = ''; }, 2000); }
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (await checkAdmin()) loadCostSettings();
+        });
+    </script>
+</body>
+</html>

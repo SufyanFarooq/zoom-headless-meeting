@@ -10,23 +10,24 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <div class="logo">
-                <h1>ZOOM SERVICES</h1>
-            </div>
-            <div class="usage-chart">
-                <div class="chart-container">
-                    <div class="chart-legend">
-                        <span class="legend-item submitted">Submitted</span>
-                        <span class="legend-item remaining">Remaining</span>
-                    </div>
-                    <div class="pie-chart" id="usageChart">
-                        <div class="chart-text">
-                            <div id="usageText">Usage: 0 / 2000</div>
+            <div class="header-left">
+                <a href="index.html" class="logo-link">
+                    <h1 class="logo">ZOOM SERVICES</h1>
+                </a>
+                <div class="header-usage">
+                    <div class="usage-widget">
+                        <div class="chart-legend">
+                            <span class="legend-item submitted">Submitted</span>
+                            <span class="legend-item remaining">Remaining</span>
+                        </div>
+                        <div class="pie-chart" id="usageChart">
+                            <div class="chart-text" id="usageText">0 / 2000</div>
                         </div>
                     </div>
+                    <a href="file-editor.html" class="add-names-link">Add names</a>
                 </div>
-                <a href="#" class="add-names-link" onclick="showAddNamesModal()">Add custom names</a>
             </div>
+            <div id="userInfo" class="header-nav"></div>
         </header>
 
         <div class="main-content">
@@ -45,8 +46,6 @@
                                     <th>#</th>
                                     <th>Meet</th>
                                     <th>Total</th>
-                                    <th>Video</th>
-                                    <th>Audio</th>
                                     <th>Start</th>
                                     <th>Time out</th>
                                     <th>Nm</th>
@@ -56,7 +55,7 @@
                             </thead>
                             <tbody id="meetingsTableBody">
                                 <tr>
-                                    <td colspan="10" class="no-data">No active meetings</td>
+                                    <td colspan="8" class="no-data">No active meetings</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -91,7 +90,7 @@
 
             <!-- Right Panel - Form -->
             <div class="right-panel">
-                <form id="meetingForm" class="meeting-form">
+                <form id="meetingForm" class="meeting-form form-stack">
                     <h3>Create Meeting</h3>
                     
                     <div class="form-group">
@@ -105,29 +104,31 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="totalMembers">Total Members (must be divisible by 10 and not zero):</label>
+                        <label for="totalMembers">Total Members (divisible by 10, all join as audio bots):</label>
                         <input type="number" id="totalMembers" name="totalMembers" min="10" step="10" required>
                         <small class="error-message" id="totalMembersError"></small>
                     </div>
 
+                    <!-- Video & Audio hidden for now - Total Members = all audio bots -->
+                    <!--
                     <div class="form-group">
                         <label for="videoCount">Video Bots:</label>
                         <input type="number" id="videoCount" name="videoCount" min="0" step="1" required>
                         <small class="error-message" id="videoCountError"></small>
                     </div>
-
                     <div class="form-group">
                         <label for="audioCount">Audio Bots:</label>
                         <input type="number" id="audioCount" name="audioCount" min="0" step="1" required>
                         <small class="error-message" id="audioCountError"></small>
                     </div>
+                    -->
 
                     <div class="form-group">
                         <label for="nameType">Name:</label>
                         <select id="nameType" name="nameType" required>
-                            <option value="Indian">Indian</option>
-                            <option value="International">International</option>
+                            <option value="">Loading...</option>
                         </select>
+                        <small class="form-hint">Select name file — names from this file will be used for meeting bots</small>
                     </div>
 
                     <div class="form-group">
@@ -151,9 +152,8 @@
                     </div>
 
                     <div class="form-group" id="scheduleGroup" style="display: none;">
-                        <label for="scheduledTime">Schedule Task (Your Local Time):</label>
-                        <input type="datetime-local" id="scheduledTime" name="scheduledTime">
-                        <small style="display: block; color: #666; margin-top: 5px;">Time will be automatically converted to UTC</small>
+                        <label for="scheduledTime">Schedule Task (Date & Time):</label>
+                        <input type="datetime-local" id="scheduledTime" name="scheduledTime" step="60">
                     </div>
 
                     <div class="form-actions">
@@ -162,28 +162,6 @@
                     </div>
                 </form>
             </div>
-        </div>
-    </div>
-
-    <!-- Add Names Modal -->
-    <div id="addNamesModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeAddNamesModal()">&times;</span>
-            <h3>Add Custom Names</h3>
-            <form id="addNamesForm">
-                <div class="form-group">
-                    <label for="nameTypeSelect">Name Type:</label>
-                    <select id="nameTypeSelect" required>
-                        <option value="Indian">Indian</option>
-                        <option value="International">International</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="customName">Name:</label>
-                    <input type="text" id="customName" required>
-                </div>
-                <button type="submit" class="btn-submit">Add Name</button>
-            </form>
         </div>
     </div>
 

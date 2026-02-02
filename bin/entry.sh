@@ -56,7 +56,8 @@ run() {
     export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/lib:${LD_LIBRARY_PATH}
     # Update library cache
     ldconfig 2>/dev/null || true
-    exec ./"$BUILD"/zoomsdk
+    # RawAudio + RawVideo for Desktop app video icon (continuous black frames)
+    exec ./"$BUILD"/zoomsdk --config config.toml RawAudio --file dev-null.pcm --dir /dev RawVideo --file /dev/null "$@"
 }
 
 build && run;
