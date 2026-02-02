@@ -58,7 +58,36 @@ body {
 .usage-widget {
     display: flex;
     align-items: center;
+    gap: 16px;
+}
+
+.usage-bar-wrap {
+    display: flex;
+    align-items: center;
     gap: 12px;
+}
+
+.usage-bar {
+    width: 100px;
+    height: 8px;
+    background: #3a3a3a;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.usage-bar-fill {
+    height: 100%;
+    background: #ff4444;
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.usage-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    min-width: 56px;
 }
 
 .chart-legend {
@@ -76,37 +105,18 @@ body {
 
 .legend-item.submitted::before {
     content: '';
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     background: #ff4444;
     border-radius: 2px;
 }
 
 .legend-item.remaining::before {
     content: '';
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     background: #4a9eff;
     border-radius: 2px;
-}
-
-.pie-chart {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: conic-gradient(
-        #ff4444 0% var(--submitted-percent, 0%),
-        #4a9eff var(--submitted-percent, 0%) 100%
-    );
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.chart-text {
-    font-size: 10px;
-    font-weight: 600;
-    color: #fff;
 }
 
 .add-names-link {

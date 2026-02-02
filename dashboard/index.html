@@ -16,12 +16,15 @@
                 </a>
                 <div class="header-usage">
                     <div class="usage-widget">
-                        <div class="chart-legend">
-                            <span class="legend-item submitted">Submitted</span>
-                            <span class="legend-item remaining">Remaining</span>
+                        <div class="usage-bar-wrap">
+                            <div class="usage-bar" id="usageChart">
+                                <div class="usage-bar-fill" id="usageBarFill"></div>
+                            </div>
+                            <span class="usage-text" id="usageText">0 / 2000</span>
                         </div>
-                        <div class="pie-chart" id="usageChart">
-                            <div class="chart-text" id="usageText">0 / 2000</div>
+                        <div class="chart-legend">
+                            <span class="legend-item submitted">Used</span>
+                            <span class="legend-item remaining">Left</span>
                         </div>
                     </div>
                     <a href="file-editor.html" class="add-names-link">Add names</a>

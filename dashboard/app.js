@@ -258,10 +258,11 @@ async function loadUsage() {
         
         if (data.usage) {
             const { submitted, remaining, limit } = data.usage;
-            const submittedPercent = (submitted / limit) * 100;
+            const submittedPercent = limit > 0 ? (submitted / limit) * 100 : 0;
             
             document.getElementById('usageText').textContent = `${submitted} / ${limit}`;
-            document.getElementById('usageChart').style.setProperty('--submitted-percent', `${submittedPercent}%`);
+            const barFill = document.getElementById('usageBarFill');
+            if (barFill) barFill.style.width = `${Math.min(submittedPercent, 100)}%`;
         }
     } catch (error) {
         console.error('Error loading usage:', error);
