@@ -172,8 +172,9 @@ VIDEO_FILE_OVERRIDE="${VIDEO_FILE:-}"
 VIDEO_DEVICE_BASE="${VIDEO_DEVICE_BASE:-2}"
 CAMERA_LABEL_PREFIX="${CAMERA_LABEL_PREFIX:-BotCam}"
 CAMERA_MODE="${CAMERA_MODE:-v4l2}"
- AUDIO_CAMERA_LABEL="${AUDIO_CAMERA_LABEL:-}"
- AUDIO_DEVICE_INDEX="${AUDIO_DEVICE_INDEX:-1}"
+AUDIO_CAMERA_LABEL="${AUDIO_CAMERA_LABEL:-}"
+AUDIO_DEVICE_INDEX="${AUDIO_DEVICE_INDEX:-1}"
+AUDIO_VIDEO_ICON_ONLY="${AUDIO_VIDEO_ICON_ONLY:-true}"
 
 # Create services section for docker-compose
 create_compose_services() {
@@ -221,6 +222,10 @@ create_compose_services() {
       - v4l2
       - --camera-name
       - ${AUDIO_CAMERA_LABEL}"
+            if [ "$AUDIO_VIDEO_ICON_ONLY" = "true" ] || [ "$AUDIO_VIDEO_ICON_ONLY" = "1" ]; then
+                camera_args="$camera_args
+      - --video-icon-only"
+            fi
         fi
     fi
 
