@@ -7,7 +7,13 @@
 #include <cstdlib>
 #include <fstream>
 
-ZoomSDKVideoSource::ZoomSDKVideoSource() : m_isSending(false), m_shouldStop(false), m_isReady(false) {}
+ZoomSDKVideoSource::ZoomSDKVideoSource()
+    : m_videoSender(nullptr),
+      m_height(0),
+      m_width(0),
+      m_isReady(false),
+      m_isSending(false),
+      m_shouldStop(false) {}
 
 ZoomSDKVideoSource::~ZoomSDKVideoSource() {
     stopSending();
@@ -30,8 +36,14 @@ void ZoomSDKVideoSource::onInitialize(IZoomSDKVideoSender *sender,IList <VideoSo
 
 void ZoomSDKVideoSource::onPropertyChange(IList <VideoSourceCapability> *support_cap_list,
                                           VideoSourceCapability suggest_cap) {
-    m_width = suggest_cap.width;
-    m_height = suggest_cap.height;
+    if (suggest_cap.width > 0 && suggest_cap.height > 0) {
+        m_width = suggest_cap.width;
+        m_height = suggest_cap.height;
+    } else if (m_width == 0 || m_height == 0) {
+        // Fallback to safe defaults if SDK suggests invalid dimensions
+        m_width = 640;
+        m_height = 360;
+    }
     
     Log::info("📐 SDK Preferred Video Dimensions: " + to_string(m_width) + "x" + to_string(m_height));
     Log::info("💡 TIP: Re-encode your videos to this resolution to avoid zoom/crop issues");
@@ -92,6 +104,10 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
     if (videoFilePath.empty() || videoFilePath == "TEST_PATTERN") {
         m_useTestPattern = true;
         m_videoFilePath = "TEST_PATTERN";
+        if (m_width == 0 || m_height == 0) {
+            m_width = 640;
+            m_height = 360;
+        }
     } else {
         m_useTestPattern = false;
         m_videoFilePath = videoFilePath;

@@ -184,6 +184,8 @@ class Zoom : public Singleton<Zoom> {
         } else if (wantVideoIconOnly) {
             Log::info("Ensuring video capability for desktop icon...");
             ensureVideoCapabilityForDesktop();
+        } else if (useCamera) {
+            Log::info("Camera device selected - SDK will publish camera video");
         } else if (!m_config.useRawAudio()) {
             Log::error("No video source configured - video sending will not start");
         }

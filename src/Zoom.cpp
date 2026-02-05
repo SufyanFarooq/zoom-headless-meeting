@@ -557,7 +557,7 @@ void Zoom::ensureVideoCapabilityForDesktop() {
             Log::info("Video unmuted briefly for icon-only registration");
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(4000));
 
         SDKError muteErr = videoCtl->MuteVideo();
         if (!hasError(muteErr, "mute")) {
