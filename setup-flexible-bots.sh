@@ -226,6 +226,11 @@ create_compose_services() {
                 camera_args="$camera_args
       - --video-icon-only"
             fi
+        else
+            # No camera for audio bot: still enable icon-only using raw test pattern
+            if [ "$AUDIO_VIDEO_ICON_ONLY" = "true" ] || [ "$AUDIO_VIDEO_ICON_ONLY" = "1" ]; then
+                camera_args="      - --video-icon-only"
+            fi
         fi
     fi
 
