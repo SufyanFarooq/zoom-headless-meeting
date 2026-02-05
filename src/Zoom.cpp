@@ -1,6 +1,8 @@
 #include "Zoom.h"
 #include <thread>
 #include <chrono>
+#include <algorithm>
+#include <cctype>
 
 using namespace std::chrono;
 
@@ -50,6 +52,76 @@ SDKError Zoom::createServices() {
     if (hasError(err)) return err;
 
     return CreateAuthService(&m_authService);
+}
+
+static string toLowerCopy(const string& s) {
+    string out = s;
+    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) { return std::tolower(c); });
+    return out;
+}
+
+bool Zoom::shouldUseCameraDevice() const {
+    return m_config.resolvedCameraMode() == "v4l2";
+}
+
+bool Zoom::shouldUseRawVideoSource() const {
+    return m_config.resolvedCameraMode() == "raw" && !m_config.videoInputFile().empty();
+}
+
+bool Zoom::selectCameraDevice() {
+    if (!m_settingService) return false;
+    if (!shouldUseCameraDevice()) return false;
+
+    auto* videoSettings = m_settingService->GetVideoSettings();
+    if (!videoSettings) {
+        Log::error("Video settings not available - cannot select camera");
+        return false;
+    }
+
+    auto* list = videoSettings->GetCameraList();
+    if (!list || list->GetCount() == 0) {
+        Log::error("No camera devices found by SDK");
+        return false;
+    }
+
+    string target = toLowerCopy(m_config.cameraName());
+    Log::info("Available camera devices:");
+    for (int i = 0; i < list->GetCount(); i++) {
+        auto* cam = list->GetItem(i);
+        if (!cam) continue;
+        const zchar_t* name = cam->GetDeviceName();
+        const zchar_t* id = cam->GetDeviceId();
+        string nameStr = name ? name : "";
+        string idStr = id ? id : "";
+        Log::info("  - " + nameStr + " (id=" + idStr + ")");
+    }
+
+    if (target.empty()) {
+        Log::info("No camera-name provided; using SDK default camera");
+        return false;
+    }
+
+    for (int i = 0; i < list->GetCount(); i++) {
+        auto* cam = list->GetItem(i);
+        if (!cam) continue;
+        const zchar_t* name = cam->GetDeviceName();
+        const zchar_t* id = cam->GetDeviceId();
+        string nameStr = name ? name : "";
+        string idStr = id ? id : "";
+        if (!nameStr.empty() && toLowerCopy(nameStr).find(target) != string::npos) {
+            SDKError err = videoSettings->SelectCamera(idStr.c_str());
+            if (!hasError(err, "select camera")) {
+                Log::success("Selected camera: " + nameStr);
+                m_cameraSelected = true;
+                return true;
+            }
+            Log::error("Failed to select camera: " + nameStr);
+            return false;
+        }
+    }
+
+    Log::error("No camera matched name substring: " + m_config.cameraName());
+    return false;
 }
 
 SDKError Zoom::auth() {
@@ -130,6 +202,10 @@ SDKError Zoom::join() {
     auto userName = displayName.c_str();
     auto psw = password.c_str();
 
+    // Attempt camera selection (v4l2) before join
+    m_cameraSelected = false;
+    selectCameraDevice();
+
     JoinParam joinParam;
     joinParam.userType = ZOOM_SDK_NAMESPACE::SDK_UT_WITHOUT_LOGIN;
 
@@ -142,7 +218,7 @@ SDKError Zoom::join() {
     param.customer_key = nullptr;
     param.webinarToken = nullptr;
     
-    bool isAudioOnly = m_config.useRawAudio() && m_config.videoInputFile().empty();
+    bool isAudioOnly = m_config.useRawAudio() && !shouldUseRawVideoSource() && !m_cameraSelected;
     param.isVideoOff = false;  // Join with video ON - backup: mute in onJoin for disabled icon
     param.isAudioOff = true;
     
@@ -291,8 +367,8 @@ SDKError Zoom::startRawRecording() {
         Log::info("writing video raw data to " + m_renderDelegate->dir() + "/" + m_renderDelegate->filename());
     }
 
-    // Send video from file if input file is specified (doesn't require recording)
-    if (!m_config.videoInputFile().empty()) {
+    // Send video from file if raw video source is enabled (doesn't require recording)
+    if (shouldUseRawVideoSource()) {
         setupVideoSending();
     }
 
@@ -311,6 +387,11 @@ SDKError Zoom::stopRawRecording() {
 SDKError Zoom::setupVideoSending() {
     SDKError err{SDKERR_SUCCESS};
     
+    if (!shouldUseRawVideoSource()) {
+        Log::info("Raw video source not enabled - skipping setupVideoSending");
+        return SDKERR_SUCCESS;
+    }
+
     if (m_config.videoInputFile().empty()) {
         return SDKERR_SUCCESS;  // No video to send
     }
@@ -424,6 +505,70 @@ SDKError Zoom::setupVideoSending() {
     }
     
     return SDKERR_SUCCESS;
+}
+
+void Zoom::ensureVideoCapabilityForDesktop() {
+    // Only for icon-only: register a video source, unmute briefly, then mute
+    auto* videoSourceHelper = GetRawdataVideoSourceHelper();
+    if (!videoSourceHelper) {
+        Log::error("Video source helper not available - cannot register video capability");
+        return;
+    }
+
+    if (!m_videoSource) {
+        m_videoSource = new ZoomSDKVideoSource();
+    }
+
+    SDKError err = videoSourceHelper->setExternalVideoSource(m_videoSource);
+    if (hasError(err, "set video source for icon-only")) {
+        return;
+    }
+
+    // Start test pattern frames (lightweight) so SDK recognizes capability
+    m_videoSource->startSending("TEST_PATTERN");
+
+    auto* videoCtl = m_meetingService->GetMeetingVideoController();
+    if (!videoCtl) {
+        Log::error("Video controller not available - cannot toggle video");
+        return;
+    }
+
+    thread([&, videoCtl]() {
+        int maxWait = 10;
+        bool isReady = false;
+        for (int j = 0; j < maxWait; j++) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            if (m_videoSource && m_videoSource->isReady() && m_videoSource->getSender()) {
+                isReady = true;
+                break;
+            }
+        }
+
+        if (!isReady) {
+            Log::error("Video source not ready - desktop icon may not appear");
+            return;
+        }
+
+        // Unmute briefly to register capability
+        SDKError unmuteErr = videoCtl->UnmuteVideo();
+        if (hasError(unmuteErr, "unmute")) {
+            Log::error("Failed to unmute video for icon-only mode");
+        } else {
+            Log::info("Video unmuted briefly for icon-only registration");
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+
+        SDKError muteErr = videoCtl->MuteVideo();
+        if (!hasError(muteErr, "mute")) {
+            Log::success("Video muted - disabled icon should appear");
+        }
+
+        // Stop sending frames to reduce CPU
+        if (m_videoSource) {
+            m_videoSource->stopSending();
+        }
+    }).detach();
 }
 
 bool Zoom::isMeetingStart() {

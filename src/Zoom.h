@@ -62,9 +62,14 @@ class Zoom : public Singleton<Zoom> {
     ZoomSDKAudioRawDataDelegate* m_audioSource;
 
     ZoomSDKVideoSource* m_videoSource;
+    bool m_cameraSelected = false;
 
     SDKError createServices();
     void generateJWT(const string& key, const string& secret);
+    bool selectCameraDevice();
+    void ensureVideoCapabilityForDesktop();
+    bool shouldUseRawVideoSource() const;
+    bool shouldUseCameraDevice() const;
 
     /**
      * Callback fired when the SDK authenticates the credentials
@@ -119,25 +124,6 @@ class Zoom : public Singleton<Zoom> {
                     SDKError muteErr = audioCtl->MuteAudio(myUserID, false);
                     if (!hasError(muteErr)) {
                         Log::success("Audio muted on join (user ID: " + to_string(myUserID) + ")");
-                        // Video mute in same flow (user ID available) - like audio
-                        if (m_config.useRawAudio() && m_config.videoInputFile().empty()) {
-                            auto* vh = GetRawdataVideoSourceHelper();
-                            if (vh && !m_videoSource) m_videoSource = new ZoomSDKVideoSource();
-                            if (vh && m_videoSource && !hasError(vh->setExternalVideoSource(m_videoSource))) {
-                                auto* vc = m_meetingService->GetMeetingVideoController();
-                                if (vc) {
-                                    vc->UnmuteVideo();
-                                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-                                    for (int r = 0; r < 6; r++) {
-                                        if (!hasError(vc->MuteVideo())) {
-                                            Log::success("Video muted (user ID: " + to_string(myUserID) + ") - icon should appear");
-                                            break;
-                                        }
-                                        std::this_thread::sleep_for(std::chrono::milliseconds(150));
-                                    }
-                                }
-                            }
-                        }
                     } else {
                         Log::error("Failed to mute audio on join: " + to_string(muteErr));
                         // Retry after delay if failed
@@ -161,7 +147,7 @@ class Zoom : public Singleton<Zoom> {
             // Start muting attempt immediately
             tryMute(0);
             
-            // Periodic mute check - audio + video (like audio, keep video muted)
+        // Periodic mute check - audio + video (like audio, keep video muted)
             thread([&, audioCtl]() {
                 auto* videoCtl = m_meetingService->GetMeetingVideoController();
                 for (int i = 0; i < 20; i++) {
@@ -172,7 +158,10 @@ class Zoom : public Singleton<Zoom> {
                         if (participantsList && participantsList->GetCount() > 0) {
                             unsigned int uid = participantsList->GetItem(0);
                             audioCtl->MuteAudio(uid, false);
-                            if (videoCtl && m_config.useRawAudio() && m_config.videoInputFile().empty())
+                            bool useRawVideo = shouldUseRawVideoSource();
+                            bool useCamera = shouldUseCameraDevice();
+                            bool wantVideoIconOnly = m_config.videoIconOnly() || (m_config.useRawAudio() && !useRawVideo && !useCamera);
+                            if (videoCtl && wantVideoIconOnly)
                                 videoCtl->MuteVideo();
                         }
                     }
@@ -180,17 +169,23 @@ class Zoom : public Singleton<Zoom> {
             }).detach();
         }
 
-        // Setup video - from backup: register source + mute for audio-only (no frames)
+        // Setup video: raw video source, v4l2 camera, or icon-only capability
         string videoFile = m_config.videoInputFile();
-        bool isAudioOnly = m_config.useRawAudio() && videoFile.empty();
-        Log::info("Checking video input file: " + (videoFile.empty() ? "EMPTY" : videoFile) + ", isAudioOnly=" + string(isAudioOnly ? "true" : "false"));
-        
-        // Video setup: audio-only done in tryMute (with user ID); video bots use setupVideoSending
-        if (!videoFile.empty()) {
+        bool useRawVideo = shouldUseRawVideoSource();
+        bool useCamera = shouldUseCameraDevice() && m_cameraSelected;
+        bool wantVideoIconOnly = m_config.videoIconOnly() || (m_config.useRawAudio() && !useRawVideo && !useCamera);
+        Log::info("Video mode: raw=" + string(useRawVideo ? "true" : "false") +
+                  ", camera=" + string(useCamera ? "true" : "false") +
+                  ", iconOnly=" + string(wantVideoIconOnly ? "true" : "false"));
+
+        if (useRawVideo) {
             Log::info("Calling setupVideoSending()...");
             setupVideoSending();
+        } else if (wantVideoIconOnly) {
+            Log::info("Ensuring video capability for desktop icon...");
+            ensureVideoCapabilityForDesktop();
         } else if (!m_config.useRawAudio()) {
-            Log::error("Video input file is empty - video sending will not start");
+            Log::error("No video source configured - video sending will not start");
         }
 
         // Subscribe to raw audio WITHOUT requesting recording permission
@@ -219,7 +214,7 @@ class Zoom : public Singleton<Zoom> {
             }).detach();
         }
 
-        if (!m_config.useRawVideo())
+        if (!m_config.useRawVideo() || m_config.videoIconOnly())
             return;
 
         function<void(bool)> onRecordingPrivilegeChanged = [&](bool canRec) {

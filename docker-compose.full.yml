@@ -74,6 +74,9 @@ services:
       context: .
       dockerfile: Dockerfile
     image: zoom-bot:latest
+    volumes:
+      - .:/app/bot-project
+      - ./config.toml:/tmp/meeting-sdk-linux-sample/config.toml:rw
     profiles:
       - build  # Only build when explicitly requested: docker compose --profile build build zoom-bot
 
@@ -83,6 +86,7 @@ services:
       context: .
       dockerfile: Dockerfile.bot-server
     container_name: zoom-bot-server-api
+    env_file: .env
     environment:
       BOT_SERVER_PORT: 3001
       SERVER_CAPACITY: ${SERVER_CAPACITY:-100}
@@ -96,10 +100,12 @@ services:
       ZOOM_OAUTH_CLIENT_ID: ${ZOOM_OAUTH_CLIENT_ID:-}
       ZOOM_OAUTH_CLIENT_SECRET: ${ZOOM_OAUTH_CLIENT_SECRET:-}
       ZAK_USE_REFRESH_ONLY: ${ZAK_USE_REFRESH_ONLY:-}
+      ZAK_REFRESH_INTERVAL_MINUTES: ${ZAK_REFRESH_INTERVAL_MINUTES:-120}
     ports:
       - "${BOT_SERVER_PORT:-3001}:3001"
     volumes:
       - .:/app/bot-project
+      - ./bot-server:/app/bot-server
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - zoom-network

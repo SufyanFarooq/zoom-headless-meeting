@@ -38,6 +38,11 @@ Config::Config() :
     m_rawRecordVideoCmd->add_option("-d, --dir", m_videoDir, "Video Output Directory");
     m_rawRecordVideoCmd->add_option("--input", m_videoInputFile, "Input video file to send (MP4, H.264)");
 
+    m_app.add_option("--camera-name", m_cameraName, "Camera name substring to select (v4l2)");
+    m_app.add_option("--camera-mode", m_cameraMode, "Camera mode: auto|v4l2|raw")
+        ->capture_default_str()
+        ->check(CLI::IsMember({"auto", "v4l2", "raw"}));
+    m_app.add_flag("--video-icon-only", m_videoIconOnly, "Register video capability to show disabled camera icon");
 }
 
 int Config::read(int ac, char **av) {
@@ -65,14 +70,14 @@ int Config::read(int ac, char **av) {
     }
 
     // If RawAudio only (no RawVideo), clear video input - audio-only without video icon path
-    // If both RawAudio + RawVideo: keep video for Desktop icon (continuous black frames)
+    // If both RawAudio + RawVideo: enable icon-only mode (test pattern), no explicit input required
     if (m_rawRecordAudioCmd->parsed() && !m_rawRecordVideoCmd->parsed()) {
         cerr << "Clearing video input file for audio-only bot (no RawVideo)..." << endl;
         m_videoInputFile.clear();
         m_videoFile.clear();
     } else if (m_rawRecordAudioCmd->parsed() && m_rawRecordVideoCmd->parsed() && m_videoInputFile.empty()) {
-        cerr << "Audio+Video icon mode: RawAudio + RawVideo (isAudioOnly=false for Desktop icon)" << endl;
-        m_videoInputFile = "black";  // Sentinel: isAudioOnly=false, send black frames, skip recording
+        cerr << "Audio+Video icon mode: RawAudio + RawVideo (test pattern for Desktop icon)" << endl;
+        m_videoIconOnly = true;
     }
 
    return 0;
@@ -165,7 +170,26 @@ const string& Config::videoInputFile() const {
 }
 
 bool Config::isVideoIconOnlyMode() const {
-    return m_videoInputFile == "black";
+    return m_videoIconOnly || m_videoInputFile == "black";
+}
+
+const string& Config::cameraName() const {
+    return m_cameraName;
+}
+
+const string& Config::cameraMode() const {
+    return m_cameraMode;
+}
+
+string Config::resolvedCameraMode() const {
+    if (m_cameraMode == "raw" || m_cameraMode == "v4l2") return m_cameraMode;
+    if (!m_videoInputFile.empty()) return "raw";
+    if (!m_cameraName.empty()) return "v4l2";
+    return "auto";
+}
+
+bool Config::videoIconOnly() const {
+    return m_videoIconOnly;
 }
 
 const string& Config::profilePicturePath() const {
@@ -204,4 +228,3 @@ const string& Config::displayName() const {
 const string& Config::zoomHost() const {
     return m_zoomHost;
 }
-

@@ -87,6 +87,15 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
         Log::error("Video sending already in progress");
         return;
     }
+
+    // Test pattern mode (no input file)
+    if (videoFilePath.empty() || videoFilePath == "TEST_PATTERN") {
+        m_useTestPattern = true;
+        m_videoFilePath = "TEST_PATTERN";
+    } else {
+        m_useTestPattern = false;
+        m_videoFilePath = videoFilePath;
+    }
     
     // If not ready yet, store the path and start when ready
     if (!m_isReady) {
@@ -95,105 +104,109 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
         return;
     }
     
-    m_videoFilePath = videoFilePath;
-    
-    // Check file extension
-    string extension = "";
-    size_t dotPos = videoFilePath.find_last_of(".");
-    if (dotPos != string::npos) {
-        extension = videoFilePath.substr(dotPos + 1);
-        // Convert to lowercase
-        transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-    }
-    
-    // Resolve path: if relative, make it absolute
-    // Always use /tmp/meeting-sdk-linux-sample as base (Docker container working directory)
-    string resolvedPath = videoFilePath;
-    if (videoFilePath[0] != '/') {
-        // Relative path - resolve to absolute using known container directory
-        resolvedPath = "/tmp/meeting-sdk-linux-sample/" + videoFilePath;
-        
-        // Remove double slashes (in case videoFilePath starts with /)
-        size_t pos;
-        while ((pos = resolvedPath.find("//")) != string::npos) {
-            resolvedPath.replace(pos, 2, "/");
+    if (!m_useTestPattern) {
+        // Check file extension
+        string extension = "";
+        size_t dotPos = m_videoFilePath.find_last_of(".");
+        if (dotPos != string::npos) {
+            extension = m_videoFilePath.substr(dotPos + 1);
+            // Convert to lowercase
+            transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
         }
         
-        // Also try getcwd() as fallback for debugging
-        char* cwd = getcwd(nullptr, 0);
-        if (cwd) {
-            string cwdPath = string(cwd) + "/" + videoFilePath;
-            // Remove double slashes
-            while ((pos = cwdPath.find("//")) != string::npos) {
-                cwdPath.replace(pos, 2, "/");
+        // Resolve path: if relative, make it absolute
+        // Always use /tmp/meeting-sdk-linux-sample as base (Docker container working directory)
+        string resolvedPath = m_videoFilePath;
+        if (m_videoFilePath[0] != '/') {
+            // Relative path - resolve to absolute using known container directory
+            resolvedPath = "/tmp/meeting-sdk-linux-sample/" + m_videoFilePath;
+            
+            // Remove double slashes (in case videoFilePath starts with /)
+            size_t pos;
+            while ((pos = resolvedPath.find("//")) != string::npos) {
+                resolvedPath.replace(pos, 2, "/");
             }
-            Log::info("Current working directory: " + string(cwd));
-            Log::info("Alternative path (from getcwd): " + cwdPath);
-            free(cwd);
+            
+            // Also try getcwd() as fallback for debugging
+            char* cwd = getcwd(nullptr, 0);
+            if (cwd) {
+                string cwdPath = string(cwd) + "/" + m_videoFilePath;
+                // Remove double slashes
+                while ((pos = cwdPath.find("//")) != string::npos) {
+                    cwdPath.replace(pos, 2, "/");
+                }
+                Log::info("Current working directory: " + string(cwd));
+                Log::info("Alternative path (from getcwd): " + cwdPath);
+                free(cwd);
+            }
         }
-    }
-    
-    // Try to open video file with resolved path
-    // Log the resolved path for debugging (IMPORTANT: Use resolved path)
-    Log::info("Video input file (original): " + videoFilePath);
-    Log::info("Video input file (resolved): " + resolvedPath);
-    Log::info("Attempting to open video file: " + resolvedPath);
-    
-    // Check if file exists before trying to open
-    ifstream fileCheck(resolvedPath);
-    if (!fileCheck.good()) {
-        Log::error("Video file does not exist: " + resolvedPath);
-        Log::error("Please verify the file exists on the server");
-        return;
-    }
-    fileCheck.close();
-    
-    m_videoCapture.open(resolvedPath);
-    
-    // If default backend fails, try FFmpeg backend (more reliable for MP4)
-    if (!m_videoCapture.isOpened()) {
-        Log::info("Default backend failed, trying FFmpeg backend...");
-        m_videoCapture.open(resolvedPath, CAP_FFMPEG);
-    }
-    
-    // If .H264 or .h264 file fails, try with different backend
-    if (!m_videoCapture.isOpened() && (extension == "h264" || extension == "264")) {
-        Log::info("Raw H.264 file detected, trying with FFmpeg backend...");
-        // Try with explicit backend (FFmpeg)
-        m_videoCapture.open(resolvedPath, CAP_FFMPEG);
         
-        if (!m_videoCapture.isOpened()) {
-            Log::error("Failed to open H.264 file. Raw H.264 streams may not be supported.");
-            Log::error("Recommendation: Convert to MP4 container format using:");
-            Log::error("  ffmpeg -i input-video.H264 -c:v copy -c:a copy input-video.mp4");
+        // Try to open video file with resolved path
+        Log::info("Video input file (original): " + m_videoFilePath);
+        Log::info("Video input file (resolved): " + resolvedPath);
+        Log::info("Attempting to open video file: " + resolvedPath);
+        
+        // Check if file exists before trying to open
+        ifstream fileCheck(resolvedPath);
+        if (!fileCheck.good()) {
+            Log::error("Video file does not exist: " + resolvedPath);
+            Log::error("Please verify the file exists on the server");
             return;
         }
-    } else if (!m_videoCapture.isOpened()) {
-        Log::error("Failed to open video file: " + videoFilePath);
-        Log::error("Resolved path: " + resolvedPath);
-        Log::error("Supported formats: MP4, AVI, MOV, MKV");
-        Log::error("For H.264 codec, use MP4 container: input-video.mp4");
-        Log::error("Troubleshooting:");
-        Log::error("  1. Check if file exists: ls -la " + resolvedPath);
-        Log::error("  2. Check file permissions");
-        Log::error("  3. Verify video format: ffprobe " + resolvedPath);
-        return;
+        fileCheck.close();
+        
+        m_videoCapture.open(resolvedPath);
+        
+        // If default backend fails, try FFmpeg backend (more reliable for MP4)
+        if (!m_videoCapture.isOpened()) {
+            Log::info("Default backend failed, trying FFmpeg backend...");
+            m_videoCapture.open(resolvedPath, CAP_FFMPEG);
+        }
+        
+        // If .H264 or .h264 file fails, try with different backend
+        if (!m_videoCapture.isOpened() && (extension == "h264" || extension == "264")) {
+            Log::info("Raw H.264 file detected, trying with FFmpeg backend...");
+            m_videoCapture.open(resolvedPath, CAP_FFMPEG);
+            
+            if (!m_videoCapture.isOpened()) {
+                Log::error("Failed to open H.264 file. Raw H.264 streams may not be supported.");
+                Log::error("Recommendation: Convert to MP4 container format using:");
+                Log::error("  ffmpeg -i input-video.H264 -c:v copy -c:a copy input-video.mp4");
+                return;
+            }
+        } else if (!m_videoCapture.isOpened()) {
+            Log::error("Failed to open video file: " + m_videoFilePath);
+            Log::error("Resolved path: " + resolvedPath);
+            Log::error("Supported formats: MP4, AVI, MOV, MKV");
+            Log::error("For H.264 codec, use MP4 container: input-video.mp4");
+            Log::error("Troubleshooting:");
+            Log::error("  1. Check if file exists: ls -la " + resolvedPath);
+            Log::error("  2. Check file permissions");
+            Log::error("  3. Verify video format: ffprobe " + resolvedPath);
+            return;
+        }
+        
+        // Get video properties
+        int videoWidth = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_WIDTH));
+        int videoHeight = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_HEIGHT));
+        double fps = m_videoCapture.get(CAP_PROP_FPS);
+        
+        if (fps <= 0) fps = 15.0; // Default to 15 FPS if not available
+        
+        Log::info("Video file opened: " + m_videoFilePath);
+        Log::info("Reading video resolution from file: " + to_string(videoWidth) + "x" + to_string(videoHeight) + ", FPS: " + to_string(fps));
+        
+        // Set dimensions to native resolution (no scaling)
+        m_width = videoWidth;
+        m_height = videoHeight;
+        m_testFps = fps;
+    } else {
+        // Test pattern defaults
+        if (m_width == 0) m_width = 640;
+        if (m_height == 0) m_height = 360;
+        m_testFps = 10.0;
+        Log::info("Test pattern mode: sending synthetic frames at " + to_string((int)m_width) + "x" + to_string((int)m_height) + " @ " + to_string(m_testFps) + " FPS");
     }
-    
-    // Get video properties
-    int videoWidth = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_WIDTH));
-    int videoHeight = static_cast<int>(m_videoCapture.get(CAP_PROP_FRAME_HEIGHT));
-    double fps = m_videoCapture.get(CAP_PROP_FPS);
-    
-    if (fps <= 0) fps = 15.0; // Default to 15 FPS if not available
-    
-    // Log the resolution being read from file (as requested)
-    Log::info("Video file opened: " + videoFilePath);
-    Log::info("Reading video resolution from file: " + to_string(videoWidth) + "x" + to_string(videoHeight) + ", FPS: " + to_string(fps));
-    
-    // Set dimensions to native resolution (no scaling)
-    m_width = videoWidth;
-    m_height = videoHeight;
     
     // Start sending thread
     m_shouldStop = false;
@@ -221,8 +234,12 @@ void ZoomSDKVideoSource::stopSending() {
 }
 
 void ZoomSDKVideoSource::sendFramesLoop() {
-    if (!m_videoSender || !m_videoCapture.isOpened()) {
-        Log::error("Video sender or capture not ready");
+    if (!m_videoSender) {
+        Log::error("Video sender not ready");
+        return;
+    }
+    if (!m_useTestPattern && !m_videoCapture.isOpened()) {
+        Log::error("Video capture not ready");
         return;
     }
     
@@ -231,16 +248,15 @@ void ZoomSDKVideoSource::sendFramesLoop() {
     
     Mat frame;
     
-    // Get native FPS from video file (already read in startSending)
-    // For 50 bots optimization: cap at 10 FPS to reduce CPU usage
-    double nativeFps = m_videoCapture.get(CAP_PROP_FPS);
-    if (nativeFps <= 0) nativeFps = 10.0; // Default to 10 FPS for optimization
-    if (nativeFps > 10.0) nativeFps = 10.0; // Cap at 10 FPS for 50 bots
+    // Get FPS: from file or test pattern
+    double nativeFps = m_useTestPattern ? m_testFps : m_videoCapture.get(CAP_PROP_FPS);
+    if (nativeFps <= 0) nativeFps = 10.0;
+    if (nativeFps > 10.0) nativeFps = 10.0; // Cap at 10 FPS
     
     const int fps = static_cast<int>(nativeFps);
     const auto frameTime = chrono::milliseconds(1000 / fps);
     
-    Log::info("Starting video frame sending loop at " + to_string(fps) + " FPS (native from file)");
+    Log::info("Starting video frame sending loop at " + to_string(fps) + " FPS");
     
     // Wait for onPropertyChange to set dimensions, or use file dimensions
     int waitCount = 0;
@@ -269,18 +285,23 @@ void ZoomSDKVideoSource::sendFramesLoop() {
     int consecutiveErrors = 0;
     const int maxConsecutiveErrors = 10;
     
-    while (!m_shouldStop.load() && m_videoSender && m_videoCapture.isOpened() && m_isReady) {
+    int patternIndex = 0;
+    
+    while (!m_shouldStop.load() && m_videoSender && (m_useTestPattern || m_videoCapture.isOpened()) && m_isReady) {
         auto start = chrono::steady_clock::now();
         
-        if (!m_videoCapture.read(frame)) {
-            // Video ended, loop from beginning
-            m_videoCapture.set(CAP_PROP_POS_FRAMES, 0);
-            Log::info("Video looped - restarting from beginning");
-            continue;
-        }
-        
-        if (frame.empty()) {
-            continue;
+        if (m_useTestPattern) {
+            frame = makeTestPatternFrame(patternIndex++, m_width, m_height);
+        } else {
+            if (!m_videoCapture.read(frame)) {
+                // Video ended, loop from beginning
+                m_videoCapture.set(CAP_PROP_POS_FRAMES, 0);
+                Log::info("Video looped - restarting from beginning");
+                continue;
+            }
+            if (frame.empty()) {
+                continue;
+            }
         }
         
         // NO RESIZING - Send frames exactly as-is from video file
@@ -388,4 +409,18 @@ void ZoomSDKVideoSource::convertBGRtoI420(const Mat& bgrFrame, char* i420Buffer,
     memcpy(i420Buffer + ySize + uvSize, vResized.data, uvSize);
     
     frameLength = ySize + uvSize + uvSize;
+}
+
+Mat ZoomSDKVideoSource::makeTestPatternFrame(int frameIndex, int width, int height) {
+    Mat img(height, width, CV_8UC3);
+    // Simple moving gradient
+    int shift = frameIndex % width;
+    for (int y = 0; y < height; ++y) {
+        Vec3b* row = img.ptr<Vec3b>(y);
+        for (int x = 0; x < width; ++x) {
+            int v = (x + shift) % 255;
+            row[x] = Vec3b((v + y) % 255, (v * 2) % 255, (255 - v) % 255);
+        }
+    }
+    return img;
 }

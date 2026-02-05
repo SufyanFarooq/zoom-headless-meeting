@@ -32,7 +32,8 @@ app.post('/api/bots/create', async (req, res) => {
       clientId,
       clientSecret,
       timeoutSeconds,
-      useSingleZak  // true = 1 ZAK for all bots (fast), false = per-user ZAK
+      useSingleZak,  // true = 1 ZAK for all bots (fast), false = per-user ZAK
+      videoFile
     } = req.body;
     
     // Generate request ID if not provided (backward compatibility)
@@ -51,7 +52,8 @@ app.post('/api/bots/create', async (req, res) => {
       accountId: accountId ? '***' : undefined,
       clientId: clientId ? '***' : undefined,
       clientSecret: clientSecret ? '***' : undefined,
-      timeoutSeconds
+      timeoutSeconds,
+      videoFile
     });
     
     // Validate required fields
@@ -175,7 +177,8 @@ app.post('/api/bots/create', async (req, res) => {
     const timeoutSecs = parseInt(timeoutSeconds, 10) || 7200;
     console.log(`⏱️  Timeout: ${timeoutSecs}s (from request: ${timeoutSeconds}, bots will leave meeting after this)`);
     // Pass timeout as 9th arg (reliable in Docker/exec); env TIMEOUT_SECONDS may not propagate
-    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret} ${meetingId} ${uniqueRequestId} ${timeoutSecs}`;
+    const videoFileEnv = (typeof videoFile === 'string' && videoFile.trim().length > 0) ? videoFile.trim() : '';
+    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && VIDEO_FILE="${videoFileEnv}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret} ${meetingId} ${uniqueRequestId} ${timeoutSecs}`;
     
     // Execute setup script
     // With parallel ZAK: ~20s for 150 bots. Container startup: ~2-3s per 10 containers

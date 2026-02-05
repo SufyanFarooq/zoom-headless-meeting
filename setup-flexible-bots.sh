@@ -167,10 +167,17 @@ get_display_name() {
     echo "$name"
 }
 
+# Optional override for video input (e.g., TEST_PATTERN). If empty, fall back to videos/video-N.mp4
+VIDEO_FILE_OVERRIDE="${VIDEO_FILE:-}"
+VIDEO_DEVICE_BASE="${VIDEO_DEVICE_BASE:-2}"
+CAMERA_LABEL_PREFIX="${CAMERA_LABEL_PREFIX:-BotCam}"
+CAMERA_MODE="${CAMERA_MODE:-v4l2}"
+
 # Create services section for docker-compose
 create_compose_services() {
     local bot_num="$1"
     local bot_type="$2"  # "video" or "audio"
+    local video_idx="$3"
 
     local container_name="zoom-bot-${MEETING_ID}-${REQUEST_ID}-${bot_num}"
     local service_name="bot-${MEETING_ID}-${REQUEST_ID}-${bot_num}"
@@ -178,11 +185,24 @@ create_compose_services() {
 
     # Determine video/audio config - each arg must be a separate YAML list item for zoomsdk
     local video_args=""
+    local device_block=""
     if [ "$bot_type" = "video" ]; then
-        local video_num=$(( (bot_num - 1) % 100 + 1 ))
-        video_args="      - RawVideo
+        if [ "$CAMERA_MODE" = "raw" ]; then
+            local video_num=$(( (bot_num - 1) % 100 + 1 ))
+            local video_input="${VIDEO_FILE_OVERRIDE:-videos/video-${video_num}.mp4}"
+            video_args="      - RawVideo
       - --input
-      - videos/video-${video_num}.mp4"
+      - ${video_input}"
+        else
+            local device_index=$((VIDEO_DEVICE_BASE + video_idx - 1))
+            local camera_label="${CAMERA_LABEL_PREFIX}${video_idx}"
+            device_block="    devices:
+      - \"/dev/video${device_index}:/dev/video${device_index}\""
+            video_args="      - --camera-mode
+      - v4l2
+      - --camera-name
+      - ${camera_label}"
+        fi
     else
         # Audio-only: RawAudio only (like backup - video icon via source register + mute, no RawVideo)
         video_args="      - RawAudio
@@ -220,6 +240,7 @@ create_compose_services() {
       - --config
       - config.toml
 $video_args
+${device_block}
     deploy:
       resources:
         limits:
@@ -255,12 +276,14 @@ echo "   - Audio-only bots: $AUDIO_COUNT"
 echo "   - Total bots: $TOTAL_BOTS"
 
 BOT_NUMBER=1
+VIDEO_BOT_INDEX=0
 
 # Generate Video-only bots
 if [ $VIDEO_COUNT -gt 0 ]; then
     echo "📹 Generating $VIDEO_COUNT video-only bots..."
     for i in $(seq 1 $VIDEO_COUNT); do
-        create_compose_services "$BOT_NUMBER" "video" >> "$TEMP_FILE"
+        VIDEO_BOT_INDEX=$((VIDEO_BOT_INDEX + 1))
+        create_compose_services "$BOT_NUMBER" "video" "$VIDEO_BOT_INDEX" >> "$TEMP_FILE"
         BOT_NUMBER=$((BOT_NUMBER + 1))
     done
 fi
@@ -269,7 +292,7 @@ fi
 if [ $AUDIO_COUNT -gt 0 ]; then
     echo "🔊 Generating $AUDIO_COUNT audio-only bots..."
     for i in $(seq 1 $AUDIO_COUNT); do
-        create_compose_services "$BOT_NUMBER" "audio" >> "$TEMP_FILE"
+        create_compose_services "$BOT_NUMBER" "audio" "" >> "$TEMP_FILE"
         BOT_NUMBER=$((BOT_NUMBER + 1))
     done
 fi

@@ -55,6 +55,12 @@ docker compose up
 
 That's it! You can use the --help argument in [entry.sh](bin/entry.sh) to see the available CLI and config.toml options.
 ___
+### Virtual Cameras (Linux v4l2loopback)
+
+If you want bots to show camera icons in Zoom desktop/mobile clients, create v4l2 loopback devices on the Linux host and map them into bot containers.
+
+See `LOCAL_TESTING_GUIDE.md` for example `v4l2loopback` setup commands and FFmpeg feed examples.
+
 ### Get your Zoom Meeting SDK Credentials
 
 In your web browser, navigate to [Zoom Developer Portal](https://developers.zoom.us/) and register/log into your

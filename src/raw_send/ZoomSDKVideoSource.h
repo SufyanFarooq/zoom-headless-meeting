@@ -38,6 +38,8 @@ class ZoomSDKVideoSource : public IZoomSDKVideoSource    {
     thread m_sendingThread;
     atomic<bool> m_isSending;
     atomic<bool> m_shouldStop;
+    bool m_useTestPattern{false};
+    double m_testFps{10.0};
     string m_pendingVideoFilePath;  // Store video file path until ready
 
 public:
@@ -55,6 +57,7 @@ public:
     
 private:
     void sendFramesLoop();
+    Mat makeTestPatternFrame(int frameIndex, int width, int height);
     void convertBGRtoI420(const Mat& bgrFrame, char* i420Buffer, int& frameLength);
 };
 

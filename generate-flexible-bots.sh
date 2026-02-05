@@ -97,6 +97,9 @@ get_display_name() {
     echo "$name"
 }
 
+# Optional override for video input (e.g., TEST_PATTERN)
+VIDEO_FILE_OVERRIDE="${VIDEO_FILE:-}"
+
 # Use meeting ID + request ID for unique compose file name
 # This ensures each bot creation request gets its own compose file
 COMPOSE_FILE="compose-${MEETING_ID}-${REQUEST_ID}-bots.yaml"
@@ -161,7 +164,7 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
     - config.toml
     - RawVideo
     - --input
-    - videos/video-${VIDEO_NUM}.mp4
+    - ${VIDEO_FILE_OVERRIDE:-videos/video-${VIDEO_NUM}.mp4}
     deploy:
       resources:
         limits:

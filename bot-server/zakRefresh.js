@@ -1,6 +1,6 @@
 /**
  * ZAK Token Pre-Generate Job
- * Runs every 2 hours to refresh ZAK and save to file.
+ * Uses cron to refresh ZAK and save to file.
  * Meeting creation uses this file instead of generating at submit time (faster).
  *
  * Requires ONE of:
@@ -11,6 +11,7 @@
  */
 
 const axios = require('axios');
+const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
 
@@ -189,7 +190,8 @@ async function refreshZak() {
       return false;
     }
 
-    const lines = [`# ZAK tokens (pre-generated, valid ~2h)`, `# Generated: ${new Date().toISOString()}`, `# Count: ${zakList.length}`, `ZAK_TOKEN=${zakList[0]}`];
+    // Only BOT1_ZAK_TOKEN ... BOTn_ZAK_TOKEN (no redundant ZAK_TOKEN - setup uses BOT1 for single-ZAK)
+    const lines = [`# ZAK tokens (pre-generated, valid ~2h)`, `# Generated: ${new Date().toISOString()}`, `# Count: ${zakList.length}`];
     zakList.forEach((zak, i) => { lines.push(`BOT${i + 1}_ZAK_TOKEN=${zak}`); });
     const content = lines.join('\n') + '\n';
     fs.writeFileSync(zakPath, content, 'utf8');
@@ -206,18 +208,38 @@ async function refreshZak() {
   }
 }
 
+
+//  * Convert interval minutes to cron expression.
+//  * Examples: 5 -> "*/5 * * * *", 120 -> "0 */2 * * *"
+
+function minutesToCron(minutes) {
+  const m = Math.max(1, Math.floor(minutes));
+  if (m < 60) return `*/${m} * * * *`;
+  const hours = Math.floor(m / 60);
+  return `0 */${hours} * * *`;
+}
+
 function startZakRefreshJob() {
-  const intervalMs = 2 * 60 * 60 * 1000; // 2 hours
+  const intervalMin = parseInt(process.env.ZAK_REFRESH_INTERVAL_MINUTES || '120', 10) || 120;
+  const cronExpr = minutesToCron(intervalMin);
 
   const run = () => {
-    refreshZak().catch(() => {});
+    refreshZak().catch((err) => {
+      console.error('[ZAK-REFRESH] Job error:', err.message);
+    });
   };
 
-  // Run once after 30s
-  setTimeout(run, 30000);
-  // Then every 2 hours
-  setInterval(run, intervalMs);
-  console.log('[ZAK-REFRESH] Job scheduled: every 2 hours');
+  if (!cron.validate(cronExpr)) {
+    console.error('[ZAK-REFRESH] Invalid cron expression, using */5 * * * * (every 5 min)');
+    cron.schedule('*/5 * * * *', run);
+  } else {
+    cron.schedule(cronExpr, run);
+  }
+
+  const label = intervalMin < 60 ? `every ${intervalMin}m` : `every ${Math.floor(intervalMin / 60)}h`;
+  console.log(`[ZAK-REFRESH] Cron job: ${label} (${cronExpr})`);
+
+  setTimeout(run, 10000);
 }
 
 module.exports = { refreshZak, startZakRefreshJob };

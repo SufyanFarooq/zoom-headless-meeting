@@ -33,6 +33,9 @@ class Config {
     string m_videoDir="out";
     string m_videoFile;
     string m_videoInputFile;
+    string m_cameraName;
+    string m_cameraMode = "auto";
+    bool m_videoIconOnly = false;
 
     string m_joinUrl;
     string m_meetingId;
@@ -91,6 +94,10 @@ public:
     
     const string& videoInputFile() const;
     bool isVideoIconOnlyMode() const;  // RawAudio+RawVideo, black frames only, no recording
+    const string& cameraName() const;
+    const string& cameraMode() const;
+    string resolvedCameraMode() const;
+    bool videoIconOnly() const;
     
     const string& profilePicturePath() const;
 };

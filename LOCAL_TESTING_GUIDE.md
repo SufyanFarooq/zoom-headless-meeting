@@ -35,6 +35,36 @@ This creates 5 audio bots with ZAK tokens (join with profile pictures).
 1. **Docker Desktop** must be running
 2. **Bot Server** must be running (check: `curl http://localhost:3001/health`)
 3. **Real Zoom Meeting** must be created and active
+4. **Linux video bots (v4l2loopback)** need virtual camera devices if you want camera icons in desktop/mobile clients
+
+---
+
+## 🎥 Virtual Camera (v4l2loopback) for Video Bots
+
+If you want video bots to use virtual cameras (and show camera icons in desktop/mobile clients), create v4l2 devices on the Linux host.
+
+### 1) Install v4l2loopback
+```bash
+sudo apt install v4l2loopback-dkms
+```
+
+### 2) Create multiple virtual cameras with labels
+```bash
+sudo modprobe v4l2loopback devices=3 video_nr=2,3,4 card_label="BotCam1,BotCam2,BotCam3" exclusive_caps=1
+```
+
+### 3) Feed a video stream into a device (example)
+```bash
+ffmpeg -stream_loop -1 -re -i videos/video-1.mp4 -f v4l2 /dev/video2
+```
+
+### 4) Run bots with v4l2 cameras
+The generated compose file uses:
+- `VIDEO_DEVICE_BASE` (default 2)
+- `CAMERA_LABEL_PREFIX` (default BotCam)
+- `CAMERA_MODE` (default v4l2)
+
+So video bot #1 expects `/dev/video2` labeled `BotCam1`, bot #2 uses `/dev/video3` labeled `BotCam2`, etc.
 
 ---
 
