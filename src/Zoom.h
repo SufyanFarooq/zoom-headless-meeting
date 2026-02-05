@@ -149,7 +149,6 @@ class Zoom : public Singleton<Zoom> {
             
         // Periodic mute check - audio + video (like audio, keep video muted)
             thread([&, audioCtl]() {
-                auto* videoCtl = m_meetingService->GetMeetingVideoController();
                 for (int i = 0; i < 20; i++) {
                     std::this_thread::sleep_for(std::chrono::seconds(2));
                     auto* participantCtl = m_meetingService->GetMeetingParticipantsController();
@@ -158,11 +157,7 @@ class Zoom : public Singleton<Zoom> {
                         if (participantsList && participantsList->GetCount() > 0) {
                             unsigned int uid = participantsList->GetItem(0);
                             audioCtl->MuteAudio(uid, false);
-                            bool useRawVideo = shouldUseRawVideoSource();
-                            bool useCamera = shouldUseCameraDevice();
-                            bool wantVideoIconOnly = m_config.videoIconOnly() || (m_config.useRawAudio() && !useRawVideo && !useCamera);
-                            if (videoCtl && wantVideoIconOnly)
-                                videoCtl->MuteVideo();
+                            // Avoid spamming MuteVideo calls (can trigger SDKERR_TOO_FREQUENT_CALL)
                         }
                     }
                 }

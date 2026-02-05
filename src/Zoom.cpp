@@ -565,26 +565,23 @@ void Zoom::ensureVideoCapabilityForDesktop() {
         // Keep unmuted for a few seconds so desktop/mobile registers capability
         std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
-        // Mute with retries to ensure the disabled icon appears
+        // Mute with spaced retries to avoid SDKERR_TOO_FREQUENT_CALL
         SDKError muteErr;
         int muteRetries = 0;
         do {
             muteErr = videoCtl->MuteVideo();
             if (hasError(muteErr, "mute")) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                std::this_thread::sleep_for(std::chrono::milliseconds(1500));
                 muteRetries++;
             }
-        } while (hasError(muteErr) && muteRetries < 6);
+        } while (hasError(muteErr) && muteRetries < 3);
 
         if (!hasError(muteErr)) {
             Log::success("Video muted - disabled icon should appear");
         }
 
-        // Keep sending frames a bit after mute to help UI update, then stop
-        std::this_thread::sleep_for(std::chrono::milliseconds(8000));
-        if (m_videoSource) {
-            m_videoSource->stopSending();
-        }
+        // Keep sending frames after mute so UI retains camera capability
+        // (stopping too early can remove the camera icon)
     }).detach();
 }
 
