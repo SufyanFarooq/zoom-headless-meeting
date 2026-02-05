@@ -186,6 +186,7 @@ create_compose_services() {
     local display_name=$(get_display_name $bot_num)
 
     # Determine video/audio config - each arg must be a separate YAML list item for zoomsdk
+    local camera_args=""
     local video_args=""
     local device_block=""
     if [ "$bot_type" = "video" ]; then
@@ -200,7 +201,7 @@ create_compose_services() {
             local camera_label="${CAMERA_LABEL_PREFIX}${video_idx}"
             device_block="    devices:
       - \"/dev/video${device_index}:/dev/video${device_index}\""
-            video_args="      - --camera-mode
+            camera_args="      - --camera-mode
       - v4l2
       - --camera-name
       - ${camera_label}"
@@ -216,8 +217,7 @@ create_compose_services() {
             local audio_device_index=$((VIDEO_DEVICE_BASE + AUDIO_DEVICE_INDEX - 1))
             device_block="    devices:
       - \"/dev/video${audio_device_index}:/dev/video${audio_device_index}\""
-            video_args="$video_args
-      - --camera-mode
+            camera_args="      - --camera-mode
       - v4l2
       - --camera-name
       - ${AUDIO_CAMERA_LABEL}"
@@ -251,6 +251,7 @@ create_compose_services() {
       - $display_name
       - --config
       - config.toml
+$camera_args
 $video_args
 ${device_block}
     deploy:
