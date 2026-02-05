@@ -509,19 +509,9 @@ SDKError Zoom::setupVideoSending() {
 
 void Zoom::ensureVideoCapabilityForDesktop() {
     // Only for icon-only: register a video source, unmute briefly, then mute
-    auto* videoSourceHelper = GetRawdataVideoSourceHelper();
-    if (!videoSourceHelper) {
-        Log::error("Video source helper not available - cannot register video capability");
-        return;
-    }
-
-    if (!m_videoSource) {
-        m_videoSource = new ZoomSDKVideoSource();
-    }
-
-    SDKError err = videoSourceHelper->setExternalVideoSource(m_videoSource);
-    if (hasError(err, "set video source for icon-only")) {
-        return;
+    // If a real camera is available/selected, use it and just toggle on/off
+    if (!m_cameraSelected && !m_config.cameraName().empty()) {
+        selectCameraDevice();
     }
 
     auto* videoSettings = m_settingService ? m_settingService->GetVideoSettings() : nullptr;
@@ -529,8 +519,25 @@ void Zoom::ensureVideoCapabilityForDesktop() {
         videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
     }
 
-    // Start test pattern frames (lightweight) so SDK recognizes capability
-    m_videoSource->startSending("TEST_PATTERN");
+    if (!m_cameraSelected) {
+        auto* videoSourceHelper = GetRawdataVideoSourceHelper();
+        if (!videoSourceHelper) {
+            Log::error("Video source helper not available - cannot register video capability");
+            return;
+        }
+
+        if (!m_videoSource) {
+            m_videoSource = new ZoomSDKVideoSource();
+        }
+
+        SDKError err = videoSourceHelper->setExternalVideoSource(m_videoSource);
+        if (hasError(err, "set video source for icon-only")) {
+            return;
+        }
+
+        // Start test pattern frames (lightweight) so SDK recognizes capability
+        m_videoSource->startSending("TEST_PATTERN");
+    }
 
     auto* videoCtl = m_meetingService->GetMeetingVideoController();
     if (!videoCtl) {

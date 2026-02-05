@@ -172,6 +172,8 @@ VIDEO_FILE_OVERRIDE="${VIDEO_FILE:-}"
 VIDEO_DEVICE_BASE="${VIDEO_DEVICE_BASE:-2}"
 CAMERA_LABEL_PREFIX="${CAMERA_LABEL_PREFIX:-BotCam}"
 CAMERA_MODE="${CAMERA_MODE:-v4l2}"
+ AUDIO_CAMERA_LABEL="${AUDIO_CAMERA_LABEL:-}"
+ AUDIO_DEVICE_INDEX="${AUDIO_DEVICE_INDEX:-1}"
 
 # Create services section for docker-compose
 create_compose_services() {
@@ -204,12 +206,22 @@ create_compose_services() {
       - ${camera_label}"
         fi
     else
-        # Audio-only: RawAudio only (like backup - video icon via source register + mute, no RawVideo)
+        # Audio-only: RawAudio only, optionally use camera to register icon
         video_args="      - RawAudio
       - --file
       - dev-null.pcm
       - --dir
       - \"/dev\""
+        if [ -n "$AUDIO_CAMERA_LABEL" ]; then
+            local audio_device_index=$((VIDEO_DEVICE_BASE + AUDIO_DEVICE_INDEX - 1))
+            device_block="    devices:
+      - \"/dev/video${audio_device_index}:/dev/video${audio_device_index}\""
+            video_args="$video_args
+      - --camera-mode
+      - v4l2
+      - --camera-name
+      - ${AUDIO_CAMERA_LABEL}"
+        fi
     fi
 
     cat << EOF
