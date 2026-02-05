@@ -524,6 +524,11 @@ void Zoom::ensureVideoCapabilityForDesktop() {
         return;
     }
 
+    auto* videoSettings = m_settingService ? m_settingService->GetVideoSettings() : nullptr;
+    if (videoSettings) {
+        videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
+    }
+
     // Start test pattern frames (lightweight) so SDK recognizes capability
     m_videoSource->startSending("TEST_PATTERN");
 
@@ -557,14 +562,26 @@ void Zoom::ensureVideoCapabilityForDesktop() {
             Log::info("Video unmuted briefly for icon-only registration");
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+        // Keep unmuted for a few seconds so desktop/mobile registers capability
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
-        SDKError muteErr = videoCtl->MuteVideo();
-        if (!hasError(muteErr, "mute")) {
+        // Mute with retries to ensure the disabled icon appears
+        SDKError muteErr;
+        int muteRetries = 0;
+        do {
+            muteErr = videoCtl->MuteVideo();
+            if (hasError(muteErr, "mute")) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                muteRetries++;
+            }
+        } while (hasError(muteErr) && muteRetries < 6);
+
+        if (!hasError(muteErr)) {
             Log::success("Video muted - disabled icon should appear");
         }
 
-        // Stop sending frames to reduce CPU
+        // Keep sending frames a bit after mute to help UI update, then stop
+        std::this_thread::sleep_for(std::chrono::milliseconds(8000));
         if (m_videoSource) {
             m_videoSource->stopSending();
         }
