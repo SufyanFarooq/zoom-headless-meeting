@@ -546,19 +546,20 @@ void Zoom::ensureVideoCapabilityForDesktop() {
     }
 
     thread([&, videoCtl]() {
-        int maxWait = 10;
-        bool isReady = false;
-        for (int j = 0; j < maxWait; j++) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            if (m_videoSource && m_videoSource->isReady() && m_videoSource->getSender()) {
-                isReady = true;
-                break;
+        if (!m_cameraSelected) {
+            int maxWait = 10;
+            bool isReady = false;
+            for (int j = 0; j < maxWait; j++) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (m_videoSource && m_videoSource->isReady() && m_videoSource->getSender()) {
+                    isReady = true;
+                    break;
+                }
             }
-        }
-
-        if (!isReady) {
-            Log::error("Video source not ready - desktop icon may not appear");
-            return;
+            if (!isReady) {
+                Log::error("Video source not ready - desktop icon may not appear");
+                return;
+            }
         }
 
         // Unmute briefly to register capability
