@@ -219,10 +219,14 @@ SDKError Zoom::join() {
     param.webinarToken = nullptr;
     
     bool isAudioOnly = m_config.useRawAudio() && !shouldUseRawVideoSource() && !m_cameraSelected;
-    param.isVideoOff = false;  // Join with video ON - backup: mute in onJoin for disabled icon
+    bool iconOnly = m_config.videoIconOnly();
+    // For icon-only: join with video OFF, then toggle on/off briefly in onJoin
+    param.isVideoOff = iconOnly ? true : false;
     param.isAudioOff = true;
     
-    if (isAudioOnly) {
+    if (iconOnly) {
+        Log::info("Icon-only bot: joining with video OFF (will toggle in onJoin)");
+    } else if (isAudioOnly) {
         Log::info("Audio-only bot: joining with video ON (will mute in onJoin)");
     } else {
         Log::info("Video bot: joining with video ON");
@@ -250,7 +254,7 @@ SDKError Zoom::join() {
         audioSettings->EnableAutoJoinAudio(false);
     }
     
-    if (isAudioOnly) {
+    if (isAudioOnly || iconOnly) {
         auto* videoSettings = m_settingService->GetVideoSettings();
         if (videoSettings) videoSettings->EnableAutoTurnOffVideoWhenJoinMeeting(false);
     }
@@ -546,7 +550,10 @@ void Zoom::ensureVideoCapabilityForDesktop() {
     }
 
     thread([&, videoCtl]() {
-        if (!m_cameraSelected) {
+        if (m_cameraSelected) {
+            // Give camera a moment to warm up
+            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        } else {
             int maxWait = 10;
             bool isReady = false;
             for (int j = 0; j < maxWait; j++) {
@@ -571,7 +578,7 @@ void Zoom::ensureVideoCapabilityForDesktop() {
         }
 
         // Keep unmuted for a few seconds so desktop/mobile registers capability
-        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
         // Mute with spaced retries to avoid SDKERR_TOO_FREQUENT_CALL
         SDKError muteErr;
