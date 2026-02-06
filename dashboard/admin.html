@@ -22,6 +22,15 @@
         .btn-unblock:hover { background: #138496; }
         .btn-limit { background: #6c757d; color: white; }
         .btn-limit:hover { background: #5a6268; }
+        .form-actions { margin-top: 12px; }
+        .actions-menu { position: relative; display: inline-block; }
+        .btn-more { background: #3a3a3a; color: #fff; padding: 6px 10px; border-radius: 6px; }
+        .btn-more:hover { background: #4a4a4a; }
+        .menu-dropdown { position: absolute; right: 0; top: calc(100% + 6px); min-width: 160px; background: #222; border: 1px solid #3a3a3a; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); padding: 6px; display: none; z-index: 10; }
+        .menu-dropdown.show { display: block; }
+        .menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; background: transparent; border: none; color: #e6e6e6; text-decoration: none; cursor: pointer; font-size: 13px; }
+        .menu-item:hover { background: #2f2f2f; }
+        .menu-item.is-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -40,7 +49,7 @@
 
         <section class="page-section">
             <h2>Create New Account</h2>
-            <div class="form-grid-4">
+            <div class="form-grid-2">
                 <div class="form-group">
                     <label>Username</label>
                     <input type="text" id="newUsername" placeholder="Username">
@@ -49,6 +58,8 @@
                     <label>Email</label>
                     <input type="email" id="newEmail" placeholder="Email">
                 </div>
+            </div>
+            <div class="form-grid-2">
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" id="newPassword" placeholder="Min 6 characters">
@@ -57,6 +68,8 @@
                     <label>Max Members Limit</label>
                     <input type="number" id="newMaxLimit" min="1" placeholder="e.g. 100">
                 </div>
+            </div>
+            <div class="form-actions">
                 <button class="btn-primary" onclick="createAccount()">Create Account</button>
             </div>
         </section>
@@ -141,6 +154,10 @@
                 const name = encodeURIComponent(u.username || '');
                 const limitText = u.max_members_limit ? u.max_members_limit : '—';
                 const blocked = !!u.is_blocked;
+                const blockDisabled = !!u.is_admin;
+                const blockLabel = blocked ? 'Unblock' : 'Block';
+                const blockClass = blocked ? 'btn-unblock' : 'btn-block';
+                const blockClick = blockDisabled ? '' : `toggleBlock(${u.id}, ${blocked})`;
                 return `
                 <tr>
                     <td>${i + 1}</td>
@@ -153,11 +170,16 @@
                     <td>${blocked ? 'Yes' : 'No'}</td>
                     <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                     <td>
-                        <a href="monitor.html?userId=${u.id}&name=${name}" class="btn-link btn-monitor">Monitor</a>
-                        <a href="user-report.html?userId=${u.id}&name=${name}" class="btn-link btn-report">Report</a>
-                        <button class="btn-link btn-password" onclick="updatePassword(${u.id})">Set Password</button>
-                        <button class="btn-link ${blocked ? 'btn-unblock' : 'btn-block'}" onclick="toggleBlock(${u.id}, ${blocked})">${blocked ? 'Unblock' : 'Block'}</button>
-                        <button class="btn-link btn-limit" onclick="updateLimit(${u.id}, ${u.max_members_limit || 'null'})">Set Limit</button>
+                        <div class="actions-menu">
+                            <button class="btn-link btn-more" onclick="toggleMenu(event, 'menu-${u.id}')" title="Actions">⋮</button>
+                            <div id="menu-${u.id}" class="menu-dropdown" onclick="event.stopPropagation()">
+                                <a href="monitor.html?userId=${u.id}&name=${name}" class="menu-item">Monitor</a>
+                                <a href="user-report.html?userId=${u.id}&name=${name}" class="menu-item">Report</a>
+                                <button class="menu-item" type="button" onclick="updatePassword(${u.id})">Set Password</button>
+                                <button class="menu-item ${blockClass} ${blockDisabled ? 'is-disabled' : ''}" type="button" ${blockDisabled ? '' : `onclick="${blockClick}"`}>${blockLabel}</button>
+                                <button class="menu-item" type="button" onclick="updateLimit(${u.id}, ${u.max_members_limit || 'null'})">Set Limit</button>
+                            </div>
+                        </div>
                     </td>
                 </tr>
             `}).join('');
@@ -205,6 +227,7 @@
         }
 
         async function updatePassword(userId) {
+            closeAllMenus();
             const newPassword = prompt('Enter new password (min 6 characters):');
             if (newPassword === null) return;
             if (!newPassword || newPassword.length < 6) {
@@ -226,6 +249,7 @@
         }
 
         async function toggleBlock(userId, isBlocked) {
+            closeAllMenus();
             const action = isBlocked ? 'unblock' : 'block';
             if (!confirm(`Are you sure you want to ${action} this user?`)) return;
             try {
@@ -243,6 +267,7 @@
         }
 
         async function updateLimit(userId, currentLimit) {
+            closeAllMenus();
             const current = currentLimit && currentLimit !== 'null' ? String(currentLimit) : '';
             const input = prompt('Set max members limit (leave blank to remove):', current);
             if (input === null) return;
@@ -269,6 +294,23 @@
                 alert(e.message);
             }
         }
+
+        function closeAllMenus() {
+            document.querySelectorAll('.menu-dropdown.show').forEach((menu) => {
+                menu.classList.remove('show');
+            });
+        }
+
+        function toggleMenu(event, menuId) {
+            event.stopPropagation();
+            const menu = document.getElementById(menuId);
+            if (!menu) return;
+            const isOpen = menu.classList.contains('show');
+            closeAllMenus();
+            if (!isOpen) menu.classList.add('show');
+        }
+
+        document.addEventListener('click', () => closeAllMenus());
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (await checkAdmin()) loadUsers();
