@@ -43,6 +43,15 @@ router.post('/', async (req, res) => {
         errors: validation.errors
       });
     }
+
+    const maxLimit = req.user?.max_members_limit;
+    if (maxLimit && total > maxLimit) {
+      return res.status(400).json({
+        error: 'Max members limit exceeded',
+        message: `Your account limit is ${maxLimit} members per meeting.`,
+        limit: maxLimit
+      });
+    }
     
     // Create bots on bot server
     const botResult = await createBots(
@@ -156,6 +165,14 @@ router.post('/:id/refill', async (req, res) => {
     }
 
     const membersCount = parseInt(src.members_count);
+    const maxLimit = req.user?.max_members_limit;
+    if (maxLimit && membersCount > maxLimit) {
+      return res.status(400).json({
+        error: 'Max members limit exceeded',
+        message: `Your account limit is ${maxLimit} members per meeting.`,
+        limit: maxLimit
+      });
+    }
     const video = 0;
     const audio = membersCount;
 
@@ -330,4 +347,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
-

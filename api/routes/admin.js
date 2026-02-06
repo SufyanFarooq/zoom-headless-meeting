@@ -15,13 +15,32 @@ function toDateKey(val) {
   return s && s.length >= 10 ? s.substring(0, 10) : null;
 }
 
+async function getUserById(userId) {
+  const result = await query(
+    `SELECT id, username, email, COALESCE(is_admin, false) as is_admin,
+            COALESCE(is_blocked, false) as is_blocked,
+            max_members_limit, created_by_admin_id
+     FROM users WHERE id = $1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
+function canManageUser(targetUser, adminId) {
+  if (!targetUser) return false;
+  if (targetUser.is_admin && targetUser.id !== adminId) return false;
+  if (targetUser.created_by_admin_id && targetUser.created_by_admin_id !== adminId) return false;
+  return true;
+}
+
 /**
  * GET /api/admin/users - List all users (admin only)
  */
 router.get('/users', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, username, email, is_admin, created_at,
+      `SELECT id, username, email, is_admin, COALESCE(is_blocked, false) as is_blocked,
+        max_members_limit, created_by_admin_id, created_at,
         (SELECT COUNT(*) FROM meetings m WHERE m.user_id = users.id AND m.status = 'active') as active_meetings,
         (SELECT COALESCE(SUM(members_count), 0) FROM meetings m WHERE m.user_id = users.id) as total_bots_submitted
        FROM users
@@ -39,7 +58,7 @@ router.get('/users', async (req, res) => {
  */
 router.post('/users', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, maxMembersLimit } = req.body;
     if (!username || !email || !password) {
       return res.status(400).json({
         error: 'Missing required fields: username, email, password'
@@ -59,12 +78,21 @@ router.post('/users', async (req, res) => {
         error: 'Username or email already exists'
       });
     }
+    let maxLimit = null;
+    if (maxMembersLimit !== undefined && maxMembersLimit !== null && String(maxMembersLimit).trim() !== '') {
+      const parsed = parseInt(maxMembersLimit, 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        return res.status(400).json({ error: 'Max members limit must be a positive number' });
+      }
+      maxLimit = parsed;
+    }
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
     const insert = await query(
-      `INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)
-       RETURNING id, username, email, created_at`,
-      [username, email, passwordHash]
+      `INSERT INTO users (username, email, password_hash, max_members_limit, created_by_admin_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, username, email, max_members_limit, created_at`,
+      [username, email, passwordHash, maxLimit, req.user?.id || null]
     );
     res.status(201).json({
       success: true,
@@ -74,6 +102,110 @@ router.post('/users', async (req, res) => {
   } catch (error) {
     console.error('Error creating user:', error);
     res.status(500).json({ error: 'Failed to create user', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/users/:id/password - Update user password (admin only)
+ */
+router.put('/users/:id/password', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { newPassword } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const target = await getUserById(userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!canManageUser(target, req.user?.id)) {
+      return res.status(403).json({ error: 'Not allowed to update this user' });
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+    await query(
+      `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+      [passwordHash, userId]
+    );
+
+    res.json({ success: true, message: 'Password updated' });
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.status(500).json({ error: 'Failed to update password', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/users/:id/block - Block/unblock user (admin only)
+ */
+router.put('/users/:id/block', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { blocked } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+    if (typeof blocked !== 'boolean') {
+      return res.status(400).json({ error: 'blocked must be a boolean' });
+    }
+
+    const target = await getUserById(userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!canManageUser(target, req.user?.id)) {
+      return res.status(403).json({ error: 'Not allowed to update this user' });
+    }
+
+    await query(
+      `UPDATE users SET is_blocked = $1, updated_at = NOW() WHERE id = $2`,
+      [blocked, userId]
+    );
+
+    res.json({ success: true, message: blocked ? 'User blocked' : 'User unblocked' });
+  } catch (error) {
+    console.error('Error updating user block status:', error);
+    res.status(500).json({ error: 'Failed to update user status', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/users/:id/limit - Update max members limit (admin only)
+ */
+router.put('/users/:id/limit', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { maxMembersLimit } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    let maxLimit = null;
+    if (maxMembersLimit !== undefined && maxMembersLimit !== null && String(maxMembersLimit).trim() !== '') {
+      const parsed = parseInt(maxMembersLimit, 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        return res.status(400).json({ error: 'Max members limit must be a positive number' });
+      }
+      maxLimit = parsed;
+    }
+
+    const target = await getUserById(userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!canManageUser(target, req.user?.id)) {
+      return res.status(403).json({ error: 'Not allowed to update this user' });
+    }
+
+    await query(
+      `UPDATE users SET max_members_limit = $1, updated_at = NOW() WHERE id = $2`,
+      [maxLimit, userId]
+    );
+
+    res.json({ success: true, message: 'Max members limit updated', maxMembersLimit: maxLimit });
+  } catch (error) {
+    console.error('Error updating max members limit:', error);
+    res.status(500).json({ error: 'Failed to update max members limit', message: error.message });
   }
 });
 

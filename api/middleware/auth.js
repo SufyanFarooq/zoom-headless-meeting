@@ -40,7 +40,11 @@ const authenticate = async (req, res, next) => {
     
     // Get user from database (include is_admin for admin routes)
     const result = await query(
-      'SELECT id, username, email, COALESCE(is_admin, false) as is_admin FROM users WHERE id = $1',
+      `SELECT id, username, email,
+              COALESCE(is_admin, false) as is_admin,
+              COALESCE(is_blocked, false) as is_blocked,
+              max_members_limit
+       FROM users WHERE id = $1`,
       [decoded.userId]
     );
     
@@ -55,8 +59,19 @@ const authenticate = async (req, res, next) => {
       });
     }
     
+    const user = result.rows[0];
+    if (user.is_blocked) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Account is blocked. Please contact admin.'
+      });
+    }
+
     // Attach user to request
-    req.user = result.rows[0];
+    req.user = user;
     next();
   } catch (error) {
     // Set cache-control headers before returning error responses
@@ -87,4 +102,3 @@ const authenticate = async (req, res, next) => {
 };
 
 module.exports = { authenticate };
-

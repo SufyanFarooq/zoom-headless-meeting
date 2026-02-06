@@ -25,6 +25,16 @@ router.post('/', async (req, res) => {
         errors: validation.errors
       });
     }
+
+    const maxLimit = req.user?.max_members_limit;
+    const total = parseInt(membersCount);
+    if (maxLimit && total > maxLimit) {
+      return res.status(400).json({
+        error: 'Max members limit exceeded',
+        message: `Your account limit is ${maxLimit} members per meeting.`,
+        limit: maxLimit
+      });
+    }
     
     // Accept time in UTC format (ISO 8601) or local timezone format
     // Input can be:
@@ -230,4 +240,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
-

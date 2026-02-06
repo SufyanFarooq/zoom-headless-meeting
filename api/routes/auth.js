@@ -92,7 +92,11 @@ router.post('/login', async (req, res) => {
     
     // Find user by username or email
     const result = await query(
-      'SELECT id, username, email, password_hash, COALESCE(is_admin, false) as is_admin FROM users WHERE username = $1 OR email = $1',
+      `SELECT id, username, email, password_hash,
+              COALESCE(is_admin, false) as is_admin,
+              COALESCE(is_blocked, false) as is_blocked,
+              max_members_limit
+       FROM users WHERE username = $1 OR email = $1`,
       [username]
     );
     
@@ -114,6 +118,13 @@ router.post('/login', async (req, res) => {
         message: 'Username or password is incorrect.' 
       });
     }
+
+    if (user.is_blocked) {
+      return res.status(403).json({
+        error: 'Account blocked',
+        message: 'Your account is blocked. Please contact admin.'
+      });
+    }
     
     // Generate JWT token
     const token = jwt.sign(
@@ -130,7 +141,8 @@ router.post('/login', async (req, res) => {
         id: user.id,
         username: user.username,
         email: user.email,
-        is_admin: user.is_admin || false
+        is_admin: user.is_admin || false,
+        max_members_limit: user.max_members_limit
       }
     });
   } catch (error) {
@@ -312,7 +324,11 @@ router.get('/me', async (req, res) => {
     
     // Get user from database (auth/me - include is_admin)
     const result = await query(
-      'SELECT id, username, email, COALESCE(is_admin, false) as is_admin FROM users WHERE id = $1',
+      `SELECT id, username, email,
+              COALESCE(is_admin, false) as is_admin,
+              COALESCE(is_blocked, false) as is_blocked,
+              max_members_limit
+       FROM users WHERE id = $1`,
       [decoded.userId]
     );
     
@@ -323,10 +339,14 @@ router.get('/me', async (req, res) => {
       });
     }
     
-    res.json({
-      success: true,
-      user: result.rows[0]
-    });
+    const user = result.rows[0];
+    if (user.is_blocked) {
+      return res.status(403).json({
+        error: 'Account blocked',
+        message: 'Your account is blocked. Please contact admin.'
+      });
+    }
+    res.json({ success: true, user });
   } catch (error) {
     console.error('Error in /api/auth/me:', {
       error: error.message,
@@ -358,4 +378,3 @@ router.get('/me', async (req, res) => {
 });
 
 module.exports = router;
-

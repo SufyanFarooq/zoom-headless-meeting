@@ -9,11 +9,19 @@
         .badge { font-size: 11px; padding: 4px 10px; border-radius: 4px; font-weight: 500; }
         .badge-admin { background: #6f42c1; color: white; }
         .badge-user { background: #3a3a3a; color: #aaa; }
-        .btn-link { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; text-decoration: none; transition: all 0.2s; margin-right: 6px; }
+        .btn-link { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; text-decoration: none; transition: all 0.2s; margin-right: 6px; border: none; cursor: pointer; }
         .btn-monitor { background: #4a9eff; color: white; }
         .btn-monitor:hover { background: #3a8eef; }
         .btn-report { background: #28a745; color: white; }
         .btn-report:hover { background: #218838; }
+        .btn-password { background: #ff9f1a; color: white; }
+        .btn-password:hover { background: #e38c12; }
+        .btn-block { background: #dc3545; color: white; }
+        .btn-block:hover { background: #c82333; }
+        .btn-unblock { background: #17a2b8; color: white; }
+        .btn-unblock:hover { background: #138496; }
+        .btn-limit { background: #6c757d; color: white; }
+        .btn-limit:hover { background: #5a6268; }
     </style>
 </head>
 <body>
@@ -45,6 +53,10 @@
                     <label>Password</label>
                     <input type="password" id="newPassword" placeholder="Min 6 characters">
                 </div>
+                <div class="form-group">
+                    <label>Max Members Limit</label>
+                    <input type="number" id="newMaxLimit" min="1" placeholder="e.g. 100">
+                </div>
                 <button class="btn-primary" onclick="createAccount()">Create Account</button>
             </div>
         </section>
@@ -61,12 +73,14 @@
                             <th>Role</th>
                             <th>Active</th>
                             <th>Total Bots</th>
+                            <th>Limit</th>
+                            <th>Blocked</th>
                             <th>Created</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
-                        <tr><td colspan="8" class="no-data">Loading...</td></tr>
+                        <tr><td colspan="10" class="no-data">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -120,11 +134,13 @@
         function renderUsers(users) {
             const tbody = document.getElementById('usersTableBody');
             if (!users || users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="no-data">No accounts yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="no-data">No accounts yet</td></tr>';
                 return;
             }
             tbody.innerHTML = users.map((u, i) => {
                 const name = encodeURIComponent(u.username || '');
+                const limitText = u.max_members_limit ? u.max_members_limit : '—';
+                const blocked = !!u.is_blocked;
                 return `
                 <tr>
                     <td>${i + 1}</td>
@@ -133,10 +149,15 @@
                     <td><span class="badge ${u.is_admin ? 'badge-admin' : 'badge-user'}">${u.is_admin ? 'Admin' : 'User'}</span></td>
                     <td>${u.active_meetings || 0}</td>
                     <td>${u.total_bots_submitted || 0}</td>
+                    <td>${limitText}</td>
+                    <td>${blocked ? 'Yes' : 'No'}</td>
                     <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                     <td>
                         <a href="monitor.html?userId=${u.id}&name=${name}" class="btn-link btn-monitor">Monitor</a>
                         <a href="user-report.html?userId=${u.id}&name=${name}" class="btn-link btn-report">Report</a>
+                        <button class="btn-link btn-password" onclick="updatePassword(${u.id})">Set Password</button>
+                        <button class="btn-link ${blocked ? 'btn-unblock' : 'btn-block'}" onclick="toggleBlock(${u.id}, ${blocked})">${blocked ? 'Unblock' : 'Block'}</button>
+                        <button class="btn-link btn-limit" onclick="updateLimit(${u.id}, ${u.max_members_limit || 'null'})">Set Limit</button>
                     </td>
                 </tr>
             `}).join('');
@@ -146,6 +167,7 @@
             const username = document.getElementById('newUsername').value.trim();
             const email = document.getElementById('newEmail').value.trim();
             const password = document.getElementById('newPassword').value;
+            const maxLimitRaw = document.getElementById('newMaxLimit').value.trim();
             if (!username || !email || !password) {
                 alert('Fill all fields');
                 return;
@@ -154,11 +176,20 @@
                 alert('Password must be at least 6 characters');
                 return;
             }
+            let maxMembersLimit = null;
+            if (maxLimitRaw) {
+                const parsed = parseInt(maxLimitRaw, 10);
+                if (isNaN(parsed) || parsed <= 0) {
+                    alert('Max members limit must be a positive number');
+                    return;
+                }
+                maxMembersLimit = parsed;
+            }
             try {
                 const res = await fetch(`${API_BASE}/admin/users`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ username, email, password })
+                    body: JSON.stringify({ username, email, password, maxMembersLimit })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
@@ -166,6 +197,73 @@
                 document.getElementById('newUsername').value = '';
                 document.getElementById('newEmail').value = '';
                 document.getElementById('newPassword').value = '';
+                document.getElementById('newMaxLimit').value = '';
+                loadUsers();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function updatePassword(userId) {
+            const newPassword = prompt('Enter new password (min 6 characters):');
+            if (newPassword === null) return;
+            if (!newPassword || newPassword.length < 6) {
+                alert('Password must be at least 6 characters');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/admin/users/${userId}/password`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ newPassword })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                alert('Password updated');
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function toggleBlock(userId, isBlocked) {
+            const action = isBlocked ? 'unblock' : 'block';
+            if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/admin/users/${userId}/block`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ blocked: !isBlocked })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                loadUsers();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function updateLimit(userId, currentLimit) {
+            const current = currentLimit && currentLimit !== 'null' ? String(currentLimit) : '';
+            const input = prompt('Set max members limit (leave blank to remove):', current);
+            if (input === null) return;
+            const trimmed = input.trim();
+            let maxMembersLimit = null;
+            if (trimmed) {
+                const parsed = parseInt(trimmed, 10);
+                if (isNaN(parsed) || parsed <= 0) {
+                    alert('Max members limit must be a positive number');
+                    return;
+                }
+                maxMembersLimit = parsed;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/admin/users/${userId}/limit`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ maxMembersLimit })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
                 loadUsers();
             } catch (e) {
                 alert(e.message);
