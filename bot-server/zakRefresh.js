@@ -201,6 +201,17 @@ async function refreshZak() {
     const msg = err.response?.data?.message || err.message;
     const code = err.response?.data?.code;
     console.error('[ZAK-REFRESH] Error:', code ? `(${code})` : '', msg);
+    const status = err.response?.status;
+    const url = err.config?.url;
+    const method = err.config?.method ? err.config.method.toUpperCase() : undefined;
+    if (status || url) {
+      console.error('[ZAK-REFRESH] Failed request:', `${method || ''} ${url || ''}`.trim(), status ? `(status ${status})` : '');
+    }
+    const data = err.response?.data;
+    if (data && !err.response?.data?.message) {
+      const body = typeof data === 'string' ? data : JSON.stringify(data);
+      console.error('[ZAK-REFRESH] Response body:', body);
+    }
     if (code === 2300) {
       console.error('[ZAK-REFRESH] S2S ZAK not supported. Use ZOOM_REFRESH_TOKEN (User OAuth).');
     }
