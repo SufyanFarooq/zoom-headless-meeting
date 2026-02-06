@@ -175,12 +175,17 @@ CAMERA_MODE="${CAMERA_MODE:-v4l2}"
 AUDIO_CAMERA_LABEL="${AUDIO_CAMERA_LABEL:-}"
 AUDIO_DEVICE_INDEX="${AUDIO_DEVICE_INDEX:-1}"
 AUDIO_VIDEO_ICON_ONLY="${AUDIO_VIDEO_ICON_ONLY:-true}"
+AUDIO_DEVICE_BASE="${AUDIO_DEVICE_BASE:-$VIDEO_DEVICE_BASE}"
+AUDIO_CAMERA_LABEL_PREFIX="${AUDIO_CAMERA_LABEL_PREFIX:-BotCamAudio}"
+AUDIO_USE_CAMERA="${AUDIO_USE_CAMERA:-true}"
+AUDIO_DEVICE_COUNT="${AUDIO_DEVICE_COUNT:-0}"
 
 # Create services section for docker-compose
 create_compose_services() {
     local bot_num="$1"
     local bot_type="$2"  # "video" or "audio"
     local video_idx="$3"
+    local audio_idx="$4"
 
     local container_name="zoom-bot-${MEETING_ID}-${REQUEST_ID}-${bot_num}"
     local service_name="bot-${MEETING_ID}-${REQUEST_ID}-${bot_num}"
@@ -214,23 +219,33 @@ create_compose_services() {
       - dev-null.pcm
       - --dir
       - \"/dev\""
-        if [ -n "$AUDIO_CAMERA_LABEL" ]; then
-            local audio_device_index=$((VIDEO_DEVICE_BASE + AUDIO_DEVICE_INDEX - 1))
-            device_block="    devices:
+        if [ "$AUDIO_USE_CAMERA" = "true" ] || [ "$AUDIO_USE_CAMERA" = "1" ]; then
+            if [ -n "$AUDIO_CAMERA_LABEL" ]; then
+                local audio_device_index=$((AUDIO_DEVICE_BASE + AUDIO_DEVICE_INDEX - 1))
+                device_block="    devices:
       - \"/dev/video${audio_device_index}:/dev/video${audio_device_index}\""
-            camera_args="      - --camera-mode
+                camera_args="      - --camera-mode
       - v4l2
       - --camera-name
       - ${AUDIO_CAMERA_LABEL}"
-            if [ "$AUDIO_VIDEO_ICON_ONLY" = "true" ] || [ "$AUDIO_VIDEO_ICON_ONLY" = "1" ]; then
-                camera_args="$camera_args
+            else
+                local audio_slot=$audio_idx
+                if [ "$AUDIO_DEVICE_COUNT" -gt 0 ]; then
+                    audio_slot=$(( (audio_idx - 1) % AUDIO_DEVICE_COUNT + 1 ))
+                fi
+                local audio_device_index=$((AUDIO_DEVICE_BASE + audio_slot - 1))
+                local audio_label="${AUDIO_CAMERA_LABEL_PREFIX}${audio_slot}"
+                device_block="    devices:
+      - \"/dev/video${audio_device_index}:/dev/video${audio_device_index}\""
+                camera_args="      - --camera-mode
+      - v4l2
+      - --camera-name
+      - ${audio_label}"
+            fi
+        fi
+        if [ "$AUDIO_VIDEO_ICON_ONLY" = "true" ] || [ "$AUDIO_VIDEO_ICON_ONLY" = "1" ]; then
+            camera_args="$camera_args
       - --video-icon-only"
-            fi
-        else
-            # No camera for audio bot: still enable icon-only using raw test pattern
-            if [ "$AUDIO_VIDEO_ICON_ONLY" = "true" ] || [ "$AUDIO_VIDEO_ICON_ONLY" = "1" ]; then
-                camera_args="      - --video-icon-only"
-            fi
         fi
     fi
 
@@ -300,13 +315,14 @@ echo "   - Total bots: $TOTAL_BOTS"
 
 BOT_NUMBER=1
 VIDEO_BOT_INDEX=0
+AUDIO_BOT_INDEX=0
 
 # Generate Video-only bots
 if [ $VIDEO_COUNT -gt 0 ]; then
     echo "📹 Generating $VIDEO_COUNT video-only bots..."
     for i in $(seq 1 $VIDEO_COUNT); do
         VIDEO_BOT_INDEX=$((VIDEO_BOT_INDEX + 1))
-        create_compose_services "$BOT_NUMBER" "video" "$VIDEO_BOT_INDEX" >> "$TEMP_FILE"
+        create_compose_services "$BOT_NUMBER" "video" "$VIDEO_BOT_INDEX" "" >> "$TEMP_FILE"
         BOT_NUMBER=$((BOT_NUMBER + 1))
     done
 fi
@@ -315,7 +331,8 @@ fi
 if [ $AUDIO_COUNT -gt 0 ]; then
     echo "🔊 Generating $AUDIO_COUNT audio-only bots..."
     for i in $(seq 1 $AUDIO_COUNT); do
-        create_compose_services "$BOT_NUMBER" "audio" "" >> "$TEMP_FILE"
+        AUDIO_BOT_INDEX=$((AUDIO_BOT_INDEX + 1))
+        create_compose_services "$BOT_NUMBER" "audio" "" "$AUDIO_BOT_INDEX" >> "$TEMP_FILE"
         BOT_NUMBER=$((BOT_NUMBER + 1))
     done
 fi
