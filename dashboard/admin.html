@@ -23,11 +23,14 @@
         .btn-limit { background: #6c757d; color: white; }
         .btn-limit:hover { background: #5a6268; }
         .form-actions { margin-top: 12px; }
+        .table-container { overflow: visible; }
+        .table-scroll { overflow-x: auto; }
         .actions-menu { position: relative; display: inline-block; }
         .btn-more { background: #3a3a3a; color: #fff; padding: 6px 10px; border-radius: 6px; }
         .btn-more:hover { background: #4a4a4a; }
         .menu-dropdown { position: absolute; right: 0; top: calc(100% + 6px); min-width: 160px; background: #222; border: 1px solid #3a3a3a; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); padding: 6px; display: none; z-index: 10; }
         .menu-dropdown.show { display: block; }
+        .menu-dropdown.menu-up { top: auto; bottom: calc(100% + 6px); }
         .menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; background: transparent; border: none; color: #e6e6e6; text-decoration: none; cursor: pointer; font-size: 13px; }
         .menu-item:hover { background: #2f2f2f; }
         .menu-item.is-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
@@ -76,26 +79,28 @@
 
         <section class="page-section">
             <h2>All Accounts</h2>
-            <div class="table-container" style="overflow-x:auto">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Active</th>
-                            <th>Total Bots</th>
-                            <th>Limit</th>
-                            <th>Blocked</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="usersTableBody">
-                        <tr><td colspan="10" class="no-data">Loading...</td></tr>
-                    </tbody>
-                </table>
+            <div class="table-container">
+                <div class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Active</th>
+                                <th>Total Bots</th>
+                                <th>Limit</th>
+                                <th>Blocked</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr><td colspan="10" class="no-data">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
     </div>
@@ -307,7 +312,14 @@
             if (!menu) return;
             const isOpen = menu.classList.contains('show');
             closeAllMenus();
-            if (!isOpen) menu.classList.add('show');
+            if (!isOpen) {
+                menu.classList.add('show');
+                menu.classList.remove('menu-up');
+                const rect = menu.getBoundingClientRect();
+                if (rect.bottom > window.innerHeight && rect.top > rect.height) {
+                    menu.classList.add('menu-up');
+                }
+            }
         }
 
         document.addEventListener('click', () => closeAllMenus());
