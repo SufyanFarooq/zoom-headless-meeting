@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(50) NOT NULL UNIQUE,
   email VARCHAR(100) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  is_admin BOOLEAN DEFAULT FALSE,
   reset_token VARCHAR(255),
   reset_token_expiry TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
@@ -84,4 +85,3 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_time ON scheduled_tasks(scheduled
 CREATE INDEX IF NOT EXISTS idx_bot_servers_status ON bot_servers(status);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-
