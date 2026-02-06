@@ -4,6 +4,9 @@ const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
 
+// Load .env for bot-server when running locally (docker-compose already injects env)
+require('dotenv').config();
+
 const execAsync = promisify(exec);
 
 const app = express();
@@ -815,4 +818,3 @@ app.listen(PORT, () => {
     console.log('[ZAK] Refresh job not started:', e.message);
   }
 });
-
