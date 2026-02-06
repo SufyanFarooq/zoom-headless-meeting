@@ -577,8 +577,8 @@ void Zoom::ensureVideoCapabilityForDesktop() {
             Log::info("Video unmuted briefly for icon-only registration");
         }
 
-        // Keep unmuted for a few seconds so desktop/mobile registers capability
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        // Keep unmuted for a short time so desktop/mobile registers capability
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
         // Mute with spaced retries to avoid SDKERR_TOO_FREQUENT_CALL
         SDKError muteErr;
