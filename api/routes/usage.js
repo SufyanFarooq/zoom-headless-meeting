@@ -1,13 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { getUsage } = require('../services/usageService');
+const { getUsage, getUsageForUser } = require('../services/usageService');
 
 /**
  * GET /api/usage - Get usage statistics
  */
 router.get('/', async (req, res) => {
   try {
-    const usage = await getUsage();
+    let usage;
+    const maxLimit = req.user?.max_members_limit;
+    if (maxLimit && parseInt(maxLimit, 10) > 0) {
+      usage = await getUsageForUser(req.user.id, maxLimit);
+    } else {
+      usage = await getUsage();
+    }
     
     res.json({
       success: true,
@@ -27,4 +33,3 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
-

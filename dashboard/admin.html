@@ -175,14 +175,16 @@
                     <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                     <td>
                         <div class="actions-menu">
-                            <button class="btn-link btn-more" onclick="toggleMenu(event, 'menu-${u.id}')" title="Actions">⋮</button>
-                            <div id="menu-${u.id}" class="menu-dropdown" onclick="event.stopPropagation()">
-                                <a href="monitor.html?userId=${u.id}&name=${name}" class="menu-item">Monitor</a>
-                                <a href="user-report.html?userId=${u.id}&name=${name}" class="menu-item">Report</a>
-                                <button class="menu-item" type="button" onclick="updatePassword(${u.id})">Set Password</button>
-                                <button class="menu-item ${blockClass} ${blockDisabled ? 'is-disabled' : ''}" type="button" ${blockDisabled ? '' : `onclick="${blockClick}"`}>${blockLabel}</button>
-                                <button class="menu-item" type="button" onclick="updateLimit(${u.id}, ${u.max_members_limit || 'null'})">Set Limit</button>
-                            </div>
+                            <button
+                                class="btn-link btn-more"
+                                title="Actions"
+                                data-user-id="${u.id}"
+                                data-name="${escapeHtml(u.username || '')}"
+                                data-max-limit="${u.max_members_limit || ''}"
+                                data-blocked="${blocked ? 'true' : 'false'}"
+                                data-is-admin="${u.is_admin ? 'true' : 'false'}"
+                                onclick="openActionsMenu(event, this)"
+                            >⋮</button>
                         </div>
                     </td>
                 </tr>
@@ -300,21 +302,44 @@
         }
 
         function closeAllMenus() {
-            document.querySelectorAll('.menu-dropdown.show').forEach((menu) => {
-                menu.classList.remove('show');
-            });
+            const menu = document.getElementById('actionsMenu');
+            if (menu) menu.classList.remove('show');
         }
 
-        function toggleMenu(event, menuId) {
+        function openActionsMenu(event, trigger) {
             event.stopPropagation();
-            const trigger = event.currentTarget;
-            const menu = document.getElementById(menuId);
+            const menu = document.getElementById('actionsMenu');
             if (!menu) return;
-            const isOpen = menu.classList.contains('show');
             closeAllMenus();
-            if (isOpen) return;
+
+            const userId = trigger.dataset.userId;
+            const nameRaw = trigger.dataset.name || '';
+            const maxLimitRaw = trigger.dataset.maxLimit || '';
+            const isBlocked = trigger.dataset.blocked === 'true';
+            const isAdmin = trigger.dataset.isAdmin === 'true';
+
+            const monitor = menu.querySelector('[data-action="monitor"]');
+            const report = menu.querySelector('[data-action="report"]');
+            const passwordBtn = menu.querySelector('[data-action="password"]');
+            const blockBtn = menu.querySelector('[data-action="block"]');
+            const limitBtn = menu.querySelector('[data-action="limit"]');
+
+            const nameParam = encodeURIComponent(nameRaw);
+            monitor.href = `monitor.html?userId=${userId}&name=${nameParam}`;
+            report.href = `user-report.html?userId=${userId}&name=${nameParam}`;
+
+            passwordBtn.onclick = () => updatePassword(parseInt(userId, 10));
+            limitBtn.onclick = () => updateLimit(parseInt(userId, 10), maxLimitRaw || null);
+
+            const blockLabel = isBlocked ? 'Unblock' : 'Block';
+            blockBtn.textContent = blockLabel;
+            blockBtn.classList.toggle('is-disabled', isAdmin);
+            blockBtn.onclick = () => {
+                if (isAdmin) return;
+                toggleBlock(parseInt(userId, 10), isBlocked);
+            };
+
             menu.classList.add('show');
-            // Reset inline sizing to measure correctly
             menu.style.maxHeight = '';
             menu.style.overflowY = '';
             menu.style.left = '0px';
@@ -347,5 +372,12 @@
             if (await checkAdmin()) loadUsers();
         });
     </script>
+    <div id="actionsMenu" class="menu-dropdown" onclick="event.stopPropagation()">
+        <a href="#" class="menu-item" data-action="monitor">Monitor</a>
+        <a href="#" class="menu-item" data-action="report">Report</a>
+        <button class="menu-item" type="button" data-action="password">Set Password</button>
+        <button class="menu-item" type="button" data-action="block">Block</button>
+        <button class="menu-item" type="button" data-action="limit">Set Limit</button>
+    </div>
 </body>
 </html>

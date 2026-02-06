@@ -31,6 +31,27 @@ async function getUsage() {
 }
 
 /**
+ * Get usage for a specific user (active meetings only)
+ */
+async function getUsageForUser(userId, limit) {
+  try {
+    const result = await query(
+      `SELECT COALESCE(SUM(members_count), 0) as used
+       FROM meetings
+       WHERE user_id = $1 AND status = 'active'`,
+      [userId]
+    );
+    const used = parseInt(result.rows[0]?.used, 10) || 0;
+    const maxLimit = parseInt(limit, 10) || 0;
+    const remaining = maxLimit > 0 ? Math.max(0, maxLimit - used) : 0;
+    return { submitted: used, remaining, limit: maxLimit };
+  } catch (error) {
+    console.error('Error getting user usage:', error);
+    throw error;
+  }
+}
+
+/**
  * Check if members count is valid (divisible by 10, not zero, within limit)
  */
 async function validateMembersCount(membersCount) {
@@ -126,8 +147,8 @@ async function decreaseUsage(membersCount) {
 
 module.exports = {
   getUsage,
+  getUsageForUser,
   validateMembersCount,
   updateUsage,
   decreaseUsage
 };
-
