@@ -68,6 +68,31 @@ So video bot #1 expects `/dev/video2` labeled `BotCam1`, bot #2 uses `/dev/video
 
 ---
 
+## 🎧 Audio Bots With Camera Slash Icon (Scale-Friendly)
+
+For many audio bots, use a smaller pool of dummy cameras and round-robin across them. This keeps load low and still shows the camera slash icon.
+
+### 1) Create N dummy cameras (example: 20 devices from /dev/video5)
+```bash
+./scripts/setup-v4l2loopback.sh 20 5 BotCamAudio 0
+```
+
+### 2) Configure round-robin mapping for audio bots
+```bash
+export AUDIO_USE_CAMERA=true
+export AUDIO_DEVICE_BASE=5
+export AUDIO_DEVICE_COUNT=20
+export AUDIO_CAMERA_LABEL_PREFIX=BotCamAudio
+export AUDIO_VIDEO_ICON_ONLY=true
+```
+
+### 3) Run 100+ audio bots (example)
+```bash
+./setup-flexible-bots.sh 0 100 "<JOIN_URL>" "<ACCOUNT_ID>" "<CLIENT_ID>" "<CLIENT_SECRET>" <MEETING_ID> test100 7200
+```
+
+---
+
 ## 🔍 Monitoring Bots
 
 ### View Container Status

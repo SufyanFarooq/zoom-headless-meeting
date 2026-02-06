@@ -15,6 +15,7 @@ CLIENT_SECRET="$6"
 
 # Get environment variables (with fallbacks)
 HOST_PROJECT_PATH="${HOST_PROJECT_PATH:-/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample}"
+PROJECT_MOUNT_MODE="${PROJECT_MOUNT_MODE:-rw}"
 MEETING_TYPE="${MEETING_TYPE:-Normal Member}"
 NAME_TYPE="${NAME_TYPE:-Indian}"
 MEETING_ID="${MEETING_ID:-${7:-}}"
@@ -254,7 +255,7 @@ create_compose_services() {
     image: zoom-bot:latest
     container_name: $container_name
     volumes:
-      - "$HOST_PROJECT_PATH:/tmp/meeting-sdk-linux-sample:ro"
+      - "$HOST_PROJECT_PATH:/tmp/meeting-sdk-linux-sample:${PROJECT_MOUNT_MODE}"
       - "/tmp/build-cache:/tmp/meeting-sdk-linux-sample/build"
     environment:
       - DISPLAY_NAME=$display_name
