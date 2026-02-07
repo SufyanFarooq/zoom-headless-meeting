@@ -28,7 +28,7 @@
         .actions-menu { position: relative; display: inline-block; }
         .btn-more { background: #3a3a3a; color: #fff; padding: 6px 10px; border-radius: 6px; }
         .btn-more:hover { background: #4a4a4a; }
-        .menu-dropdown { position: fixed; left: 0; top: 0; min-width: 160px; background: #222; border: 1px solid #3a3a3a; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); padding: 6px; display: none; z-index: 999; }
+        .menu-dropdown { position: fixed; left: 0; top: 0; min-width: 160px; max-width: calc(100vw - 16px); background: #222; border: 1px solid #3a3a3a; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); padding: 6px; display: none; z-index: 999; }
         .menu-dropdown.show { display: block; }
         .menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; background: transparent; border: none; color: #e6e6e6; text-decoration: none; cursor: pointer; font-size: 13px; }
         .menu-item:hover { background: #2f2f2f; }
@@ -344,12 +344,17 @@
             menu.style.overflowY = '';
             menu.style.left = '0px';
             menu.style.top = '0px';
+            menu.scrollTop = 0;
 
             const btnRect = trigger.getBoundingClientRect();
             const menuRect = menu.getBoundingClientRect();
             const margin = 8;
             let left = btnRect.right - menuRect.width;
-            if (left < margin) left = Math.max(margin, btnRect.left);
+            if (btnRect.left + menuRect.width <= window.innerWidth - margin) {
+                left = btnRect.left;
+            }
+            const maxLeft = window.innerWidth - menuRect.width - margin;
+            left = Math.min(Math.max(left, margin), Math.max(margin, maxLeft));
             let top = btnRect.bottom + 6;
             if (top + menuRect.height > window.innerHeight - margin) {
                 top = btnRect.top - menuRect.height - 6;
