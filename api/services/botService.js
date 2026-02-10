@@ -2,9 +2,6 @@ const axios = require('axios');
 const { query } = require('../db');
 const { getNamesForBots } = require('./nameService');
 
-let zoomAccessToken = null;
-let zoomAccessTokenExpiry = 0;
-
 /**
  * Calculate bot distribution based on meeting type
  * Note: Now videoCount and audioCount are passed directly from frontend
@@ -34,86 +31,6 @@ function calculateBotDistribution(membersCount, meetingType) {
   }
   
   return { videoCount, audioCount };
-}
-
-async function getZoomAccessToken() {
-  if (zoomAccessToken && Date.now() < zoomAccessTokenExpiry) return zoomAccessToken;
-
-  const accountId = process.env.ZOOM_ACCOUNT_ID;
-  const clientId = process.env.ZOOM_CLIENT_ID;
-  const clientSecret = process.env.ZOOM_CLIENT_SECRET;
-
-  if (!accountId || !clientId || !clientSecret) {
-    throw new Error('Zoom API credentials not configured');
-  }
-
-  const resp = await axios.post(
-    'https://zoom.us/oauth/token',
-    new URLSearchParams({
-      grant_type: 'account_credentials',
-      account_id: accountId
-    }),
-    {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-      },
-      timeout: 15000
-    }
-  );
-
-  const token = resp.data?.access_token;
-  const expiresIn = Number.parseInt(resp.data?.expires_in, 10) || 0;
-  if (!token) throw new Error('Failed to get Zoom access token');
-
-  // Refresh 60s before expiry
-  zoomAccessToken = token;
-  zoomAccessTokenExpiry = Date.now() + Math.max(expiresIn - 60, 60) * 1000;
-  return zoomAccessToken;
-}
-
-async function fetchMeetingStatus(meetingId, token) {
-  const { data } = await axios.get(`https://api.zoom.us/v2/meetings/${meetingId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    timeout: 15000
-  });
-  return String(data?.status || '').toLowerCase();
-}
-
-async function ensureMeetingStarted(meetingId) {
-  try {
-    const token = await getZoomAccessToken();
-    const status = await fetchMeetingStatus(meetingId, token);
-    if (status !== 'started') {
-      const msg = status ? `Meeting not started (status: ${status})` : 'Meeting not started';
-      const err = new Error(msg);
-      err.code = 'MEETING_NOT_STARTED';
-      throw err;
-    }
-    return true;
-  } catch (error) {
-    if (error?.code === 'MEETING_NOT_STARTED') throw error;
-    if (error.response?.status === 404) {
-      const err = new Error('Meeting not started or not found');
-      err.code = 'MEETING_NOT_STARTED';
-      throw err;
-    }
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      zoomAccessToken = null;
-      zoomAccessTokenExpiry = 0;
-      const token = await getZoomAccessToken();
-      const status = await fetchMeetingStatus(meetingId, token);
-      if (status !== 'started') {
-        const msg = status ? `Meeting not started (status: ${status})` : 'Meeting not started';
-        const err = new Error(msg);
-        err.code = 'MEETING_NOT_STARTED';
-        throw err;
-      }
-      return true;
-    }
-    const msg = error.response?.data?.message || error.message || 'Failed to verify meeting status';
-    throw new Error(`Failed to verify meeting status: ${msg}`);
-  }
 }
 
 async function selectBestServerFromDb(membersCount) {
@@ -304,9 +221,6 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       throw new Error('Zoom API credentials not configured');
     }
 
-    // Ensure meeting has started before creating bots/compose files
-    await ensureMeetingStarted(meetingId);
-    
     // Call bot server API to create bots
     let botServerUrl = process.env.BOT_SERVER_URL || server.server_url;
     
