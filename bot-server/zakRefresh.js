@@ -231,7 +231,7 @@ function minutesToCron(minutes) {
 }
 
 function startZakRefreshJob() {
-  const intervalMin = parseInt(process.env.ZAK_REFRESH_INTERVAL_MINUTES || '115', 10) || 115;
+  const intervalMin = parseInt(process.env.ZAK_REFRESH_INTERVAL_MINUTES || '120', 10) || 120;
   const cronExpr = minutesToCron(intervalMin);
 
   const run = () => {
