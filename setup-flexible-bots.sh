@@ -367,13 +367,19 @@ if [ "$MEETING_TYPE_NORMALIZED" = "Profile Pic Member" ]; then
 
     if [ -f "$USERS_FILE" ] && [ -s "$USERS_FILE" ]; then
         EMAIL_COUNT=$(wc -l < "$USERS_FILE" | tr -d ' ')
-        BOTS_NEEDING_ZAK=$((EMAIL_COUNT < TOTAL_BOTS ? EMAIL_COUNT : TOTAL_BOTS))
+        NAME_OFFSET="${NAME_OFFSET:-0}"
+        REMAINING=$((EMAIL_COUNT - NAME_OFFSET))
+        if [ "$REMAINING" -lt 0 ]; then REMAINING=0; fi
+        BOTS_NEEDING_ZAK=$((REMAINING < TOTAL_BOTS ? REMAINING : TOTAL_BOTS))
+        if [ "$BOTS_NEEDING_ZAK" -le 0 ]; then
+            echo "   ℹ️  No emails remaining for ZAK (offset=$NAME_OFFSET, total_emails=$EMAIL_COUNT) - bots will join as guests"
+            rm -f bot-zak-tokens.env
+        else
 
         # 1) Pre-generated ZAK (from bot-server job every 2h) - fastest
         PRELOAD_FILE="${ZAK_PRELOAD_FILE:-zak-token.env}"
         CACHE_VALID=false
         # NAME_OFFSET: 2nd batch needs BOT11..BOT20 (not BOT1..BOT10)
-        NAME_OFFSET="${NAME_OFFSET:-0}"
         START_IDX=$((NAME_OFFSET + 1))
         END_IDX=$((NAME_OFFSET + BOTS_NEEDING_ZAK))
 
@@ -386,22 +392,32 @@ if [ "$MEETING_TYPE_NORMALIZED" = "Profile Pic Member" ]; then
                 if [ -z "$PRELOAD_ZAK" ]; then
                     PRELOAD_ZAK=$(grep -E '^BOT1_ZAK_TOKEN=' "$PRELOAD_FILE" 2>/dev/null | cut -d= -f2-)
                 fi
-                if [ "$PRELOAD_COUNT" -ge "$END_IDX" ] && [ -n "$PRELOAD_ZAK" ] && [ ${#PRELOAD_ZAK} -gt 50 ]; then
+                if [ "$PRELOAD_COUNT" -ge "$START_IDX" ]; then
+                    TOKEN_END=$END_IDX
+                    if [ "$PRELOAD_COUNT" -lt "$END_IDX" ]; then
+                        TOKEN_END=$PRELOAD_COUNT
+                    fi
                     echo "# From pre-generated $PRELOAD_FILE ($CACHE_AGE min old, offset=$NAME_OFFSET → BOT${START_IDX}..BOT${END_IDX})" > bot-zak-tokens.env
-                    for i in $(seq $START_IDX $END_IDX); do
+                    for i in $(seq $START_IDX $TOKEN_END); do
                         line=$(grep -E "^BOT${i}_ZAK_TOKEN=" "$PRELOAD_FILE" 2>/dev/null)
                         [ -n "$line" ] && echo "$line" >> bot-zak-tokens.env
                     done
-                    if [ $(grep -cE '^BOT[0-9]+_ZAK_TOKEN=' bot-zak-tokens.env 2>/dev/null) -ge "$BOTS_NEEDING_ZAK" ]; then
-                        echo "   ✅ Using pre-generated ZAK from $PRELOAD_FILE (${CACHE_AGE}m old, per-bot profile pics)"
+                    if [ $(grep -cE '^BOT[0-9]+_ZAK_TOKEN=' bot-zak-tokens.env 2>/dev/null) -gt 0 ]; then
+                        if [ "$TOKEN_END" -lt "$END_IDX" ]; then
+                            echo "   ✅ Using pre-generated ZAK from $PRELOAD_FILE (${CACHE_AGE}m old) for BOT${START_IDX}..BOT${TOKEN_END}; remaining bots join as guests"
+                        else
+                            echo "   ✅ Using pre-generated ZAK from $PRELOAD_FILE (${CACHE_AGE}m old, per-bot profile pics)"
+                        fi
                         CACHE_VALID=true
                     fi
                 fi
-                if [ "$CACHE_VALID" = false ] && [ -n "$PRELOAD_ZAK" ] && [ ${#PRELOAD_ZAK} -gt 50 ]; then
-                    echo "# From pre-generated $PRELOAD_FILE ($CACHE_AGE min old, 1 ZAK for all, offset=$NAME_OFFSET)" > bot-zak-tokens.env
-                    for i in $(seq $START_IDX $END_IDX); do echo "BOT${i}_ZAK_TOKEN=$PRELOAD_ZAK" >> bot-zak-tokens.env; done
-                    echo "   ✅ Using pre-generated ZAK from $PRELOAD_FILE (1 token - same profile pic for all)"
-                    CACHE_VALID=true
+                if [ "$CACHE_VALID" = false ] && { [ "$USE_SINGLE_ZAK" = "true" ] || [ "$USE_SINGLE_ZAK" = "1" ]; }; then
+                    if [ -n "$PRELOAD_ZAK" ] && [ ${#PRELOAD_ZAK} -gt 50 ]; then
+                        echo "# From pre-generated $PRELOAD_FILE ($CACHE_AGE min old, 1 ZAK for all, offset=$NAME_OFFSET)" > bot-zak-tokens.env
+                        for i in $(seq $START_IDX $END_IDX); do echo "BOT${i}_ZAK_TOKEN=$PRELOAD_ZAK" >> bot-zak-tokens.env; done
+                        echo "   ✅ Using pre-generated ZAK from $PRELOAD_FILE (1 token - same profile pic for all)"
+                        CACHE_VALID=true
+                    fi
                 fi
             fi
         fi
@@ -432,21 +448,13 @@ if [ "$MEETING_TYPE_NORMALIZED" = "Profile Pic Member" ]; then
                 echo "   ✅ Generated 1 ZAK token, applied to $BOTS_NEEDING_ZAK bots"
             else
                 # Create temporary users file with only the emails we need
-                # Respect NAME_OFFSET so refill uses next accounts (wraps if needed)
+                # Respect NAME_OFFSET so refill uses next accounts (no wrap)
                 TEMP_USERS_FILE=$(mktemp)
                 TOTAL_LINES="${EMAIL_COUNT:-0}"
                 OFFSET="${NAME_OFFSET:-0}"
-                if [ "$TOTAL_LINES" -gt 0 ]; then
-                    if [ "$OFFSET" -ge "$TOTAL_LINES" ]; then
-                        OFFSET=$((OFFSET % TOTAL_LINES))
-                    fi
+                if [ "$TOTAL_LINES" -gt 0 ] && [ "$OFFSET" -lt "$TOTAL_LINES" ] && [ "$BOTS_NEEDING_ZAK" -gt 0 ]; then
                     START_LINE=$((OFFSET + 1))
                     tail -n +$START_LINE "$USERS_FILE" | head -n "$BOTS_NEEDING_ZAK" > "$TEMP_USERS_FILE"
-                    CURRENT_COUNT=$(wc -l < "$TEMP_USERS_FILE" | tr -d ' ')
-                    if [ "$CURRENT_COUNT" -lt "$BOTS_NEEDING_ZAK" ]; then
-                        REMAIN=$((BOTS_NEEDING_ZAK - CURRENT_COUNT))
-                        head -n "$REMAIN" "$USERS_FILE" >> "$TEMP_USERS_FILE"
-                    fi
                 else
                     : > "$TEMP_USERS_FILE"
                 fi
@@ -485,7 +493,7 @@ if [ "$MEETING_TYPE_NORMALIZED" = "Profile Pic Member" ]; then
         # NAME_OFFSET ensures 2nd batch for same meeting gets BOT11, BOT12... (not BOT1, BOT2...)
         COMPOSE_FILE_NAME="compose-${MEETING_ID}-${REQUEST_ID}-bots.yaml"
         COMPOSE_PATH="$(pwd)/$COMPOSE_FILE_NAME"
-        if [ -f "bot-zak-tokens.env" ] && [ -f "$COMPOSE_FILE_NAME" ]; then
+        if [ -f "bot-zak-tokens.env" ] && grep -qE '^BOT[0-9]+_ZAK_TOKEN=' bot-zak-tokens.env 2>/dev/null && [ -f "$COMPOSE_FILE_NAME" ]; then
             echo ""
             echo "🔄 Adding ZAK tokens to compose file (NAME_OFFSET=${NAME_OFFSET:-0})..."
             if NAME_OFFSET="${NAME_OFFSET:-0}" python3 update-compose-zak.py "$COMPOSE_PATH"; then
@@ -493,6 +501,7 @@ if [ "$MEETING_TYPE_NORMALIZED" = "Profile Pic Member" ]; then
             else
                 echo "   ⚠️  Python script failed, but tokens may still be in file"
             fi
+        fi
         fi
     else
         echo "   ⚠️  Users file not found or empty - skipping ZAK token generation"
