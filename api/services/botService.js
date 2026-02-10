@@ -33,47 +33,100 @@ function calculateBotDistribution(membersCount, meetingType) {
   return { videoCount, audioCount };
 }
 
-/**
- * Select best bot server based on priority and capacity
- * Uses priority if column exists; otherwise selects by current_load
- */
-async function selectBestServer(membersCount) {
+async function selectBestServerFromDb(membersCount) {
+  // Try query with priority first (Server 1 = 1, Server 2 = 2)
   try {
-    // Try query with priority first (Server 1 = 1, Server 2 = 2)
-    try {
-      const withPriority = await query(
-        `SELECT id, server_name, server_url, capacity, current_load, priority
-         FROM bot_servers 
-         WHERE status = 'active' 
-         AND (capacity - current_load) >= $1
-         ORDER BY COALESCE(priority, 100) ASC, current_load ASC
-         LIMIT 1`,
-        [membersCount]
-      );
-      if (withPriority.rows.length > 0) {
-        console.log(`✅ Selected server (${withPriority.rows[0].server_name}) - Load: ${withPriority.rows[0].current_load}/${withPriority.rows[0].capacity}`);
-        return withPriority.rows[0];
-      }
-    } catch (priorityErr) {
-      if (!priorityErr.message?.includes('priority')) throw priorityErr;
-      // Fallback: priority column doesn't exist
-    }
-
-    // Fallback: select without priority column
-    const result = await query(
-      `SELECT id, server_name, server_url, capacity, current_load
+    const withPriority = await query(
+      `SELECT id, server_name, server_url, capacity, current_load, priority
        FROM bot_servers 
        WHERE status = 'active' 
        AND (capacity - current_load) >= $1
-       ORDER BY current_load ASC
+       ORDER BY COALESCE(priority, 100) ASC, current_load ASC
        LIMIT 1`,
       [membersCount]
     );
-
-    if (result.rows.length > 0) {
-      console.log(`✅ Selected server (${result.rows[0].server_name}) - Load: ${result.rows[0].current_load}/${result.rows[0].capacity}`);
-      return result.rows[0];
+    if (withPriority.rows.length > 0) {
+      console.log(`✅ Selected server (${withPriority.rows[0].server_name}) - Load: ${withPriority.rows[0].current_load}/${withPriority.rows[0].capacity}`);
+      return withPriority.rows[0];
     }
+  } catch (priorityErr) {
+    if (!priorityErr.message?.includes('priority')) throw priorityErr;
+    // Fallback: priority column doesn't exist
+  }
+
+  // Fallback: select without priority column
+  const result = await query(
+    `SELECT id, server_name, server_url, capacity, current_load
+     FROM bot_servers 
+     WHERE status = 'active' 
+     AND (capacity - current_load) >= $1
+     ORDER BY current_load ASC
+     LIMIT 1`,
+    [membersCount]
+  );
+
+  if (result.rows.length > 0) {
+    console.log(`✅ Selected server (${result.rows[0].server_name}) - Load: ${result.rows[0].current_load}/${result.rows[0].capacity}`);
+    return result.rows[0];
+  }
+
+  return null;
+}
+
+async function refreshServerLoad(serverId) {
+  try {
+    const serverUrl = await getBotServerUrl(serverId);
+    const { data } = await axios.get(`${serverUrl}/api/bots/capacity`, { timeout: 5000 });
+    const currentLoad = Number.parseInt(data?.currentLoad, 10);
+    if (!Number.isFinite(currentLoad)) {
+      console.warn(`[refreshServerLoad] Invalid currentLoad from ${serverUrl}:`, data?.currentLoad);
+      return null;
+    }
+    await query(
+      `UPDATE bot_servers 
+       SET current_load = $1, last_heartbeat = NOW()
+       WHERE id = $2`,
+      [currentLoad, serverId]
+    );
+    return currentLoad;
+  } catch (error) {
+    console.error(`[refreshServerLoad] Failed for server ${serverId}:`, error.message);
+    return null;
+  }
+}
+
+async function refreshAllServerLoads() {
+  try {
+    const result = await query(
+      `SELECT id FROM bot_servers WHERE status = 'active'`
+    );
+    if (result.rows.length === 0) return 0;
+
+    const updates = await Promise.allSettled(
+      result.rows.map((row) => refreshServerLoad(row.id))
+    );
+    return updates.filter((u) => u.status === 'fulfilled' && Number.isFinite(u.value)).length;
+  } catch (error) {
+    console.error('[refreshAllServerLoads] Failed:', error.message);
+    return 0;
+  }
+}
+
+/**
+ * Select best bot server based on priority and capacity
+ * Uses priority if column exists; otherwise selects by current_load
+ * If none found, refreshes server loads from bot-server and retries once.
+ */
+async function selectBestServer(membersCount) {
+  try {
+    let server = await selectBestServerFromDb(membersCount);
+    if (server) return server;
+
+    console.warn('⚠️ No server capacity from DB. Refreshing server loads...');
+    await refreshAllServerLoads();
+
+    server = await selectBestServerFromDb(membersCount);
+    if (server) return server;
 
     throw new Error('No available bot server with sufficient capacity.');
   } catch (error) {
@@ -411,4 +464,3 @@ module.exports = {
   selectBestServer,
   updateServerLoad
 };
-
