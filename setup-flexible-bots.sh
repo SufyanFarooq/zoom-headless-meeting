@@ -432,8 +432,24 @@ if [ "$MEETING_TYPE_NORMALIZED" = "Profile Pic Member" ]; then
                 echo "   ✅ Generated 1 ZAK token, applied to $BOTS_NEEDING_ZAK bots"
             else
                 # Create temporary users file with only the emails we need
+                # Respect NAME_OFFSET so refill uses next accounts (wraps if needed)
                 TEMP_USERS_FILE=$(mktemp)
-                head -n $BOTS_NEEDING_ZAK "$USERS_FILE" > "$TEMP_USERS_FILE"
+                TOTAL_LINES="${EMAIL_COUNT:-0}"
+                OFFSET="${NAME_OFFSET:-0}"
+                if [ "$TOTAL_LINES" -gt 0 ]; then
+                    if [ "$OFFSET" -ge "$TOTAL_LINES" ]; then
+                        OFFSET=$((OFFSET % TOTAL_LINES))
+                    fi
+                    START_LINE=$((OFFSET + 1))
+                    tail -n +$START_LINE "$USERS_FILE" | head -n "$BOTS_NEEDING_ZAK" > "$TEMP_USERS_FILE"
+                    CURRENT_COUNT=$(wc -l < "$TEMP_USERS_FILE" | tr -d ' ')
+                    if [ "$CURRENT_COUNT" -lt "$BOTS_NEEDING_ZAK" ]; then
+                        REMAIN=$((BOTS_NEEDING_ZAK - CURRENT_COUNT))
+                        head -n "$REMAIN" "$USERS_FILE" >> "$TEMP_USERS_FILE"
+                    fi
+                else
+                    : > "$TEMP_USERS_FILE"
+                fi
 
                 # Use parallel generation
                 PARALLEL_JOBS=0

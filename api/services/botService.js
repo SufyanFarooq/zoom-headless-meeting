@@ -317,8 +317,11 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       }
     });
     
-    // useSingleZak: 1 token for all bots = faster (default true for Profile Pic)
-    const useSingleZak = meetingType === 'Profile Pic Member';
+    // useSingleZak: 1 token for all bots = faster, but same profile pic
+    // Default to false for Profile Pic Member so refill can use different ZAK tokens.
+    const useSingleZak = meetingType === 'Profile Pic Member'
+      ? ['1', 'true', 'yes'].includes(String(process.env.USE_SINGLE_ZAK || '').toLowerCase())
+      : false;
 
     const response = await axios.post(`${botServerUrl}/api/bots/create`, {
       meetingId,
