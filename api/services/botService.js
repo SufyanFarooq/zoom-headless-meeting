@@ -304,8 +304,8 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       throw new Error('Zoom API credentials not configured');
     }
 
-    // Ensure meeting has started before creating bots/compose files
-    await ensureMeetingStarted(meetingId);
+    // NOTE: Meeting-start check temporarily disabled (user request)
+    // await ensureMeetingStarted(meetingId);
     
     // Call bot server API to create bots
     let botServerUrl = process.env.BOT_SERVER_URL || server.server_url;
