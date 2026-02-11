@@ -180,6 +180,14 @@ AUDIO_DEVICE_BASE="${AUDIO_DEVICE_BASE:-$VIDEO_DEVICE_BASE}"
 AUDIO_CAMERA_LABEL_PREFIX="${AUDIO_CAMERA_LABEL_PREFIX:-BotCamAudio}"
 AUDIO_USE_CAMERA="${AUDIO_USE_CAMERA:-true}"
 AUDIO_DEVICE_COUNT="${AUDIO_DEVICE_COUNT:-0}"
+VIDEO_CPU_LIMIT="${VIDEO_CPU_LIMIT:-0.3}"
+AUDIO_CPU_LIMIT="${AUDIO_CPU_LIMIT:-0.1}"
+VIDEO_MEM_LIMIT="${VIDEO_MEM_LIMIT:-512M}"
+AUDIO_MEM_LIMIT="${AUDIO_MEM_LIMIT:-256M}"
+VIDEO_CPU_RESERVATION="${VIDEO_CPU_RESERVATION:-0.05}"
+AUDIO_CPU_RESERVATION="${AUDIO_CPU_RESERVATION:-0.02}"
+VIDEO_MEM_RESERVATION="${VIDEO_MEM_RESERVATION:-256M}"
+AUDIO_MEM_RESERVATION="${AUDIO_MEM_RESERVATION:-128M}"
 
 # Create services section for docker-compose
 create_compose_services() {
@@ -191,6 +199,21 @@ create_compose_services() {
     local container_name="zoom-bot-${MEETING_ID}-${REQUEST_ID}-${bot_num}"
     local service_name="bot-${MEETING_ID}-${REQUEST_ID}-${bot_num}"
     local display_name=$(get_display_name $bot_num)
+    local cpu_limit=""
+    local mem_limit=""
+    local cpu_res=""
+    local mem_res=""
+    if [ "$bot_type" = "video" ]; then
+        cpu_limit="$VIDEO_CPU_LIMIT"
+        mem_limit="$VIDEO_MEM_LIMIT"
+        cpu_res="$VIDEO_CPU_RESERVATION"
+        mem_res="$VIDEO_MEM_RESERVATION"
+    else
+        cpu_limit="$AUDIO_CPU_LIMIT"
+        mem_limit="$AUDIO_MEM_LIMIT"
+        cpu_res="$AUDIO_CPU_RESERVATION"
+        mem_res="$AUDIO_MEM_RESERVATION"
+    fi
 
     # Determine video/audio config - each arg must be a separate YAML list item for zoomsdk
     local camera_args=""
@@ -280,14 +303,17 @@ create_compose_services() {
 $camera_args
 $video_args
 ${device_block}
+    cpus: "${cpu_limit}"
+    mem_limit: ${mem_limit}
+    mem_reservation: ${mem_res}
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 512M
+          cpus: '${cpu_limit}'
+          memory: ${mem_limit}
         reservations:
-          cpus: '0.05'
-          memory: 256M
+          cpus: '${cpu_res}'
+          memory: ${mem_res}
     stop_grace_period: 2s
     restart: 'no'
 EOF
