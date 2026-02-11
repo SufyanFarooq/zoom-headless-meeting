@@ -71,11 +71,22 @@ echo ""
 echo "📈 Bot Capacity Calculation:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Current bot limits from compose file
-BOT_CPU_LIMIT=0.3
-BOT_MEMORY_LIMIT=256  # MB
-BOT_CPU_RESERVATION=0.05
-BOT_MEMORY_RESERVATION=128  # MB
+get_mb() {
+    local v="$1"
+    if [[ "$v" =~ [Mm]$ ]]; then
+        echo "${v%[Mm]}"
+    elif [[ "$v" =~ [Gg]$ ]]; then
+        local g="${v%[Gg]}"
+        awk "BEGIN {printf \"%.0f\", $g * 1024}"
+    else
+        echo "$v"
+    fi
+}
+
+BOT_CPU_LIMIT="${BOT_CPU_LIMIT:-${VIDEO_CPU_LIMIT:-0.3}}"
+BOT_MEMORY_LIMIT="$(get_mb "${BOT_MEMORY_LIMIT:-${VIDEO_MEM_LIMIT:-256M}}")"
+BOT_CPU_RESERVATION="${BOT_CPU_RESERVATION:-${VIDEO_CPU_RESERVATION:-0.05}}"
+BOT_MEMORY_RESERVATION="$(get_mb "${BOT_MEMORY_RESERVATION:-${VIDEO_MEM_RESERVATION:-128M}}")"
 
 echo "Current Bot Configuration:"
 echo "  CPU Limit: ${BOT_CPU_LIMIT} cores per bot"
