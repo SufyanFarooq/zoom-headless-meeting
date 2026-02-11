@@ -14,6 +14,22 @@ const PORT = process.env.BOT_SERVER_PORT || 3001;
 
 app.use(express.json());
 
+const inFlightJobs = new Map();
+
+function isTrue(val) {
+  if (val === true) return true;
+  if (val === false || val == null) return false;
+  return ['1', 'true', 'yes', 'y', 'on'].includes(String(val).toLowerCase());
+}
+
+function buildContainerIds(meetingId, requestId, totalBots) {
+  const ids = [];
+  for (let i = 1; i <= totalBots; i++) {
+    ids.push(`zoom-bot-${meetingId}-${requestId}-${i}`);
+  }
+  return ids;
+}
+
 /**
  * POST /api/bots/create - Create bots on this server
  */
@@ -127,6 +143,7 @@ app.post('/api/bots/create', async (req, res) => {
     }
     
     const totalBotsForLog = video + audio;
+    const totalBots = totalBotsForLog;
     const zakTimeEst = meetingType === 'Profile Pic Member' 
       ? Math.ceil(totalBotsForLog / 20) + 5  // ~20 parallel, +5s overhead
       : 0;
@@ -182,10 +199,42 @@ app.post('/api/bots/create', async (req, res) => {
     // Pass timeout as 9th arg (reliable in Docker/exec); env TIMEOUT_SECONDS may not propagate
     const videoFileEnv = (typeof videoFile === 'string' && videoFile.trim().length > 0) ? videoFile.trim() : '';
     const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && VIDEO_FILE="${videoFileEnv}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret} ${meetingId} ${uniqueRequestId} ${timeoutSecs}`;
+    const composeFileName = `compose-${meetingId}-${uniqueRequestId}-bots.yaml`;
+    const composeFilePath = path.join(projectDir, composeFileName);
+
+    const asyncMode = isTrue(req.body?.async) || isTrue(process.env.BOT_CREATE_ASYNC);
+    if (asyncMode) {
+      const containerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
+      res.status(202).json({
+        success: true,
+        message: `Bot creation started (${video} video, ${audio} audio)`,
+        requestId: uniqueRequestId,
+        containerIds,
+        videoCount: video,
+        audioCount: audio
+      });
+
+      inFlightJobs.set(uniqueRequestId, { meetingId, totalBots, startedAt: Date.now() });
+      const asyncCommand = `${command} && docker-compose -f "${composeFilePath}" up -d --force-recreate`;
+      exec(asyncCommand, {
+        cwd: projectDir,
+        env: { ...process.env, DOCKER_HOST: 'unix:///var/run/docker.sock' },
+        shell: '/bin/sh',
+        maxBuffer: 1024 * 1024
+      }, (err, stdout, stderr) => {
+        if (err) {
+          console.error('❌ Async bot creation failed:', err.message);
+          if (stderr) console.error('Async stderr:', stderr);
+        } else {
+          console.log('✅ Async bot creation finished');
+        }
+        inFlightJobs.delete(uniqueRequestId);
+      });
+      return;
+    }
     
     // Execute setup script
     // With parallel ZAK: ~20s for 150 bots. Container startup: ~2-3s per 10 containers
-    const totalBots = video + audio;
     const scriptTimeout = Math.max(180000, totalBots * 5000); // 5s per bot (parallel ZAK), min 3 min
     
     // Validate timeout is a valid number
@@ -235,7 +284,6 @@ app.post('/api/bots/create', async (req, res) => {
       console.error('   Stderr:', scriptError.stderr || '');
       
       // Check if compose file was generated despite error
-      const composeFilePath = path.join(projectDir, `compose-${meetingId}-${uniqueRequestId}-bots.yaml`);
       if (fs.existsSync(composeFilePath)) {
         console.log(`✅ Compose file was generated: ${composeFilePath}`);
         // Continue with container startup even if script had warnings
@@ -269,14 +317,13 @@ app.post('/api/bots/create', async (req, res) => {
     // Get container IDs from compose file
     // Use meeting ID + request ID for unique compose file name
     // This ensures each bot creation request gets its own compose file
-    const composeFileName = `compose-${meetingId}-${uniqueRequestId}-bots.yaml`;
+    // composeFileName/composeFilePath already set above
     console.log(`📋 Expected compose file: ${composeFileName}`);
     console.log(`📋 Meeting ID: ${meetingId}`);
     console.log(`📋 Request ID: ${uniqueRequestId}`);
     console.log(`📋 This ensures unique compose file even for same meeting`);
     
     // Verify compose file exists before trying to use it
-    const composeFilePath = path.join(projectDir, composeFileName);
     if (!fs.existsSync(composeFilePath)) {
       console.error(`❌ Compose file not found: ${composeFilePath}`);
       console.error(`   Checking for any compose files...`);
