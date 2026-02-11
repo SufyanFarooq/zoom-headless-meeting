@@ -4,6 +4,12 @@ const { query } = require('../db');
 const { validateMembersCount, updateUsage, decreaseUsage } = require('../services/usageService');
 const { createBots, stopBots } = require('../services/botService');
 
+function isTrue(val) {
+  if (val === true) return true;
+  if (val === false || val == null) return false;
+  return ['1', 'true', 'yes', 'y', 'on'].includes(String(val).toLowerCase());
+}
+
 /**
  * POST /api/meetings - Create a new meeting
  */
@@ -304,17 +310,33 @@ router.delete('/:id', async (req, res) => {
     } else {
       console.log(`[STOP] container_ids from DB:`, JSON.stringify(meeting.container_ids));
     }
-    try {
-      stopBotsResult = await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
-      console.log(`[STOP] stopBots succeeded`);
-    } catch (error) {
-      console.error(`[STOP] stopBots FAILED:`, {
-        message: error.message,
-        code: error.code,
-        status: error.response?.status,
-        data: error.response?.data,
-        configUrl: error.config?.url
-      });
+    const stopAsync = isTrue(req.query?.async) || isTrue(process.env.BOT_STOP_ASYNC);
+    if (stopAsync) {
+      stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id)
+        .then(() => console.log(`[STOP] stopBots succeeded (async)`))
+        .catch((error) => {
+          console.error(`[STOP] stopBots FAILED (async):`, {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            data: error.response?.data,
+            configUrl: error.config?.url
+          });
+        });
+      stopBotsResult = { async: true };
+    } else {
+      try {
+        stopBotsResult = await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
+        console.log(`[STOP] stopBots succeeded`);
+      } catch (error) {
+        console.error(`[STOP] stopBots FAILED:`, {
+          message: error.message,
+          code: error.code,
+          status: error.response?.status,
+          data: error.response?.data,
+          configUrl: error.config?.url
+        });
+      }
     }
     
     // Update meeting status (always do this, even if bot stopping failed)
@@ -329,8 +351,8 @@ router.delete('/:id', async (req, res) => {
     await decreaseUsage(meeting.members_count);
     
     // Return success even if some bots failed to stop
-    const message = stopBotsResult 
-      ? 'Meeting stopped successfully' 
+    const message = stopBotsResult
+      ? (stopAsync ? 'Stop requested. Bots are stopping in background.' : 'Meeting stopped successfully')
       : 'Meeting stopped (some bots may still be stopping in background)';
     
     res.json({
