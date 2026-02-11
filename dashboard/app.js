@@ -5,6 +5,15 @@ const API_BASE_URL = window.location.hostname === 'localhost' && window.location
     ? 'http://localhost:3000/api' 
     : '/api';
 
+function getErrorMessage(result, fallback) {
+    if (!result) return fallback || 'Request failed';
+    if (typeof result === 'string') return result;
+    if (result.message) return result.message;
+    if (result.error) return result.error;
+    if (Array.isArray(result.errors) && result.errors.length) return result.errors.join(', ');
+    return fallback || 'Request failed';
+}
+
 // Check authentication on page load
 window.addEventListener('DOMContentLoaded', () => {
     checkAuthentication();
@@ -357,7 +366,7 @@ async function handleFormSubmit(e) {
                 resetForm();
                 loadSchedules();
             } else {
-                alert(`Error: ${result.error || result.message}`);
+                alert(`Error: ${getErrorMessage(result)}`);
             }
         } else {
             // Create meeting immediately
@@ -380,7 +389,7 @@ async function handleFormSubmit(e) {
                 loadMeetings();
                 loadUsage();
             } else {
-                alert(`Error: ${result.error || (result.errors ? result.errors.join(', ') : result.message)}`);
+                alert(`Error: ${getErrorMessage(result)}`);
             }
         }
     } catch (error) {
@@ -529,7 +538,7 @@ async function refillMeeting(meetingId) {
             loadMeetings();
             loadUsage();
         } else {
-            alert(`Error: ${result.error || result.message}`);
+            alert(`Error: ${getErrorMessage(result)}`);
         }
     } catch (error) {
         console.error('Error refilling meeting:', error);
@@ -593,7 +602,7 @@ async function stopMeeting(meetingId) {
                 loadUsage();
             }, 1000);
         } else {
-            alert(`Error: ${result.error || result.message}`);
+            alert(`Error: ${getErrorMessage(result)}`);
             // Restore button state on error
             if (stopButton) {
                 stopButton.disabled = originalDisabled;
@@ -646,7 +655,7 @@ async function cancelSchedule(scheduleId) {
             alert('Scheduled task cancelled!');
             loadSchedules();
         } else {
-            alert(`Error: ${result.error || result.message}`);
+            alert(`Error: ${getErrorMessage(result)}`);
         }
     } catch (error) {
         console.error('Error cancelling schedule:', error);
@@ -711,5 +720,3 @@ async function loadNamesFiles() {
         console.error('Error loading names:', e);
     }
 }
-
-
