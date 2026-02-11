@@ -105,6 +105,12 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating meeting:', error);
+    if (error.code === 'MEETING_NOT_STARTED') {
+      return res.status(400).json({
+        error: 'Meeting not started',
+        message: error.message
+      });
+    }
     res.status(500).json({ 
       error: 'Failed to create meeting',
       message: error.message 
@@ -225,6 +231,12 @@ router.post('/:id/refill', async (req, res) => {
     });
   } catch (error) {
     console.error('Error refilling meeting:', error);
+    if (error.code === 'MEETING_NOT_STARTED') {
+      return res.status(400).json({
+        error: 'Meeting not started',
+        message: error.message
+      });
+    }
     res.status(500).json({
       error: 'Failed to refill meeting',
       message: error.message
