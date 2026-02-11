@@ -85,7 +85,7 @@ async function ensureMeetingStarted(meetingId) {
     const token = await getZoomAccessToken();
     const status = await fetchMeetingStatus(meetingId, token);
     if (status !== 'started') {
-      const msg = status ? `Meeting not started (status: ${status})` : 'Meeting not started';
+      const msg = status ? `Meeting hasn’t started yet (status: ${status}). Please start the meeting and try again.` : 'Meeting hasn’t started yet. Please start the meeting and try again.';
       const err = new Error(msg);
       err.code = 'MEETING_NOT_STARTED';
       throw err;
@@ -94,7 +94,7 @@ async function ensureMeetingStarted(meetingId) {
   } catch (error) {
     if (error?.code === 'MEETING_NOT_STARTED') throw error;
     if (error.response?.status === 404) {
-      const err = new Error('Meeting not started or not found');
+      const err = new Error('Meeting hasn’t started yet or could not be found. Please verify the meeting ID and try again.');
       err.code = 'MEETING_NOT_STARTED';
       throw err;
     }
@@ -104,7 +104,7 @@ async function ensureMeetingStarted(meetingId) {
       const token = await getZoomAccessToken();
       const status = await fetchMeetingStatus(meetingId, token);
       if (status !== 'started') {
-        const msg = status ? `Meeting not started (status: ${status})` : 'Meeting not started';
+        const msg = status ? `Meeting hasn’t started yet (status: ${status}). Please start the meeting and try again.` : 'Meeting hasn’t started yet. Please start the meeting and try again.';
         const err = new Error(msg);
         err.code = 'MEETING_NOT_STARTED';
         throw err;
