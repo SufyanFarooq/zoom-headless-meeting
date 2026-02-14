@@ -1,4 +1,5 @@
 #include "Config.h"
+#include <cstdlib>
 
 Config::Config() :
         m_app(m_name, "zoomsdk"),
@@ -57,26 +58,31 @@ int Config::read(int ac, char **av) {
     if (!m_joinUrl.empty())
         parseUrl(m_joinUrl);
 
-    // Debug: Check what was parsed BEFORE clearing
-    if (m_rawRecordAudioCmd->parsed()) {
-        cerr << "RawAudio subcommand activated" << endl;
-        cerr << "Video input file BEFORE clearing: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
-    }
-    if (m_rawRecordVideoCmd->parsed()) {
-        cerr << "RawVideo subcommand activated" << endl;
-        cerr << "Video input file: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
-    } else {
-        cerr << "RawVideo subcommand NOT activated" << endl;
+    const bool debugConfig = std::getenv("BOT_VERBOSE_CONFIG") != nullptr;
+    if (debugConfig) {
+        // Debug: Check what was parsed BEFORE clearing
+        if (m_rawRecordAudioCmd->parsed()) {
+            cerr << "RawAudio subcommand activated" << endl;
+            cerr << "Video input file BEFORE clearing: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
+        }
+        if (m_rawRecordVideoCmd->parsed()) {
+            cerr << "RawVideo subcommand activated" << endl;
+            cerr << "Video input file: " << (m_videoInputFile.empty() ? "EMPTY" : m_videoInputFile) << endl;
+        } else {
+            cerr << "RawVideo subcommand NOT activated" << endl;
+        }
     }
 
     // If RawAudio only (no RawVideo), clear video input - audio-only without video icon path
     // If both RawAudio + RawVideo: enable icon-only mode (test pattern), no explicit input required
     if (m_rawRecordAudioCmd->parsed() && !m_rawRecordVideoCmd->parsed()) {
-        cerr << "Clearing video input file for audio-only bot (no RawVideo)..." << endl;
+        if (debugConfig)
+            cerr << "Clearing video input file for audio-only bot (no RawVideo)..." << endl;
         m_videoInputFile.clear();
         m_videoFile.clear();
     } else if (m_rawRecordAudioCmd->parsed() && m_rawRecordVideoCmd->parsed() && m_videoInputFile.empty()) {
-        cerr << "Audio+Video icon mode: RawAudio + RawVideo (test pattern for Desktop icon)" << endl;
+        if (debugConfig)
+            cerr << "Audio+Video icon mode: RawAudio + RawVideo (test pattern for Desktop icon)" << endl;
         m_videoIconOnly = true;
     }
 

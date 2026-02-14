@@ -385,98 +385,66 @@ run() {
     # Include all possible OpenCV library locations
     export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/lib:${LD_LIBRARY_PATH}
     
-    # Find and add OpenCV library path - check multiple locations
+    # Resolve OpenCV dir quickly (avoid scanning hundreds of libraries per container start).
     OPENCV_LIB_DIR=""
-    
-    # Method 1: Find any libopencv_*.so* file and get its directory
     for search_dir in /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib; do
-        if [ -d "$search_dir" ]; then
-            OPENCV_LIB=$(find "$search_dir" -name "libopencv_*.so*" -type f 2>/dev/null | head -1)
-            if [ -n "$OPENCV_LIB" ]; then
-                OPENCV_LIB_DIR=$(dirname "$OPENCV_LIB")
-                break
-            fi
+        if [ -e "$search_dir/libopencv_core.so" ] || ls "$search_dir"/libopencv_core.so.* >/dev/null 2>&1; then
+            OPENCV_LIB_DIR="$search_dir"
+            break
         fi
     done
-    
-    # Method 2: Check for specific version (4.06 or 4.5 or 4.8)
-    if [ -z "$OPENCV_LIB_DIR" ]; then
-        for version in 406 4.5 4.8 4.6 4.0; do
-            for search_dir in /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib; do
-                # Check for both version formats: .406 and .4.5
-                if [ -f "$search_dir/libopencv_videoio.so.$version" ] || [ -f "$search_dir/libopencv_core.so.$version" ]; then
-                    OPENCV_LIB_DIR="$search_dir"
-                    break 2
-                fi
-            done
-        done
-    fi
-    
-    # Method 3: Use pkg-config to find OpenCV libdir
-    if [ -z "$OPENCV_LIB_DIR" ] && command -v pkg-config > /dev/null 2>&1; then
+    if [ -z "$OPENCV_LIB_DIR" ] && command -v pkg-config >/dev/null 2>&1; then
         OPENCV_LIB_DIR=$(pkg-config --variable=libdir opencv4 2>/dev/null || pkg-config --variable=libdir opencv 2>/dev/null)
     fi
-    
-    # Add found directory to LD_LIBRARY_PATH
     if [ -n "$OPENCV_LIB_DIR" ] && [ -d "$OPENCV_LIB_DIR" ]; then
         export LD_LIBRARY_PATH="${OPENCV_LIB_DIR}:${LD_LIBRARY_PATH}"
-        echo "Found OpenCV libraries in: $OPENCV_LIB_DIR" >&2
-        
-        # Fix version mismatch: Create symlinks for common version mismatches
-        # The binary may expect specific versions (.406, .4.5) but system has different versions (4.6.x, 4.8.x, etc.)
-        # Create symlinks to bridge these mismatches for any OpenCV 4.x version
-        # Find ALL OpenCV libraries (not just a hardcoded list) to handle any dependencies
-        echo "Checking OpenCV library versions..." >&2
-        
-        # Get list of all OpenCV libraries found in the directory
-        ALL_OPENCV_LIBS=$(find "$OPENCV_LIB_DIR" -name "libopencv_*.so.*" -type f 2>/dev/null | sed 's|.*/libopencv_||' | sed 's|\.so\..*||' | sort -u)
-        
-        # Also include common libraries that might be needed
-        COMMON_LIBS="videoio core imgproc imgcodecs objdetect calib3d features2d flann highgui ml photo stitching video"
-        
-        # Combine and deduplicate
-        ALL_LIBS=$(echo "$ALL_OPENCV_LIBS $COMMON_LIBS" | tr ' ' '\n' | sort -u | tr '\n' ' ')
-        
-        for lib_name in $ALL_LIBS; do
-            # Find all versions of this library and get the highest (most recent) version
-            # Use sort -rV (reverse version sort) to get highest version first
-            ACTUAL_VERSION=$(find "$OPENCV_LIB_DIR" -name "libopencv_${lib_name}.so.*" -type f 2>/dev/null | sed "s|.*\.so\.||" | sort -rV | head -1)
-            
-            if [ -n "$ACTUAL_VERSION" ]; then
-                echo "Found libopencv_${lib_name}.so.${ACTUAL_VERSION}" >&2
-                
-                # Extract major.minor version (e.g., "4.6" from "4.6.1" or "4.8" from "4.8.0")
-                # This helps identify OpenCV 4.x versions generically
-                MAJOR_MINOR=$(echo "$ACTUAL_VERSION" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
-                MAJOR_ONLY=$(echo "$ACTUAL_VERSION" | sed -E 's/^([0-9]+).*/\1/')
-                
-                # Create symlinks for common required versions that binaries might expect
-                # These are the versions searched in Method 2 (line 202): 406, 4.5, 4.8, 4.6, 4.0
-                REQUIRED_VERSIONS="406 4.5 4.8 4.6 4.0"
-                
-                # If we have any OpenCV 4.x version, create symlinks to common required versions
-                if [ "$MAJOR_ONLY" = "4" ]; then
-                    for req_version in $REQUIRED_VERSIONS; do
-                        # Skip if the required version is the same as actual (or very close)
-                        if [ "$req_version" != "$ACTUAL_VERSION" ] && [ "$req_version" != "$MAJOR_MINOR" ]; then
-                            if [ ! -f "$OPENCV_LIB_DIR/libopencv_${lib_name}.so.${req_version}" ]; then
-                                echo "Creating symlink: libopencv_${lib_name}.so.${req_version} -> libopencv_${lib_name}.so.${ACTUAL_VERSION}" >&2
-                                ln -sf "libopencv_${lib_name}.so.${ACTUAL_VERSION}" "$OPENCV_LIB_DIR/libopencv_${lib_name}.so.${req_version}" 2>/dev/null || true
-                            fi
-                        fi
-                    done
+    fi
+
+    ensure_opencv_compat_links() {
+        local exe="./$BUILD/zoomsdk"
+        if [ ! -x "$exe" ] || [ -z "$OPENCV_LIB_DIR" ] || [ ! -d "$OPENCV_LIB_DIR" ]; then
+            return 0
+        fi
+
+        local required_libs
+        required_libs=$(ldd "$exe" 2>/dev/null | awk '/libopencv_/ {print $1}' | sort -u)
+        if [ -z "$required_libs" ]; then
+            return 0
+        fi
+
+        local lock_fd_opened=false
+        if command -v flock >/dev/null 2>&1; then
+            exec 8>/tmp/opencv-link.lock
+            flock -w 5 8 || true
+            lock_fd_opened=true
+        fi
+
+        local created=0
+        for req_lib in $required_libs; do
+            if [ -e "$OPENCV_LIB_DIR/$req_lib" ] || [ -e "/usr/lib/$req_lib" ] || [ -e "/usr/lib/x86_64-linux-gnu/$req_lib" ] || [ -e "/usr/local/lib/$req_lib" ]; then
+                continue
+            fi
+            local lib_base="${req_lib%%.so*}"
+            local candidate
+            candidate=$(find "$OPENCV_LIB_DIR" -maxdepth 1 -type f -name "${lib_base}.so.*" 2>/dev/null | sort -rV | head -1)
+            if [ -n "$candidate" ]; then
+                if ln -sf "$(basename "$candidate")" "$OPENCV_LIB_DIR/$req_lib" 2>/dev/null; then
+                    created=$((created + 1))
                 fi
             fi
         done
-    else
-        echo "Warning: Could not find OpenCV library directory, using default paths" >&2
-        # Try to find any opencv library and show what we found
-        echo "Searching for OpenCV libraries..." >&2
-        find /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib -name "*opencv*" -type f 2>/dev/null | head -5 >&2 || true
-    fi
-    
-    # Update library cache
-    ldconfig 2>/dev/null || true
+
+        if [ "$created" -gt 0 ]; then
+            echo "Created $created OpenCV compatibility symlink(s)" >&2
+            ldconfig 2>/dev/null || true
+        fi
+
+        if [ "$lock_fd_opened" = true ]; then
+            flock -u 8 || true
+            exec 8>&-
+        fi
+    }
+    ensure_opencv_compat_links
     
     # Run - keep stderr for errors (redirect to file for debugging)
     # Log errors to file for debugging
@@ -498,8 +466,8 @@ run() {
     max_retries=5
     retry_count=0
     
-    # Debug: Log command arguments to help diagnose ZAK token issues
-    if echo "$@" | grep -q "\--zak"; then
+    # Debug: Log command arguments only when explicitly enabled
+    if [ "${ENTRY_DEBUG_ARGS:-false}" = "true" ] && echo "$@" | grep -q "\--zak"; then
         echo "🔍 DEBUG: Command arguments (showing --zak occurrences):" >&2
         zak_count=0
         for arg in "$@"; do
