@@ -161,17 +161,22 @@ async function refreshServerLoad(serverId) {
     const serverUrl = await getBotServerUrl(serverId);
     const { data } = await axios.get(`${serverUrl}/api/bots/capacity`, { timeout: 5000 });
     const currentLoad = Number.parseInt(data?.currentLoad, 10);
-    if (!Number.isFinite(currentLoad)) {
-      console.warn(`[refreshServerLoad] Invalid currentLoad from ${serverUrl}:`, data?.currentLoad);
+    const schedulerLoad = Number.parseInt(data?.schedulerLoad, 10);
+    const effectiveLoad = Number.isFinite(schedulerLoad) ? schedulerLoad : currentLoad;
+    if (!Number.isFinite(effectiveLoad)) {
+      console.warn(`[refreshServerLoad] Invalid load from ${serverUrl}:`, {
+        currentLoad: data?.currentLoad,
+        schedulerLoad: data?.schedulerLoad
+      });
       return null;
     }
     await query(
       `UPDATE bot_servers 
        SET current_load = $1, last_heartbeat = NOW()
        WHERE id = $2`,
-      [currentLoad, serverId]
+      [effectiveLoad, serverId]
     );
-    return currentLoad;
+    return effectiveLoad;
   } catch (error) {
     console.error(`[refreshServerLoad] Failed for server ${serverId}:`, error.message);
     return null;

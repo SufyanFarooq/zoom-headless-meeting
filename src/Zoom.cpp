@@ -552,9 +552,9 @@ void Zoom::ensureVideoCapabilityForDesktop() {
     thread([&, videoCtl]() {
         if (m_cameraSelected) {
             // Give camera a moment to warm up
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(800));
         } else {
-            int maxWait = 10;
+            int maxWait = 6;
             bool isReady = false;
             for (int j = 0; j < maxWait; j++) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -578,7 +578,7 @@ void Zoom::ensureVideoCapabilityForDesktop() {
         }
 
         // Keep unmuted for a short time so desktop/mobile registers capability
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         // Mute with spaced retries to avoid SDKERR_TOO_FREQUENT_CALL
         SDKError muteErr;
@@ -586,10 +586,10 @@ void Zoom::ensureVideoCapabilityForDesktop() {
         do {
             muteErr = videoCtl->MuteVideo();
             if (hasError(muteErr, "mute")) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+                std::this_thread::sleep_for(std::chrono::milliseconds(800));
                 muteRetries++;
             }
-        } while (hasError(muteErr) && muteRetries < 3);
+        } while (hasError(muteErr) && muteRetries < 2);
 
         if (!hasError(muteErr)) {
             Log::success("Video muted - disabled icon should appear");

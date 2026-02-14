@@ -92,10 +92,63 @@ build() {
   
   # Log build start
   echo "Starting build process..." >&2
+  mkdir -p "$BUILD"
+
+  # Use a shared lock so only one container does build/cmake checks at a time.
+  # Other containers wait briefly, then reuse the cached binary.
+  local BUILD_STAMP="$BUILD/.build-ready"
+  local BUILD_LOCK="$BUILD/.build.lock"
+  local CURRENT_PLATFORM=$(uname -m)-$(uname -s)
+  local BOT_BUILD_TYPE="${BOT_BUILD_TYPE:-Release}"
+  local lock_enabled=false
+
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"$BUILD_LOCK"
+    if ! flock -w "${BUILD_LOCK_WAIT_SECONDS:-300}" 9; then
+      echo "ERROR: Timed out waiting for build lock ($BUILD_LOCK)" >&2
+      exit 1
+    fi
+    lock_enabled=true
+  fi
+
+  # Fast path for high-concurrency starts: if a recent compatible build exists, skip checks.
+  local CACHE_OK=true
+  if [[ ! -f "$BUILD/zoomsdk" || ! -f "$BUILD_STAMP" ]]; then
+    CACHE_OK=false
+  fi
+
+  if [[ "$CACHE_OK" == "true" && -f "$BUILD/.platform" ]]; then
+    CACHED_PLATFORM=$(cat "$BUILD/.platform" 2>/dev/null || echo "")
+    if [[ "$CACHED_PLATFORM" != "$CURRENT_PLATFORM" ]]; then
+      CACHE_OK=false
+    fi
+  fi
+
+  if [[ "$CACHE_OK" == "true" ]] && ldd "$BUILD/zoomsdk" 2>&1 | grep -q "version.*not found"; then
+    CACHE_OK=false
+  fi
+
+  if [[ "$CACHE_OK" == "true" ]]; then
+    for src_path in src CMakeLists.txt CMakePresets.json; do
+      if [ -e "$src_path" ] && find "$src_path" -type f -newer "$BUILD_STAMP" 2>/dev/null | grep -q .; then
+        CACHE_OK=false
+        break
+      fi
+    done
+  fi
+
+  if [[ "$CACHE_OK" == "true" ]]; then
+    echo "Build cache ready, skipping build checks..." >&2
+    if [[ "$lock_enabled" == "true" ]]; then
+      flock -u 9 || true
+      exec 9>&-
+    fi
+    setup-pulseaudio
+    return 0
+  fi
 
   # CRITICAL: Detect cross-platform build cache (e.g. Mac .o files in Linux container)
   # Shared volume /tmp/build-cache may contain artifacts from different host
-  CURRENT_PLATFORM=$(uname -m)-$(uname -s)
   if [[ -d "$BUILD" ]] && [[ -f "$BUILD/.platform" ]]; then
     CACHED_PLATFORM=$(cat "$BUILD/.platform" 2>/dev/null || echo "")
     if [[ "$CACHED_PLATFORM" != "$CURRENT_PLATFORM" ]]; then
@@ -118,7 +171,7 @@ build() {
     # Check if CMakeCache.txt exists and verify if it's corrupted
     if [[ -f "$BUILD/CMakeCache.txt" ]]; then
       # Try to verify cache by running cmake
-      if ! cmake -B "$BUILD" -S . --preset debug > /dev/null 2>&1; then
+      if ! cmake -B "$BUILD" -S . --preset debug -DCMAKE_BUILD_TYPE="$BOT_BUILD_TYPE" > /dev/null 2>&1; then
         echo "CMake cache corrupted - cleaning build directory..." >&2
         rm -rf "$BUILD"/* 2>/dev/null
       else
@@ -139,14 +192,14 @@ build() {
     
     # Try preset first, but if it fails due to vcpkg, try without preset
     # Use PIPESTATUS to capture cmake's exit code, not tee's
-    cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/build-logs/cmake.log
+    cmake -B "$BUILD" -S . --preset debug -DCMAKE_BUILD_TYPE="$BOT_BUILD_TYPE" 2>&1 | tee /tmp/build-logs/cmake.log
     CMAKE_EXIT_CODE=${PIPESTATUS[0]}
     
     if [ $CMAKE_EXIT_CODE -ne 0 ]; then
       echo "CMake with preset failed, trying without vcpkg toolchain..." >&2
       # Configure without vcpkg toolchain (system packages only)
       cmake -B "$BUILD" -S . \
-        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_BUILD_TYPE="$BOT_BUILD_TYPE" \
         -DCMAKE_CXX_STANDARD=20 \
         -DCMAKE_CXX_STANDARD_REQUIRED=ON \
         2>&1 | tee /tmp/build-logs/cmake.log
@@ -172,9 +225,9 @@ build() {
         # Force rebuild by removing executable and build artifacts
         rm -f "$BUILD/zoomsdk" "$BUILD/CMakeCache.txt" 2>/dev/null || true
         # Re-run cmake configuration
-        cmake -B "$BUILD" -S . --preset debug 2>&1 | tee /tmp/build-logs/cmake.log || {
+        cmake -B "$BUILD" -S . --preset debug -DCMAKE_BUILD_TYPE="$BOT_BUILD_TYPE" 2>&1 | tee /tmp/build-logs/cmake.log || {
           cmake -B "$BUILD" -S . \
-            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_BUILD_TYPE="$BOT_BUILD_TYPE" \
             -DCMAKE_CXX_STANDARD=20 \
             -DCMAKE_CXX_STANDARD_REQUIRED=ON \
             2>&1 | tee /tmp/build-logs/cmake.log
@@ -226,7 +279,7 @@ build() {
       if [ -f /tmp/build-logs/build.log ] && grep -q "file format not recognized\|file not recognized" /tmp/build-logs/build.log 2>/dev/null; then
         echo "Cross-platform build cache detected - cleaning and retrying..." >&2
         rm -rf "$BUILD"/* "$BUILD"/.[!.]* 2>/dev/null || rm -rf "$BUILD"/* 2>/dev/null
-        cmake -B "$BUILD" -S . --preset debug 2>/dev/null || cmake -B "$BUILD" -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_STANDARD=20 2>/dev/null
+        cmake -B "$BUILD" -S . --preset debug -DCMAKE_BUILD_TYPE="$BOT_BUILD_TYPE" 2>/dev/null || cmake -B "$BUILD" -S . -DCMAKE_BUILD_TYPE="$BOT_BUILD_TYPE" -DCMAKE_CXX_STANDARD=20 2>/dev/null
         echo "$CURRENT_PLATFORM" > "$BUILD/.platform" 2>/dev/null || true
         cmake --build "$BUILD" -j1 2>&1 | tee /tmp/build-logs/build.log
         BUILD_EXIT=${PIPESTATUS[0]}
@@ -261,6 +314,14 @@ build() {
     echo "Build directory contents:" >&2
     ls -la "$BUILD" >&2 || echo "Build directory does not exist" >&2
     exit 1
+  fi
+
+  # Mark cache as ready for other concurrently starting containers.
+  touch "$BUILD_STAMP"
+
+  if [[ "$lock_enabled" == "true" ]]; then
+    flock -u 9 || true
+    exec 9>&-
   fi
   
   echo "Build successful - executable found at $BUILD/zoomsdk" >&2
@@ -453,4 +514,3 @@ run() {
 build && run "$@";
 
 exit $?
-

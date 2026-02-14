@@ -3,6 +3,7 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 // Load .env for bot-server when running locally (docker-compose already injects env)
 require('dotenv').config();
@@ -28,6 +29,46 @@ function buildContainerIds(meetingId, requestId, totalBots) {
     ids.push(`zoom-bot-${meetingId}-${requestId}-${i}`);
   }
   return ids;
+}
+
+function toNumber(value, fallback = null) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function readCpuSample() {
+  try {
+    const stat = fs.readFileSync('/proc/stat', 'utf8');
+    const firstLine = stat.split('\n')[0];
+    if (!firstLine || !firstLine.startsWith('cpu ')) return null;
+    const fields = firstLine.trim().split(/\s+/).slice(1).map((v) => Number.parseInt(v, 10));
+    if (!fields.length || fields.some((v) => !Number.isFinite(v))) return null;
+    const idle = fields[3] + (fields[4] || 0); // idle + iowait
+    const total = fields.reduce((sum, v) => sum + v, 0);
+    return { idle, total };
+  } catch {
+    return null;
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function getCpuUsagePercent(sampleMs = 250) {
+  const start = readCpuSample();
+  if (!start) return null;
+  await delay(sampleMs);
+  const end = readCpuSample();
+  if (!end) return null;
+
+  const totalDelta = end.total - start.total;
+  const idleDelta = end.idle - start.idle;
+  if (totalDelta <= 0) return null;
+
+  const usage = ((totalDelta - idleDelta) / totalDelta) * 100;
+  if (!Number.isFinite(usage)) return null;
+  return Math.max(0, Math.min(100, usage));
 }
 
 /**
@@ -818,14 +859,48 @@ app.get('/api/bots/capacity', async (req, res) => {
       { cwd: projectDir, shell: '/bin/sh' }
     );
     
-    const currentLoad = parseInt(runningCount.trim()) || 0;
-    const capacity = parseInt(process.env.SERVER_CAPACITY || 100);
+    const currentLoad = parseInt(runningCount.trim(), 10) || 0;
+    const capacity = parseInt(process.env.SERVER_CAPACITY || 100, 10);
+    const cpuUsagePercent = await getCpuUsagePercent(250);
+    const cpuCores = os.cpus()?.length || 0;
+    const cpuTargetPercent = Math.max(50, Math.min(95, toNumber(process.env.CAPACITY_TARGET_CPU_PERCENT, 85)));
+
+    let cpuBasedCapacity = null;
+    if (Number.isFinite(cpuUsagePercent)) {
+      if (currentLoad > 0) {
+        const avgCpuPerBotPercent = cpuUsagePercent / currentLoad;
+        if (avgCpuPerBotPercent > 0) {
+          cpuBasedCapacity = Math.floor(cpuTargetPercent / avgCpuPerBotPercent);
+        }
+      } else {
+        const perBotCpuCores =
+          toNumber(process.env.CAPACITY_CPU_PER_BOT, null) ??
+          toNumber(process.env.AUDIO_CPU_LIMIT, null) ??
+          toNumber(process.env.VIDEO_CPU_LIMIT, 0.1);
+        if (cpuCores > 0 && perBotCpuCores > 0) {
+          cpuBasedCapacity = Math.floor((cpuCores * (cpuTargetPercent / 100)) / perBotCpuCores);
+        }
+      }
+    }
+
+    let effectiveCapacity = capacity;
+    if (Number.isFinite(cpuBasedCapacity) && cpuBasedCapacity > 0) {
+      effectiveCapacity = Math.min(capacity, Math.max(currentLoad, cpuBasedCapacity));
+    }
+
+    const available = Math.max(0, effectiveCapacity - currentLoad);
+    const schedulerLoad = Math.min(capacity, currentLoad + Math.max(0, capacity - effectiveCapacity));
     
     res.json({
       success: true,
       capacity,
       currentLoad,
-      available: capacity - currentLoad
+      schedulerLoad,
+      effectiveCapacity,
+      available,
+      cpuUsagePercent,
+      cpuTargetPercent,
+      cpuCores
     });
   } catch (error) {
     console.error('Error getting capacity:', error);

@@ -105,59 +105,40 @@ class Zoom : public Singleton<Zoom> {
 
         // Aggressively mute audio on join - prevent any audio join
         if (audioCtl) {
-            // Try to mute immediately, then retry if needed
-            function<void(int retryCount)> tryMute = [&, audioCtl](int retryCount) {
+            auto resolveSelfUserId = [&]() -> unsigned int {
                 auto* participantCtl = m_meetingService->GetMeetingParticipantsController();
-                unsigned int myUserID = 0;
-                
-                if (participantCtl) {
-                    auto participantsList = participantCtl->GetParticipantsList();
-                    if (participantsList && participantsList->GetCount() > 0) {
-                        // Get our own user ID (usually first in list when we join)
-                        // Try first participant as it's usually ourselves
-                        myUserID = participantsList->GetItem(0);
-                        Log::info("Attempting to mute user ID: " + to_string(myUserID));
-                    }
-                }
-                
+                if (!participantCtl) return 0;
+                auto participantsList = participantCtl->GetParticipantsList();
+                if (!participantsList || participantsList->GetCount() <= 0) return 0;
+                return participantsList->GetItem(0);
+            };
+
+            bool mutedOnJoin = false;
+            for (int attempt = 0; attempt < 6; attempt++) {
+                const unsigned int myUserID = resolveSelfUserId();
                 if (myUserID > 0) {
                     SDKError muteErr = audioCtl->MuteAudio(myUserID, false);
                     if (!hasError(muteErr)) {
+                        mutedOnJoin = true;
                         Log::success("Audio muted on join (user ID: " + to_string(myUserID) + ")");
-                    } else {
-                        Log::error("Failed to mute audio on join: " + to_string(muteErr));
-                        // Retry after delay if failed
-                        if (retryCount < 5) {
-                            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                            tryMute(retryCount + 1);
-                        }
-                    }
-                } else {
-                    // Retry after delay if user ID not available
-                    if (retryCount < 10) {
-                        Log::info("User ID not available yet, retrying mute (attempt " + to_string(retryCount + 1) + ")");
-                        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                        tryMute(retryCount + 1);
-                    } else {
-                        Log::error("Could not get user ID for muting after 10 attempts - bot may be unmuted");
+                        break;
                     }
                 }
-            };
-            
-            // Start muting attempt immediately
-            tryMute(0);
-            
-        // Periodic mute check - audio + video (like audio, keep video muted)
-            thread([&, audioCtl]() {
-                for (int i = 0; i < 20; i++) {
-                    std::this_thread::sleep_for(std::chrono::seconds(2));
-                    auto* participantCtl = m_meetingService->GetMeetingParticipantsController();
-                    if (participantCtl) {
-                        auto participantsList = participantCtl->GetParticipantsList();
-                        if (participantsList && participantsList->GetCount() > 0) {
-                            unsigned int uid = participantsList->GetItem(0);
-                            audioCtl->MuteAudio(uid, false);
-                            // Avoid spamming MuteVideo calls (can trigger SDKERR_TOO_FREQUENT_CALL)
+                std::this_thread::sleep_for(std::chrono::milliseconds(400));
+            }
+
+            // Keep a short background enforcement window (avoids long-running mute loops per bot).
+            if (!mutedOnJoin) {
+                Log::info("Initial mute not confirmed; applying short background mute enforcement");
+            }
+            thread([&, audioCtl, resolveSelfUserId]() {
+                for (int i = 0; i < 4; i++) {
+                    std::this_thread::sleep_for(std::chrono::seconds(3));
+                    const unsigned int uid = resolveSelfUserId();
+                    if (uid > 0) {
+                        SDKError err = audioCtl->MuteAudio(uid, false);
+                        if (!hasError(err)) {
+                            break;
                         }
                     }
                 }

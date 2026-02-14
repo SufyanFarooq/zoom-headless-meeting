@@ -220,7 +220,7 @@ void ZoomSDKVideoSource::startSending(const string& videoFilePath) {
         // Test pattern defaults
         if (m_width == 0) m_width = 640;
         if (m_height == 0) m_height = 360;
-        m_testFps = 10.0;
+        m_testFps = 2.0;
         Log::info("Test pattern mode: sending synthetic frames at " + to_string((int)m_width) + "x" + to_string((int)m_height) + " @ " + to_string(m_testFps) + " FPS");
     }
     
@@ -262,8 +262,6 @@ void ZoomSDKVideoSource::sendFramesLoop() {
     // Wait a bit for video sender to fully initialize
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     
-    Mat frame;
-    
     // Get FPS: from file or test pattern
     double nativeFps = m_useTestPattern ? m_testFps : m_videoCapture.get(CAP_PROP_FPS);
     if (nativeFps <= 0) nativeFps = 10.0;
@@ -298,16 +296,39 @@ void ZoomSDKVideoSource::sendFramesLoop() {
         }
     }
     
+    // In icon/test-pattern mode, prebuild one static I420 frame and reuse it.
+    // This avoids expensive OpenCV conversions per frame.
+    std::vector<char> testPatternI420;
+    unsigned int testWidth = m_width;
+    unsigned int testHeight = m_height;
+    int testFrameLength = 0;
+    if (m_useTestPattern) {
+        if (testWidth == 0) testWidth = 640;
+        if (testHeight == 0) testHeight = 360;
+        testFrameLength = testWidth * testHeight * 3 / 2;
+        testPatternI420.resize(testFrameLength, static_cast<char>(128));
+        const int yPlaneSize = testWidth * testHeight;
+        std::fill_n(testPatternI420.begin(), yPlaneSize, static_cast<char>(16));
+    }
+
     int consecutiveErrors = 0;
     const int maxConsecutiveErrors = 10;
-    
-    int patternIndex = 0;
-    
+    Mat frame;
+
     while (!m_shouldStop.load() && m_videoSender && (m_useTestPattern || m_videoCapture.isOpened()) && m_isReady) {
         auto start = chrono::steady_clock::now();
-        
+
+        unsigned int sendWidth = 0;
+        unsigned int sendHeight = 0;
+        int frameLength = 0;
+        char* frameBuffer = nullptr;
+        std::vector<char> i420Buffer;
+
         if (m_useTestPattern) {
-            frame = makeTestPatternFrame(patternIndex++, m_width, m_height);
+            sendWidth = testWidth;
+            sendHeight = testHeight;
+            frameLength = testFrameLength;
+            frameBuffer = testPatternI420.data();
         } else {
             if (!m_videoCapture.read(frame)) {
                 // Video ended, loop from beginning
@@ -318,54 +339,52 @@ void ZoomSDKVideoSource::sendFramesLoop() {
             if (frame.empty()) {
                 continue;
             }
-        }
-        
-        // NO RESIZING - Send frames exactly as-is from video file
-        // User will re-encode videos to match SDK preferred dimensions
-        // This reduces CPU load by avoiding runtime resizing
-        unsigned int sendWidth = frame.cols;
-        unsigned int sendHeight = frame.rows;
-        
-        // Log if SDK wants different dimensions (for user to know what to encode videos to)
-        if (m_width > 0 && m_height > 0 && 
-            (m_width != (unsigned int)frame.cols || m_height != (unsigned int)frame.rows)) {
-            // Log once per 100 frames to avoid spam
-            static int logCounter = 0;
-            if (logCounter % 100 == 0) {
-                Log::info("ℹ️  Video file: " + to_string(frame.cols) + "x" + to_string(frame.rows) + 
-                         ", SDK prefers: " + to_string(m_width) + "x" + to_string(m_height) + 
-                         " - Consider re-encoding video to match SDK dimensions");
+
+            // NO RESIZING - Send frames exactly as-is from video file
+            // User will re-encode videos to match SDK preferred dimensions
+            // This reduces CPU load by avoiding runtime resizing
+            sendWidth = frame.cols;
+            sendHeight = frame.rows;
+
+            // Log if SDK wants different dimensions (for user to know what to encode videos to)
+            if (m_width > 0 && m_height > 0 &&
+                (m_width != (unsigned int)frame.cols || m_height != (unsigned int)frame.rows)) {
+                // Log once per 100 frames to avoid spam
+                static int logCounter = 0;
+                if (logCounter % 100 == 0) {
+                    Log::info("ℹ️  Video file: " + to_string(frame.cols) + "x" + to_string(frame.rows) +
+                             ", SDK prefers: " + to_string(m_width) + "x" + to_string(m_height) +
+                             " - Consider re-encoding video to match SDK dimensions");
+                }
+                logCounter++;
             }
-            logCounter++;
+
+            // Calculate I420 buffer size: Y plane (full) + U plane (1/4) + V plane (1/4)
+            frameLength = sendWidth * sendHeight * 3 / 2;
+            i420Buffer.resize(frameLength);
+
+            // Convert BGR to I420 (required by Zoom SDK)
+            // Note: OpenCV VideoCapture decodes MP4 to BGR, so conversion is necessary
+            convertBGRtoI420(frame, i420Buffer.data(), frameLength);
+            frameBuffer = i420Buffer.data();
         }
-        
-        // Calculate I420 buffer size: Y plane (full) + U plane (1/4) + V plane (1/4)
-        int frameLength = sendWidth * sendHeight * 3 / 2;
-        char* i420Buffer = new char[frameLength];
-        
-        // Convert BGR to I420 (required by Zoom SDK)
-        // Note: OpenCV VideoCapture decodes MP4 to BGR, so conversion is necessary
-        convertBGRtoI420(frame, i420Buffer, frameLength);
-        
+
         // Verify video sender is ready before sending
         if (!m_videoSender) {
             Log::error("Video sender not ready, skipping frame");
-            delete[] i420Buffer;
             continue;
         }
-        
+
         // Send frame to Zoom SDK at native resolution
         SDKError err = m_videoSender->sendVideoFrame(
-            i420Buffer,
+            frameBuffer,
             sendWidth,       // width
             sendHeight,      // height
             frameLength,     // frame length
-            0,              // rotation
+            0,               // rotation
             FrameDataFormat_I420_FULL
         );
-        
-        delete[] i420Buffer;
-        
+
         if (err != SDKERR_SUCCESS) {
             consecutiveErrors++;
             if (consecutiveErrors <= 5) {
@@ -380,7 +399,7 @@ void ZoomSDKVideoSource::sendFramesLoop() {
         } else {
             consecutiveErrors = 0; // Reset on success
         }
-        
+
         // Maintain native FPS timing
         auto elapsed = chrono::steady_clock::now() - start;
         auto sleepTime = frameTime - chrono::duration_cast<chrono::milliseconds>(elapsed);
