@@ -19,7 +19,10 @@ setup-xvfb() {
   export DISPLAY=:99
   if [ ! -S "/tmp/.X11-unix/X99" ]; then
     Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &
-    sleep 2
+    for _ in $(seq 1 20); do
+      [ -S "/tmp/.X11-unix/X99" ] && break
+      sleep 0.1
+    done
   fi
 }
 
@@ -57,8 +60,13 @@ setup-pulseaudio() {
   # Start pulseaudio with minimal configuration
   pulseaudio -D --exit-idle-time=-1 --system --disallow-exit --log-level=0 > /dev/null 2>&1
 
-  # Wait for pulseaudio to start
-  sleep 1
+  # Wait for pulseaudio to start (poll instead of fixed 1s sleep)
+  for _ in $(seq 1 20); do
+    if pactl info > /dev/null 2>&1; then
+      break
+    fi
+    sleep 0.1
+  done
 
   # Create virtual sink + source so Zoom SDK detects audio device (fixes raw audio status 12)
   pactl load-module module-null-sink sink_name=SpeakerOutput > /dev/null 2>&1
@@ -94,50 +102,75 @@ build() {
   echo "Starting build process..." >&2
   mkdir -p "$BUILD"
 
-  # Use a shared lock so only one container does build/cmake checks at a time.
-  # Other containers wait briefly, then reuse the cached binary.
+  # Use a shared lock so only one container does heavy build/cmake checks.
+  # Other containers can skip quickly when cache is already ready.
   local BUILD_STAMP="$BUILD/.build-ready"
   local BUILD_LOCK="$BUILD/.build.lock"
   local CURRENT_PLATFORM=$(uname -m)-$(uname -s)
   local BOT_BUILD_TYPE="${BOT_BUILD_TYPE:-Release}"
   local lock_enabled=false
+  local LOCK_WAIT_SECONDS="${BUILD_LOCK_WAIT_SECONDS:-300}"
+
+  cache_ready_quick() {
+    if [[ ! -f "$BUILD/zoomsdk" || ! -f "$BUILD_STAMP" ]]; then
+      return 1
+    fi
+    if [[ -f "$BUILD/.platform" ]]; then
+      CACHED_PLATFORM=$(cat "$BUILD/.platform" 2>/dev/null || echo "")
+      if [[ "$CACHED_PLATFORM" != "$CURRENT_PLATFORM" ]]; then
+        return 1
+      fi
+    fi
+    if ldd "$BUILD/zoomsdk" 2>&1 | grep -q "version.*not found"; then
+      return 1
+    fi
+    return 0
+  }
+
+  cache_ready_full() {
+    if ! cache_ready_quick; then
+      return 1
+    fi
+    for src_path in src CMakeLists.txt CMakePresets.json; do
+      if [ -e "$src_path" ] && find "$src_path" -type f -newer "$BUILD_STAMP" 2>/dev/null | grep -q .; then
+        return 1
+      fi
+    done
+    return 0
+  }
+
+  # Fast path (no lock): if cache is valid, skip heavy build checks immediately.
+  if cache_ready_full; then
+    echo "Build cache ready, skipping build checks..." >&2
+    setup-pulseaudio
+    return 0
+  fi
 
   if command -v flock >/dev/null 2>&1; then
     exec 9>"$BUILD_LOCK"
-    if ! flock -w "${BUILD_LOCK_WAIT_SECONDS:-300}" 9; then
-      echo "ERROR: Timed out waiting for build lock ($BUILD_LOCK)" >&2
-      exit 1
+    if ! flock -n 9; then
+      echo "Build lock busy, waiting for another container to finish build checks..." >&2
+      local waited=0
+      while [ "$waited" -lt "$LOCK_WAIT_SECONDS" ]; do
+        if cache_ready_quick; then
+          echo "Build cache became ready, skipping local build checks..." >&2
+          exec 9>&-
+          setup-pulseaudio
+          return 0
+        fi
+        sleep 1
+        waited=$((waited + 1))
+      done
+      if ! flock -w 30 9; then
+        echo "ERROR: Timed out waiting for build lock ($BUILD_LOCK)" >&2
+        exit 1
+      fi
     fi
     lock_enabled=true
   fi
 
-  # Fast path for high-concurrency starts: if a recent compatible build exists, skip checks.
-  local CACHE_OK=true
-  if [[ ! -f "$BUILD/zoomsdk" || ! -f "$BUILD_STAMP" ]]; then
-    CACHE_OK=false
-  fi
-
-  if [[ "$CACHE_OK" == "true" && -f "$BUILD/.platform" ]]; then
-    CACHED_PLATFORM=$(cat "$BUILD/.platform" 2>/dev/null || echo "")
-    if [[ "$CACHED_PLATFORM" != "$CURRENT_PLATFORM" ]]; then
-      CACHE_OK=false
-    fi
-  fi
-
-  if [[ "$CACHE_OK" == "true" ]] && ldd "$BUILD/zoomsdk" 2>&1 | grep -q "version.*not found"; then
-    CACHE_OK=false
-  fi
-
-  if [[ "$CACHE_OK" == "true" ]]; then
-    for src_path in src CMakeLists.txt CMakePresets.json; do
-      if [ -e "$src_path" ] && find "$src_path" -type f -newer "$BUILD_STAMP" 2>/dev/null | grep -q .; then
-        CACHE_OK=false
-        break
-      fi
-    done
-  fi
-
-  if [[ "$CACHE_OK" == "true" ]]; then
+  # Re-check after lock (another container may have completed build meanwhile).
+  if cache_ready_full; then
     echo "Build cache ready, skipping build checks..." >&2
     if [[ "$lock_enabled" == "true" ]]; then
       flock -u 9 || true
