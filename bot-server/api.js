@@ -31,6 +31,11 @@ function buildContainerIds(meetingId, requestId, totalBots) {
   return ids;
 }
 
+function shellQuote(value) {
+  const str = value == null ? '' : String(value);
+  return `'${str.replace(/'/g, `'\"'\"'`)}'`;
+}
+
 function toNumber(value, fallback = null) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -239,7 +244,18 @@ app.post('/api/bots/create', async (req, res) => {
     console.log(`⏱️  Timeout: ${timeoutSecs}s (from request: ${timeoutSeconds}, bots will leave meeting after this)`);
     // Pass timeout as 9th arg (reliable in Docker/exec); env TIMEOUT_SECONDS may not propagate
     const videoFileEnv = (typeof videoFile === 'string' && videoFile.trim().length > 0) ? videoFile.trim() : '';
-    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && VIDEO_FILE="${videoFileEnv}" MEETING_TYPE="${meetingType}" NAME_TYPE="${nameType}" NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} bash setup-flexible-bots.sh ${video} ${audio} '${joinUrl}' ${accountId} ${clientId} ${clientSecret} ${meetingId} ${uniqueRequestId} ${timeoutSecs}`;
+    const resolvedAccountId = (typeof accountId === 'string' && accountId.trim()) || (process.env.ZOOM_ACCOUNT_ID || '').trim();
+    const resolvedClientId = (typeof clientId === 'string' && clientId.trim()) || (process.env.ZOOM_CLIENT_ID || '').trim();
+    const resolvedClientSecret = (typeof clientSecret === 'string' && clientSecret.trim()) || (process.env.ZOOM_CLIENT_SECRET || '').trim();
+
+    if (meetingType === 'Profile Pic Member' && (!resolvedAccountId || !resolvedClientId || !resolvedClientSecret)) {
+      return res.status(400).json({
+        error: 'Missing Zoom credentials for Profile Pic Member',
+        message: 'accountId, clientId, and clientSecret are required for ZAK generation.'
+      });
+    }
+
+    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && VIDEO_FILE=${shellQuote(videoFileEnv)} MEETING_TYPE=${shellQuote(meetingType)} NAME_TYPE=${shellQuote(nameType)} NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} bash setup-flexible-bots.sh ${video} ${audio} ${shellQuote(joinUrl)} ${shellQuote(resolvedAccountId)} ${shellQuote(resolvedClientId)} ${shellQuote(resolvedClientSecret)} ${shellQuote(meetingId)} ${shellQuote(uniqueRequestId)} ${timeoutSecs}`;
     const composeFileName = `compose-${meetingId}-${uniqueRequestId}-bots.yaml`;
     const composeFilePath = path.join(projectDir, composeFileName);
 
