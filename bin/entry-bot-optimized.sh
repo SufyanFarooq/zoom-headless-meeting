@@ -109,7 +109,7 @@ build() {
   local CURRENT_PLATFORM=$(uname -m)-$(uname -s)
   local BOT_BUILD_TYPE="${BOT_BUILD_TYPE:-Release}"
   local lock_enabled=false
-  local LOCK_WAIT_SECONDS="${BUILD_LOCK_WAIT_SECONDS:-300}"
+  local LOCK_WAIT_SECONDS="${BUILD_LOCK_WAIT_SECONDS:-1800}"
 
   cache_ready_quick() {
     if [[ ! -f "$BUILD/zoomsdk" || ! -f "$BUILD_STAMP" ]]; then
@@ -161,10 +161,10 @@ build() {
         sleep 1
         waited=$((waited + 1))
       done
-      if ! flock -w 30 9; then
-        echo "ERROR: Timed out waiting for build lock ($BUILD_LOCK)" >&2
-        exit 1
-      fi
+      # Fallback: keep waiting on lock instead of failing containers.
+      # First build may take long (vcpkg/openssl), so failing here causes repeated join delays.
+      echo "Still waiting for build lock after ${LOCK_WAIT_SECONDS}s..." >&2
+      flock 9
     fi
     lock_enabled=true
   fi
