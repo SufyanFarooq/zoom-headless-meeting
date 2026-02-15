@@ -97,6 +97,12 @@ bool Config::parseUrl(const string& join_url) {
         cerr << "unable to parse join URL" << endl;
         return false;
     }
+
+    // Prefer meeting's regional host from join URL (e.g. us06web.zoom.us)
+    // to avoid extra redirects through default zoom.us.
+    if (!url.scheme.empty() && !url.host.empty()) {
+        m_zoomHost = url.scheme + "://" + url.host;
+    }
     
     string token, lastRoute;
     istringstream ss(url.path);

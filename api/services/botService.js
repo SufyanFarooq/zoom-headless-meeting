@@ -297,8 +297,9 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       server = await selectBestServer(membersCount);
     }
     
-    // Build join URL
-    const joinUrl = `https://zoom.us/j/${meetingId}?pwd=${password}`;
+    // Build join URL (can be overridden to regional Zoom host, e.g. https://us06web.zoom.us)
+    const joinBaseUrl = (process.env.ZOOM_JOIN_BASE_URL || 'https://zoom.us').replace(/\/+$/, '');
+    const joinUrl = `${joinBaseUrl}/j/${meetingId}?pwd=${password}`;
     
     // Get Zoom API credentials from environment
     const accountId = process.env.ZOOM_ACCOUNT_ID;
