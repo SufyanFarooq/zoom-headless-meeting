@@ -76,6 +76,45 @@ async function getCpuUsagePercent(sampleMs = 250) {
   return Math.max(0, Math.min(100, usage));
 }
 
+async function startComposeServices(projectDir, composeFilePath, staggerMs = 0) {
+  const dockerEnv = {
+    ...process.env,
+    DOCKER_HOST: 'unix:///var/run/docker.sock'
+  };
+
+  const safeStaggerMs = Number.isFinite(staggerMs) && staggerMs > 0 ? Math.floor(staggerMs) : 0;
+  if (safeStaggerMs <= 0) {
+    const startCommand = `docker-compose -f "${composeFilePath}" up -d --force-recreate`;
+    return execAsync(startCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
+  }
+
+  let services = [];
+  try {
+    const { stdout: servicesOut } = await execAsync(
+      `docker-compose -f "${composeFilePath}" config --services`,
+      { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' }
+    );
+    services = (servicesOut || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  } catch (error) {
+    console.warn(`⚠️ Could not list services for staggered start, falling back to bulk start: ${error.message}`);
+  }
+
+  if (!services.length) {
+    const fallbackCommand = `docker-compose -f "${composeFilePath}" up -d --force-recreate`;
+    return execAsync(fallbackCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
+  }
+
+  console.log(`🚦 Starting ${services.length} services with stagger ${safeStaggerMs}ms`);
+  for (let i = 0; i < services.length; i++) {
+    const service = services[i];
+    const upCommand = `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${shellQuote(service)}`;
+    await execAsync(upCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
+    if (i < services.length - 1) {
+      await delay(safeStaggerMs);
+    }
+  }
+}
+
 /**
  * POST /api/bots/create - Create bots on this server
  */
@@ -98,7 +137,8 @@ app.post('/api/bots/create', async (req, res) => {
       clientSecret,
       timeoutSeconds,
       useSingleZak,  // true = 1 ZAK for all bots (fast), false = per-user ZAK
-      videoFile
+      videoFile,
+      staggerMs
     } = req.body;
     
     // Generate request ID if not provided (backward compatibility)
@@ -241,7 +281,11 @@ app.post('/api/bots/create', async (req, res) => {
     // Quote projectDir to handle paths with spaces
     const useSingleZakEnv = (useSingleZak === true || useSingleZak === 'true') ? 'true' : 'false';
     const timeoutSecs = parseInt(timeoutSeconds, 10) || 7200;
+    const startStaggerMs = Math.max(0, parseInt(staggerMs ?? process.env.BOT_START_STAGGER_MS ?? process.env.BOT_STAGGER_MS ?? '0', 10) || 0);
     console.log(`⏱️  Timeout: ${timeoutSecs}s (from request: ${timeoutSeconds}, bots will leave meeting after this)`);
+    if (startStaggerMs > 0) {
+      console.log(`🚦 Container start stagger enabled: ${startStaggerMs}ms`);
+    }
     // Pass timeout as 9th arg (reliable in Docker/exec); env TIMEOUT_SECONDS may not propagate
     const videoFileEnv = (typeof videoFile === 'string' && videoFile.trim().length > 0) ? videoFile.trim() : '';
     const resolvedAccountId = (typeof accountId === 'string' && accountId.trim()) || (process.env.ZOOM_ACCOUNT_ID || '').trim();
@@ -272,20 +316,33 @@ app.post('/api/bots/create', async (req, res) => {
       });
 
       inFlightJobs.set(uniqueRequestId, { meetingId, totalBots, startedAt: Date.now() });
-      const asyncCommand = `${command} && docker-compose -f "${composeFilePath}" up -d --force-recreate`;
-      exec(asyncCommand, {
+      exec(command, {
         cwd: projectDir,
         env: { ...process.env, DOCKER_HOST: 'unix:///var/run/docker.sock' },
         shell: '/bin/sh',
         maxBuffer: 1024 * 1024
-      }, (err, stdout, stderr) => {
-        if (err) {
-          console.error('❌ Async bot creation failed:', err.message);
-          if (stderr) console.error('Async stderr:', stderr);
-        } else {
+      }, async (err, stdout, stderr) => {
+        try {
+          if (err) {
+            console.error('❌ Async bot creation setup failed:', err.message);
+            if (stderr) console.error('Async stderr:', stderr);
+            return;
+          }
+
+          if (!fs.existsSync(composeFilePath)) {
+            console.error(`❌ Async bot creation failed: compose file not found at ${composeFilePath}`);
+            return;
+          }
+
+          await startComposeServices(projectDir, composeFilePath, startStaggerMs);
           console.log('✅ Async bot creation finished');
+        } catch (startError) {
+          console.error('❌ Async bot creation failed:', startError.message);
+          if (startError.stdout) console.error('Async stdout:', startError.stdout);
+          if (startError.stderr) console.error('Async stderr:', startError.stderr);
+        } finally {
+          inFlightJobs.delete(uniqueRequestId);
         }
-        inFlightJobs.delete(uniqueRequestId);
       });
       return;
     }
@@ -423,7 +480,11 @@ app.post('/api/bots/create', async (req, res) => {
     
     console.log(`📋 Using compose file: "${projectDir}/${composeFileName}"`);
     console.log(`📋 Full compose file path: ${composeFilePath}`);
-    console.log(`📋 Command to execute: ${startCommand}`);
+    if (startStaggerMs > 0) {
+      console.log(`📋 Start mode: staggered (${startStaggerMs}ms between services)`);
+    } else {
+      console.log(`📋 Command to execute: ${startCommand}`);
+    }
     console.log(`📋 Meeting ID: ${meetingId}, Request ID: ${uniqueRequestId}`);
     console.log(`📋 Containers: zoom-bot-${meetingId}-${uniqueRequestId}-1 to zoom-bot-${meetingId}-${uniqueRequestId}-${totalBots}`);
     console.log(`📋 Each request gets unique containers, no conflicts with existing bots`);
@@ -443,14 +504,7 @@ app.post('/api/bots/create', async (req, res) => {
     }
     
     try {
-      await execAsync(startCommand, { 
-        cwd: projectDir, // Use container path for docker-compose
-        env: {
-          ...process.env,
-          DOCKER_HOST: 'unix:///var/run/docker.sock'
-        },
-        shell: '/bin/sh' // Explicitly specify shell
-      });
+      await startComposeServices(projectDir, composeFilePath, startStaggerMs);
     } catch (dockerError) {
       // Docker-compose command failed - log detailed error
       console.error('❌ Docker-compose command failed:');
