@@ -89,9 +89,30 @@ RUN git clone --depth 1 https://github.com/Microsoft/vcpkg.git \
 FROM deps AS build
 
 WORKDIR $cwd
-# Set execute permissions for scripts and use entry-bot-optimized.sh
-RUN chmod +x bin/*.sh 2>/dev/null || true
+COPY . .
+ARG BUILD_JOBS=4
+RUN chmod +x bin/*.sh \
+    && cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
+    && cmake --build build -j${BUILD_JOBS} \
+    && test -x build/zoomsdk
+
+FROM base AS runtime
+
+WORKDIR $cwd
+
+COPY --from=deps /tini /tini
+COPY --from=build /tmp/meeting-sdk-linux-sample/build/zoomsdk /opt/zoomsdk-runtime/zoomsdk
+COPY --from=build /tmp/meeting-sdk-linux-sample/lib /opt/zoomsdk-runtime/lib
+COPY --from=build /tmp/meeting-sdk-linux-sample/bin/entry-bot-runtime.sh /opt/zoomsdk-runtime/entry-bot-runtime.sh
+COPY --from=build /tmp/meeting-sdk-linux-sample/config.toml /opt/zoomsdk-runtime/config.toml
+
+RUN chmod +x /tini /opt/zoomsdk-runtime/entry-bot-runtime.sh /opt/zoomsdk-runtime/zoomsdk \
+    && mkdir -p /tmp/meeting-sdk-linux-sample/out /tmp/build-logs \
+    && if [ -f /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so ] && [ ! -f /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so.1 ]; then \
+         cp /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so.1; \
+       fi
+
 ENTRYPOINT ["/tini", "--"]
-CMD ["bash", "-c", "chmod +x bin/*.sh 2>/dev/null || true; exec \"$@\""]
-
-
+CMD ["/opt/zoomsdk-runtime/entry-bot-runtime.sh", "--warmup-only"]

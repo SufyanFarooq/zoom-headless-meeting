@@ -99,6 +99,14 @@ get_display_name() {
 
 # Optional override for video input (e.g., TEST_PATTERN)
 VIDEO_FILE_OVERRIDE="${VIDEO_FILE:-}"
+BOT_PREBUILT_RUNTIME="${BOT_PREBUILT_RUNTIME:-true}"
+
+ENTRY_SCRIPT="./bin/entry-bot-optimized.sh"
+BUILD_CACHE_MOUNT="    - build-cache:/tmp/meeting-sdk-linux-sample/build"
+if [ "$BOT_PREBUILT_RUNTIME" = "true" ] || [ "$BOT_PREBUILT_RUNTIME" = "1" ]; then
+    ENTRY_SCRIPT="/opt/zoomsdk-runtime/entry-bot-runtime.sh"
+    BUILD_CACHE_MOUNT=""
+fi
 
 # Use meeting ID + request ID for unique compose file name
 # This ensures each bot creation request gets its own compose file
@@ -142,7 +150,7 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
     container_name: zoom-bot-${MEETING_ID}-${REQUEST_ID}-${BOT_NUMBER}
     volumes:
     - ${HOST_PROJECT_PATH:-.}:/tmp/meeting-sdk-linux-sample
-    - build-cache:/tmp/meeting-sdk-linux-sample/build
+${BUILD_CACHE_MOUNT}
     environment:
     - DISPLAY_NAME=${DISPLAY_NAME}
     - JOIN_URL=${JOIN_URL}
@@ -154,7 +162,7 @@ if [ $VIDEO_ONLY_COUNT -gt 0 ]; then
     entrypoint:
     - /tini
     - --
-    - ./bin/entry-bot-optimized.sh
+    - ${ENTRY_SCRIPT}
     command:
     - --join-url
     - ${JOIN_URL}
@@ -191,7 +199,7 @@ if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
     container_name: zoom-bot-${MEETING_ID}-${REQUEST_ID}-${BOT_NUMBER}
     volumes:
     - ${HOST_PROJECT_PATH:-.}:/tmp/meeting-sdk-linux-sample
-    - build-cache:/tmp/meeting-sdk-linux-sample/build
+${BUILD_CACHE_MOUNT}
     environment:
     - DISPLAY_NAME=${DISPLAY_NAME}
     - JOIN_URL=${JOIN_URL}
@@ -203,7 +211,7 @@ if [ $AUDIO_ONLY_COUNT -gt 0 ]; then
     entrypoint:
     - /tini
     - --
-    - ./bin/entry-bot-optimized.sh
+    - ${ENTRY_SCRIPT}
     command:
     - --join-url
     - ${JOIN_URL}
@@ -232,12 +240,13 @@ EOF
 fi
 
 
-# Add volumes section
+if [ "$BOT_PREBUILT_RUNTIME" != "true" ] && [ "$BOT_PREBUILT_RUNTIME" != "1" ]; then
 cat >> "$TEMP_FILE" << 'EOF'
 
 volumes:
   build-cache:
 EOF
+fi
 
 # Replace original file
 rm -f "$COMPOSE_FILE"
@@ -246,4 +255,3 @@ mv "$TEMP_FILE" "$COMPOSE_FILE"
 echo "✅ Generated $COMPOSE_FILE with $TOTAL_BOTS bots"
 echo "   - Video-only: $VIDEO_ONLY_COUNT"
 echo "   - Audio-only: $AUDIO_ONLY_COUNT"
-

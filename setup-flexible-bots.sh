@@ -21,6 +21,7 @@ NAME_TYPE="${NAME_TYPE:-Indian}"
 MEETING_ID="${MEETING_ID:-${7:-}}"
 REQUEST_ID="${REQUEST_ID:-${8:-}}"
 NAME_OFFSET="${NAME_OFFSET:-0}"
+BOT_PREBUILT_RUNTIME="${BOT_PREBUILT_RUNTIME:-true}"
 # Timeout: arg 9 takes precedence (reliable in Docker), else env, else default 7200
 TIMEOUT_SECONDS="${9:-${TIMEOUT_SECONDS:-7200}}"
 # Ensure it's a valid number
@@ -62,6 +63,11 @@ echo "📋 Meeting Type: $MEETING_TYPE"
 echo "📋 Name Type: $NAME_TYPE"
 echo "📋 Join URL: $JOIN_URL"
 echo "📋 Name Offset: $NAME_OFFSET"
+if [ "$BOT_PREBUILT_RUNTIME" = "true" ] || [ "$BOT_PREBUILT_RUNTIME" = "1" ]; then
+    echo "📋 Runtime: prebuilt binary"
+else
+    echo "📋 Runtime: dynamic build (legacy)"
+fi
 
 # Generate unique compose file name
 COMPOSE_FILE="compose-${MEETING_ID}-${REQUEST_ID}-bots.yaml"
@@ -203,6 +209,14 @@ create_compose_services() {
     local mem_limit=""
     local cpu_res=""
     local mem_res=""
+    local entry_script="./bin/entry-bot-optimized.sh"
+    local build_cache_volume="      - \"/tmp/build-cache:/tmp/meeting-sdk-linux-sample/build\""
+
+    if [ "$BOT_PREBUILT_RUNTIME" = "true" ] || [ "$BOT_PREBUILT_RUNTIME" = "1" ]; then
+        entry_script="/opt/zoomsdk-runtime/entry-bot-runtime.sh"
+        build_cache_volume=""
+    fi
+
     if [ "$bot_type" = "video" ]; then
         cpu_limit="$VIDEO_CPU_LIMIT"
         mem_limit="$VIDEO_MEM_LIMIT"
@@ -279,7 +293,7 @@ create_compose_services() {
     container_name: $container_name
     volumes:
       - "$HOST_PROJECT_PATH:/tmp/meeting-sdk-linux-sample:${PROJECT_MOUNT_MODE}"
-      - "/tmp/build-cache:/tmp/meeting-sdk-linux-sample/build"
+${build_cache_volume}
     environment:
       - DISPLAY_NAME=$display_name
       - JOIN_URL=$JOIN_URL
@@ -292,7 +306,7 @@ create_compose_services() {
     entrypoint:
       - /tini
       - --
-      - ./bin/entry-bot-optimized.sh
+      - ${entry_script}
     command:
       - --join-url
       - $JOIN_URL
@@ -364,12 +378,13 @@ if [ $AUDIO_COUNT -gt 0 ]; then
     done
 fi
 
-# Add volumes section
+if [ "$BOT_PREBUILT_RUNTIME" != "true" ] && [ "$BOT_PREBUILT_RUNTIME" != "1" ]; then
 cat >> "$TEMP_FILE" << 'EOF'
 
 volumes:
   build-cache:
 EOF
+fi
 
 # Replace original file
 rm -f "$COMPOSE_FILE"

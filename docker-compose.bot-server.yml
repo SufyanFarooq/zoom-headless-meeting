@@ -11,6 +11,13 @@ services:
       BOT_SERVER_PORT: 3001
       SERVER_CAPACITY: ${SERVER_CAPACITY:-100}
       BOT_PROJECT_DIR: /app/bot-project
+      BOT_PREBUILT_RUNTIME: ${BOT_PREBUILT_RUNTIME:-true}
+      BOT_WARM_POOL_SIZE: ${BOT_WARM_POOL_SIZE:-0}
+      BOT_WARM_POOL_PREFIX: ${BOT_WARM_POOL_PREFIX:-zoom-warm-bot}
+      BOT_WARM_POOL_IMAGE: ${BOT_WARM_POOL_IMAGE:-zoom-bot:latest}
+      BOT_WARM_POOL_CPU: ${BOT_WARM_POOL_CPU:-0.05}
+      BOT_WARM_POOL_MEM: ${BOT_WARM_POOL_MEM:-256m}
+      BOT_WARM_POOL_MEM_RESERVATION: ${BOT_WARM_POOL_MEM_RESERVATION:-128m}
     ports:
       - "${BOT_SERVER_PORT:-3001}:3001"
     volumes:
@@ -23,4 +30,3 @@ services:
 networks:
   zoom-network:
     driver: bridge
-

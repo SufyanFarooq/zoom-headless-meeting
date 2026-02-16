@@ -4,6 +4,7 @@ const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { ensureWarmPool, getWarmPoolStatus } = require('./warmPool');
 
 // Load .env for bot-server when running locally (docker-compose already injects env)
 require('dotenv').config();
@@ -235,6 +236,16 @@ app.post('/api/bots/create', async (req, res) => {
       : 0;
     console.log(`Creating bots: ${video} video, ${audio} audio`);
     console.log(`⏳ Estimated time: ~${zakTimeEst + Math.ceil(totalBotsForLog / 10) + 15}s (ZAK ${zakTimeEst}s + containers ~${Math.ceil(totalBotsForLog/10)}s)`);
+
+    ensureWarmPool()
+      .then((status) => {
+        if (status.enabled) {
+          console.log(`🔥 Warm pool ready: ${status.running}/${status.targetSize}`);
+        }
+      })
+      .catch((poolErr) => {
+        console.warn(`⚠️ Warm pool check failed: ${poolErr.message}`);
+      });
     
     // Get project directory
     // In Docker: mounted at /app/bot-project
@@ -981,6 +992,38 @@ app.get('/api/bots/capacity', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/bots/pool/status - Show warm pool status
+ */
+app.get('/api/bots/pool/status', async (req, res) => {
+  try {
+    const status = await getWarmPoolStatus();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    console.error('Error getting warm pool status:', error);
+    res.status(500).json({
+      error: 'Failed to get warm pool status',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/bots/pool/refill - Ensure warm pool target is met
+ */
+app.post('/api/bots/pool/refill', async (req, res) => {
+  try {
+    const status = await ensureWarmPool();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    console.error('Error refilling warm pool:', error);
+    res.status(500).json({
+      error: 'Failed to refill warm pool',
+      message: error.message
+    });
+  }
+});
+
 // Manual ZAK refresh trigger (POST or GET)
 const doRefreshZak = async (req, res) => {
   try {
@@ -1002,6 +1045,15 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🤖 Bot Server API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  ensureWarmPool()
+    .then((status) => {
+      if (status.enabled) {
+        console.log(`🔥 Warm pool initialized: ${status.running}/${status.targetSize}`);
+      }
+    })
+    .catch((error) => {
+      console.log(`[WARM-POOL] Init skipped: ${error.message}`);
+    });
   // ZAK pre-generate job: every 2 hours, saves to zak-token.env
   try {
     const { startZakRefreshJob } = require('./zakRefresh');
