@@ -63,6 +63,7 @@ class Zoom : public Singleton<Zoom> {
 
     ZoomSDKVideoSource* m_videoSource;
     bool m_cameraSelected = false;
+    int m_authRetryCount = 0;
 
     SDKError createServices();
     void generateJWT(const string& key, const string& secret);

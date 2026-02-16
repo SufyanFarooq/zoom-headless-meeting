@@ -298,6 +298,7 @@ ${build_cache_volume}
       - DISPLAY_NAME=$display_name
       - JOIN_URL=$JOIN_URL
       - TIMEOUT_SECONDS=$TIMEOUT_SECONDS
+      - ZOOM_AUTH_RETRIES=${ZOOM_AUTH_RETRIES:-2}
       - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=:99

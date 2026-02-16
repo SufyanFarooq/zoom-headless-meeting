@@ -3,6 +3,7 @@
 #include <chrono>
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 
 using namespace std::chrono;
 
@@ -141,7 +142,44 @@ SDKError Zoom::auth() {
         return err;
     }
 
-    err = m_authService->SetEvent(new AuthServiceEvent(onAuth));
+    auto* authEvent = new AuthServiceEvent(onAuth);
+    m_authRetryCount = 0;
+    authEvent->setOnAuthenticationReturn([&](AuthResult result) {
+        if (result == AUTHRET_SUCCESS) {
+            if (onAuth) onAuth();
+            return;
+        }
+
+        Log::error("authentication failed with AuthResult: " + to_string(result));
+
+        const char* retriesEnv = std::getenv("ZOOM_AUTH_RETRIES");
+        int maxRetries = 2; // default: initial auth + 2 retries
+        if (retriesEnv && *retriesEnv) {
+            maxRetries = std::max(0, std::atoi(retriesEnv));
+        }
+
+        // AUTHRET_OVERTIME and unknown (e.g. code 5) are often transient under burst starts.
+        const bool retryable = (result == AUTHRET_OVERTIME) || (static_cast<int>(result) == 5);
+        if (retryable && m_authRetryCount < maxRetries) {
+            m_authRetryCount++;
+            const int backoffMs = 400 * m_authRetryCount;
+            Log::info("Retrying SDK auth (" + to_string(m_authRetryCount) + "/" + to_string(maxRetries) + ") after " + to_string(backoffMs) + "ms");
+            std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
+
+            generateJWT(m_config.clientId(), m_config.clientSecret());
+            AuthContext retryCtx;
+            retryCtx.jwt_token = m_jwt.c_str();
+            auto retryErr = m_authService->SDKAuth(retryCtx);
+            if (hasError(retryErr, "retry authorize")) {
+                std::_Exit(2);
+            }
+            return;
+        }
+
+        std::_Exit(1);
+    });
+
+    err = m_authService->SetEvent(authEvent);
     if (hasError(err)) return err;
 
     generateJWT(m_config.clientId(), m_config.clientSecret());

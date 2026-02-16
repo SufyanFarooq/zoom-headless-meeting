@@ -154,6 +154,7 @@ ${BUILD_CACHE_MOUNT}
     environment:
     - DISPLAY_NAME=${DISPLAY_NAME}
     - JOIN_URL=${JOIN_URL}
+    - ZOOM_AUTH_RETRIES=${ZOOM_AUTH_RETRIES:-2}
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - DISPLAY=:99
@@ -203,6 +204,7 @@ ${BUILD_CACHE_MOUNT}
     environment:
     - DISPLAY_NAME=${DISPLAY_NAME}
     - JOIN_URL=${JOIN_URL}
+    - ZOOM_AUTH_RETRIES=${ZOOM_AUTH_RETRIES:-2}
     - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
     - QT_QPA_PLATFORM=offscreen
     - DISPLAY=:99
