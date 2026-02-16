@@ -237,15 +237,17 @@ app.post('/api/bots/create', async (req, res) => {
     console.log(`Creating bots: ${video} video, ${audio} audio`);
     console.log(`⏳ Estimated time: ~${zakTimeEst + Math.ceil(totalBotsForLog / 10) + 15}s (ZAK ${zakTimeEst}s + containers ~${Math.ceil(totalBotsForLog/10)}s)`);
 
-    ensureWarmPool()
-      .then((status) => {
-        if (status.enabled) {
-          console.log(`🔥 Warm pool ready: ${status.running}/${status.targetSize}`);
-        }
-      })
-      .catch((poolErr) => {
-        console.warn(`⚠️ Warm pool check failed: ${poolErr.message}`);
-      });
+    if (isTrue(process.env.BOT_WARM_POOL_AUTO_REFILL_ON_CREATE)) {
+      ensureWarmPool()
+        .then((status) => {
+          if (status.enabled) {
+            console.log(`🔥 Warm pool ready: ${status.running}/${status.targetSize}`);
+          }
+        })
+        .catch((poolErr) => {
+          console.warn(`⚠️ Warm pool check failed: ${poolErr.message}`);
+        });
+    }
     
     // Get project directory
     // In Docker: mounted at /app/bot-project
@@ -314,7 +316,9 @@ app.post('/api/bots/create', async (req, res) => {
     const composeFileName = `compose-${meetingId}-${uniqueRequestId}-bots.yaml`;
     const composeFilePath = path.join(projectDir, composeFileName);
 
-    const asyncMode = isTrue(req.body?.async) || isTrue(process.env.BOT_CREATE_ASYNC);
+    const asyncMode = req.body?.async !== undefined
+      ? isTrue(req.body?.async)
+      : isTrue(process.env.BOT_CREATE_ASYNC ?? 'true');
     if (asyncMode) {
       const containerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
       res.status(202).json({
