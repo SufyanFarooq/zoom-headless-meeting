@@ -72,6 +72,7 @@ class Zoom : public Singleton<Zoom> {
     void ensureVideoCapabilityForDesktop();
     bool shouldUseRawVideoSource() const;
     bool shouldUseCameraDevice() const;
+    bool shouldUseDirectAudioOffJoin() const;
 
     /**
      * Callback fired when the SDK authenticates the credentials
@@ -87,6 +88,17 @@ class Zoom : public Singleton<Zoom> {
      * Callback fires when the app joins the meeting
     */
     function<void()> onJoin = [&]() {
+        bool useRawVideo = shouldUseRawVideoSource();
+        bool useCamera = shouldUseCameraDevice() && m_cameraSelected;
+        bool isAudioOnly = m_config.useRawAudio() && !useRawVideo && !useCamera;
+        bool wantVideoIconOnly = m_config.videoIconOnly() || isAudioOnly;
+        bool directAudioOffJoin = isAudioOnly && shouldUseDirectAudioOffJoin();
+
+        if (directAudioOffJoin) {
+            Log::info("Audio fast-join: keeping audio/video OFF and skipping VoIP/video capability registration");
+            return;
+        }
+
         auto* reminderController = m_meetingService->GetMeetingReminderController();
         reminderController->SetEvent(new MeetingReminderEvent());
 
@@ -148,10 +160,6 @@ class Zoom : public Singleton<Zoom> {
         }
 
         // Setup video: raw video source, v4l2 camera, or icon-only capability
-        string videoFile = m_config.videoInputFile();
-        bool useRawVideo = shouldUseRawVideoSource();
-        bool useCamera = shouldUseCameraDevice() && m_cameraSelected;
-        bool wantVideoIconOnly = m_config.videoIconOnly() || (m_config.useRawAudio() && !useRawVideo && !useCamera);
         Log::info("Video mode: raw=" + string(useRawVideo ? "true" : "false") +
                   ", camera=" + string(useCamera ? "true" : "false") +
                   ", iconOnly=" + string(wantVideoIconOnly ? "true" : "false"));

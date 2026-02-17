@@ -70,6 +70,16 @@ bool Zoom::shouldUseRawVideoSource() const {
     return m_config.resolvedCameraMode() == "raw" && !m_config.videoInputFile().empty();
 }
 
+bool Zoom::shouldUseDirectAudioOffJoin() const {
+    const char* flag = std::getenv("AUDIO_DIRECT_OFF_JOIN");
+    if (!flag || !*flag) {
+        // Default enabled for faster audio-only joins.
+        return true;
+    }
+    const string value = toLowerCopy(flag);
+    return value == "1" || value == "true" || value == "yes" || value == "y" || value == "on";
+}
+
 bool Zoom::selectCameraDevice() {
     if (!m_settingService) return false;
     if (!shouldUseCameraDevice()) return false;
@@ -259,11 +269,14 @@ SDKError Zoom::join() {
     
     bool isAudioOnly = m_config.useRawAudio() && !shouldUseRawVideoSource() && !m_cameraSelected;
     bool iconOnly = m_config.videoIconOnly();
-    // For icon-only: join with video OFF, then toggle on/off briefly in onJoin
-    param.isVideoOff = iconOnly ? true : false;
+    bool directAudioOffJoin = isAudioOnly && shouldUseDirectAudioOffJoin();
+    // For icon-only/direct-audio-off: join with video OFF.
+    param.isVideoOff = (iconOnly || directAudioOffJoin) ? true : false;
     param.isAudioOff = true;
     
-    if (iconOnly) {
+    if (directAudioOffJoin) {
+        Log::info("Audio fast-join: joining with video OFF and audio OFF");
+    } else if (iconOnly) {
         Log::info("Icon-only bot: joining with video OFF (will toggle in onJoin)");
     } else if (isAudioOnly) {
         Log::info("Audio-only bot: joining with video ON (will mute in onJoin)");
