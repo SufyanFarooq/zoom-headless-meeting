@@ -4,7 +4,13 @@ const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { ensureWarmPool, getWarmPoolStatus } = require('./warmPool');
+const {
+  ensureWarmPool,
+  getWarmPoolStatus,
+  assignWarmJobs,
+  stopWarmJobs,
+  getWarmJobsStatus
+} = require('./warmPool');
 
 // Load .env for bot-server when running locally (docker-compose already injects env)
 require('dotenv').config();
@@ -77,27 +83,42 @@ async function getCpuUsagePercent(sampleMs = 250) {
   return Math.max(0, Math.min(100, usage));
 }
 
-async function startComposeServices(projectDir, composeFilePath, staggerMs = 0) {
+function parseBotIndexFromName(name) {
+  const match = String(name || '').match(/-(\d+)$/);
+  return match ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, selectedServices = null) {
   const dockerEnv = {
     ...process.env,
     DOCKER_HOST: 'unix:///var/run/docker.sock'
   };
 
+  const serviceFilter = Array.isArray(selectedServices)
+    ? selectedServices.map((s) => String(s || '').trim()).filter(Boolean)
+    : null;
+  if (serviceFilter && serviceFilter.length === 0) {
+    return;
+  }
+
   const safeStaggerMs = Number.isFinite(staggerMs) && staggerMs > 0 ? Math.floor(staggerMs) : 0;
   if (safeStaggerMs <= 0) {
-    const startCommand = `docker-compose -f "${composeFilePath}" up -d --force-recreate`;
+    const serviceArgs = serviceFilter ? ` ${serviceFilter.map((s) => shellQuote(s)).join(' ')}` : '';
+    const startCommand = `docker-compose -f "${composeFilePath}" up -d --force-recreate${serviceArgs}`;
     return execAsync(startCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
   }
 
-  let services = [];
-  try {
-    const { stdout: servicesOut } = await execAsync(
-      `docker-compose -f "${composeFilePath}" config --services`,
-      { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' }
-    );
-    services = (servicesOut || '').split('\n').map((s) => s.trim()).filter(Boolean);
-  } catch (error) {
-    console.warn(`⚠️ Could not list services for staggered start, falling back to bulk start: ${error.message}`);
+  let services = serviceFilter ? [...serviceFilter] : [];
+  if (!serviceFilter) {
+    try {
+      const { stdout: servicesOut } = await execAsync(
+        `docker-compose -f "${composeFilePath}" config --services`,
+        { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' }
+      );
+      services = (servicesOut || '').split('\n').map((s) => s.trim()).filter(Boolean);
+    } catch (error) {
+      console.warn(`⚠️ Could not list services for staggered start, falling back to bulk start: ${error.message}`);
+    }
   }
 
   if (!services.length) {
@@ -114,6 +135,60 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0) 
       await delay(safeStaggerMs);
     }
   }
+}
+
+async function getComposeServiceSpecs(projectDir, composeFilePath) {
+  const dockerEnv = {
+    ...process.env,
+    DOCKER_HOST: 'unix:///var/run/docker.sock'
+  };
+
+  const { stdout } = await execAsync(
+    `docker-compose -f "${composeFilePath}" config --format json`,
+    { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' }
+  );
+
+  const config = JSON.parse(stdout || '{}');
+  const services = config.services || {};
+  const specs = Object.entries(services).map(([serviceName, service]) => ({
+    serviceName,
+    containerName: service.container_name || '',
+    command: Array.isArray(service.command) ? service.command : [],
+    environment: service.environment && typeof service.environment === 'object' ? service.environment : {},
+    workingDir: service.working_dir || '/tmp/meeting-sdk-linux-sample'
+  }));
+
+  return specs
+    .filter((spec) => spec.containerName)
+    .sort((a, b) => parseBotIndexFromName(a.containerName) - parseBotIndexFromName(b.containerName));
+}
+
+async function startBotsWithWarmPool(projectDir, composeFilePath, meetingId, requestId, staggerMs = 0) {
+  const specs = await getComposeServiceSpecs(projectDir, composeFilePath);
+  if (!specs.length) {
+    throw new Error(`No services found in compose file: ${composeFilePath}`);
+  }
+
+  const jobSpecs = specs.map((spec) => ({
+    ...spec,
+    jobId: spec.containerName,
+    meetingId,
+    requestId
+  }));
+
+  const { assigned, unassigned } = await assignWarmJobs(jobSpecs);
+  const assignedIds = assigned.map((entry) => entry.jobId);
+  const fallbackServices = unassigned.map((entry) => entry.serviceName);
+
+  if (fallbackServices.length > 0) {
+    await startComposeServices(projectDir, composeFilePath, staggerMs, fallbackServices);
+  }
+
+  return {
+    assignedIds,
+    fallbackServiceNames: fallbackServices,
+    containerIds: jobSpecs.map((job) => job.jobId)
+  };
 }
 
 /**
@@ -349,8 +424,14 @@ app.post('/api/bots/create', async (req, res) => {
             return;
           }
 
-          await startComposeServices(projectDir, composeFilePath, startStaggerMs);
-          console.log('✅ Async bot creation finished');
+          const warmResult = await startBotsWithWarmPool(
+            projectDir,
+            composeFilePath,
+            meetingId,
+            uniqueRequestId,
+            startStaggerMs
+          );
+          console.log(`✅ Async bot creation finished (warm-assigned: ${warmResult.assignedIds.length}, compose-fallback: ${warmResult.fallbackServiceNames.length})`);
         } catch (startError) {
           console.error('❌ Async bot creation failed:', startError.message);
           if (startError.stdout) console.error('Async stdout:', startError.stdout);
@@ -443,7 +524,6 @@ app.post('/api/bots/create', async (req, res) => {
       console.log(`⚠️  Could not list compose files:`, error.message);
     }
     
-    // Get container IDs from compose file
     // Use meeting ID + request ID for unique compose file name
     // This ensures each bot creation request gets its own compose file
     // composeFileName/composeFilePath already set above
@@ -474,14 +554,7 @@ app.post('/api/bots/create', async (req, res) => {
       });
     }
     console.log(`✅ Compose file exists: ${composeFilePath}`);
-    const containerIds = [];
-    // totalBots is already declared above (line 96)
-    // Note: containerIds will be populated AFTER containers are started (see below)
-    
-    // Start containers
-    // Use docker-compose (standalone) instead of docker compose (plugin)
-    // IMPORTANT: Run from container path, but docker-compose will use host Docker daemon
-    // The volume mount ensures files are accessible
+    // Start containers / warm workers
     console.log(`🚀 Starting containers...`);
     
     // IMPORTANT: Use container path for docker-compose
@@ -518,8 +591,17 @@ app.post('/api/bots/create', async (req, res) => {
       });
     }
     
+    let containerIds = [];
     try {
-      await startComposeServices(projectDir, composeFilePath, startStaggerMs);
+      const warmResult = await startBotsWithWarmPool(
+        projectDir,
+        composeFilePath,
+        meetingId,
+        uniqueRequestId,
+        startStaggerMs
+      );
+      containerIds = warmResult.containerIds;
+      console.log(`🔥 Warm assigned: ${warmResult.assignedIds.length}, compose fallback: ${warmResult.fallbackServiceNames.length}`);
     } catch (dockerError) {
       // Docker-compose command failed - log detailed error
       console.error('❌ Docker-compose command failed:');
@@ -552,27 +634,6 @@ app.post('/api/bots/create', async (req, res) => {
       
       // Re-throw with better error message
       throw new Error(`Docker-compose failed: ${dockerError.message}. Command: ${startCommand}. Compose file: ${composeFilePath}`);
-    }
-    
-    // Get actual container IDs using meeting ID + request ID based names
-    // Format: zoom-bot-{meetingId}-{requestId}-{botNumber}
-    for (let i = 1; i <= totalBots; i++) {
-      const containerName = `zoom-bot-${meetingId}-${uniqueRequestId}-${i}`;
-      try {
-        const { stdout: containerId } = await execAsync(
-          `docker ps -q -f name=^${containerName}$`,
-          { cwd: projectDir, shell: '/bin/sh' }
-        );
-        if (containerId.trim()) {
-          containerIds.push(containerName); // Use container name, not ID
-        } else {
-          // Fallback: try to get by name directly
-          containerIds.push(containerName);
-        }
-      } catch (error) {
-        // Container might not exist yet, but add name anyway
-        containerIds.push(containerName);
-      }
     }
     
     res.json({
@@ -608,8 +669,13 @@ app.post('/api/bots/containers-status', async (req, res) => {
     const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
     const running = [];
     const stopped = [];
+    const warmStatusMap = await getWarmJobsStatus(containerIds);
 
     for (const name of containerIds) {
+      if (warmStatusMap[name]?.running) {
+        running.push(name);
+        continue;
+      }
       try {
         const { stdout } = await execAsync(
           `docker ps -a --filter "name=^${name}$" --format "{{.Status}}"`,
@@ -694,9 +760,27 @@ app.post('/api/bots/stop', async (req, res) => {
     // Process in batches
     for (let i = 0; i < cleanIds.length; i += batchSize) {
       const batch = cleanIds.slice(i, i + batchSize);
+
+      // First stop jobs running on warm workers (virtual bot IDs share zoom-bot-* naming).
+      const warmResults = await stopWarmJobs(batch);
+      const warmHandled = new Set();
+      for (const wr of warmResults) {
+        if (wr.status !== 'not_warm') {
+          warmHandled.add(wr.id);
+          results.push({
+            id: wr.id,
+            status: wr.status === 'stopped' ? 'stopped' : 'already_stopped'
+          });
+        }
+      }
+
+      const dockerBatch = batch.filter((id) => !warmHandled.has(id));
+      if (!dockerBatch.length) {
+        continue;
+      }
       
       // Stop batch in parallel
-      const batchPromises = batch.map(async (containerId) => {
+      const batchPromises = dockerBatch.map(async (containerId) => {
         try {
           // First check if container exists and is running
           try {
@@ -816,6 +900,22 @@ app.post('/api/bots/cleanup-compose', async (req, res) => {
     const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
     const prefix = `zoom-bot-${meetingId}-${requestId}`;
     const composeFile = path.join(projectDir, `compose-${meetingId}-${requestId}-bots.yaml`);
+    const warmPrefix = `${prefix}-`;
+
+    try {
+      const warm = await getWarmPoolStatus();
+      if (warm.enabled && Array.isArray(warm.workers)) {
+        const warmJobIds = warm.workers
+          .filter((worker) => worker.status === 'busy' && worker.jobId && worker.jobId.startsWith(warmPrefix))
+          .map((worker) => worker.jobId);
+        if (warmJobIds.length) {
+          await stopWarmJobs(warmJobIds);
+          console.log(`[CLEANUP-COMPOSE] Released ${warmJobIds.length} warm jobs`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[CLEANUP-COMPOSE] Warm cleanup skipped: ${e.message}`);
+    }
 
     const { stdout: namesOut } = await execAsync(
       `docker ps -a --filter "name=^${prefix}-" --format "{{.Names}}"`,
@@ -862,6 +962,22 @@ app.post('/api/bots/cleanup-by-meeting', async (req, res) => {
       return res.status(400).json({ error: 'meetingId required' });
     }
     const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
+    const warmMeetingPrefix = `zoom-bot-${meetingId}-`;
+    try {
+      const warm = await getWarmPoolStatus();
+      if (warm.enabled && Array.isArray(warm.workers)) {
+        const warmJobIds = warm.workers
+          .filter((worker) => worker.status === 'busy' && worker.jobId && worker.jobId.startsWith(warmMeetingPrefix))
+          .map((worker) => worker.jobId);
+        if (warmJobIds.length) {
+          await stopWarmJobs(warmJobIds);
+          console.log(`[CLEANUP-BY-MEETING] Released ${warmJobIds.length} warm jobs`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[CLEANUP-BY-MEETING] Warm cleanup skipped: ${e.message}`);
+    }
+
     const files = fs.readdirSync(projectDir).filter(f => f.startsWith(`compose-${meetingId}-`) && f.endsWith('-bots.yaml'));
     let totalRemoved = 0;
     const cleaned = [];
@@ -916,6 +1032,23 @@ app.get('/api/bots/status', async (req, res) => {
         status: statusParts.join(' ')
       };
     });
+
+    try {
+      const warm = await getWarmPoolStatus();
+      if (warm.enabled && Array.isArray(warm.workers)) {
+        for (const worker of warm.workers) {
+          if (worker.status === 'busy' && worker.jobId) {
+            bots.push({
+              containerId: worker.name,
+              name: worker.jobId,
+              status: `Up (warm-worker:${worker.name})`
+            });
+          }
+        }
+      }
+    } catch {
+      // ignore warm pool status errors in status endpoint
+    }
     
     res.json({
       success: true,
@@ -944,7 +1077,15 @@ app.get('/api/bots/capacity', async (req, res) => {
       { cwd: projectDir, shell: '/bin/sh' }
     );
     
-    const currentLoad = parseInt(runningCount.trim(), 10) || 0;
+    const composeLoad = parseInt(runningCount.trim(), 10) || 0;
+    let warmBusy = 0;
+    try {
+      const warm = await getWarmPoolStatus();
+      warmBusy = warm.enabled ? Number.parseInt(warm.busyCount, 10) || 0 : 0;
+    } catch {
+      warmBusy = 0;
+    }
+    const currentLoad = composeLoad + warmBusy;
     const capacity = parseInt(process.env.SERVER_CAPACITY || 100, 10);
     const cpuUsagePercent = await getCpuUsagePercent(250);
     const cpuCores = os.cpus()?.length || 0;
@@ -983,6 +1124,8 @@ app.get('/api/bots/capacity', async (req, res) => {
       schedulerLoad,
       effectiveCapacity,
       available,
+      composeLoad,
+      warmBusy,
       cpuUsagePercent,
       cpuTargetPercent,
       cpuCores
