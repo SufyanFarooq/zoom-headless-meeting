@@ -187,6 +187,7 @@ AUDIO_CAMERA_LABEL_PREFIX="${AUDIO_CAMERA_LABEL_PREFIX:-BotCamAudio}"
 AUDIO_USE_CAMERA="${AUDIO_USE_CAMERA:-true}"
 AUDIO_DEVICE_COUNT="${AUDIO_DEVICE_COUNT:-0}"
 AUDIO_DIRECT_OFF_JOIN="${AUDIO_DIRECT_OFF_JOIN:-false}"
+SDK_JWT_TOKEN="${SDK_JWT_TOKEN:-}"
 VIDEO_CPU_LIMIT="${VIDEO_CPU_LIMIT:-0.3}"
 AUDIO_CPU_LIMIT="${AUDIO_CPU_LIMIT:-0.1}"
 VIDEO_MEM_LIMIT="${VIDEO_MEM_LIMIT:-512M}"
@@ -212,10 +213,15 @@ create_compose_services() {
     local mem_res=""
     local entry_script="./bin/entry-bot-optimized.sh"
     local build_cache_volume="      - \"/tmp/build-cache:/tmp/meeting-sdk-linux-sample/build\""
+    local sdk_jwt_env=""
 
     if [ "$BOT_PREBUILT_RUNTIME" = "true" ] || [ "$BOT_PREBUILT_RUNTIME" = "1" ]; then
         entry_script="/opt/zoomsdk-runtime/entry-bot-runtime.sh"
         build_cache_volume=""
+    fi
+
+    if [ -n "$SDK_JWT_TOKEN" ]; then
+        sdk_jwt_env="      - ZOOM_SDK_JWT=${SDK_JWT_TOKEN}"
     fi
 
     if [ "$bot_type" = "video" ]; then
@@ -306,6 +312,7 @@ ${build_cache_volume}
       - JOIN_URL=$JOIN_URL
       - TIMEOUT_SECONDS=$TIMEOUT_SECONDS
       - ZOOM_AUTH_RETRIES=${ZOOM_AUTH_RETRIES:-2}
+${sdk_jwt_env}
       - AUDIO_DIRECT_OFF_JOIN=${AUDIO_DIRECT_OFF_JOIN}
       - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
       - QT_QPA_PLATFORM=offscreen

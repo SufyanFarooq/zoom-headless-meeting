@@ -140,6 +140,8 @@ SDKError Zoom::auth() {
 
     auto id = m_config.clientId();
     auto secret = m_config.clientSecret();
+    const char* sharedJwt = std::getenv("ZOOM_SDK_JWT");
+    const bool hasSharedJwt = sharedJwt && *sharedJwt;
 
     if (id.empty()) {
         Log::error("Client ID cannot be blank");
@@ -192,12 +194,16 @@ SDKError Zoom::auth() {
     err = m_authService->SetEvent(authEvent);
     if (hasError(err)) return err;
 
-    generateJWT(m_config.clientId(), m_config.clientSecret());
-
-    // Debug: Log JWT info (first 50 chars only for security)
-    Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
-    Log::info("Client ID: " + m_config.clientId());
-    Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
+    if (hasSharedJwt) {
+        m_jwt = string(sharedJwt);
+        Log::info("Using shared SDK JWT from environment");
+    } else {
+        generateJWT(m_config.clientId(), m_config.clientSecret());
+        // Debug: Log JWT info (first 50 chars only for security)
+        Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
+        Log::info("Client ID: " + m_config.clientId());
+        Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
+    }
 
     AuthContext ctx;
     ctx.jwt_token =  m_jwt.c_str();
