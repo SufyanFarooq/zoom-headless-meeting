@@ -95,16 +95,26 @@ function isWarmDirectAssignConfigured() {
   return prebuiltRuntime && directAssign && poolSize > 0;
 }
 
-function evaluateJoinProbe(logText) {
+function evaluateJoinProbe(logText, { exitCode = null, signal = null } = {}) {
   const text = String(logText || '');
   const lower = text.toLowerCase();
-  const failMatch = text.match(/meetingfailcode\s*(\d+)/i);
+  const failMatch = text.match(/meetingfailcode\s*:?\s*(\d+)/i);
   if (failMatch) {
     const failCode = Number.parseInt(failMatch[1], 10);
-    if (failCode === 4) {
-      return { verdict: 'wrong_password', failCode };
+    // Common SDK fail codes for invalid meeting credentials.
+    if (failCode === 4 || failCode === 63) {
+      return { verdict: 'wrong_password', failCode, reason: 'meeting_fail_code' };
     }
-    return { verdict: 'other_fail', failCode };
+    return { verdict: 'other_fail', failCode, reason: 'meeting_fail_code' };
+  }
+
+  if (
+    lower.includes('incorrect meeting password') ||
+    lower.includes('wrong password') ||
+    lower.includes('invalid passcode') ||
+    lower.includes('unable to parse join url')
+  ) {
+    return { verdict: 'wrong_password', failCode: null, reason: 'password_marker' };
   }
 
   const successMarkers = [
@@ -115,10 +125,25 @@ function evaluateJoinProbe(logText) {
     'disconnecting from the meeting'
   ];
   if (successMarkers.some((marker) => lower.includes(marker))) {
-    return { verdict: 'ok', failCode: null };
+    return { verdict: 'ok', failCode: null, reason: 'success_marker' };
   }
 
-  return { verdict: 'unknown', failCode: null };
+  const hasConnecting = lower.includes('connecting to the meeting');
+  const timeoutLike =
+    lower.includes('timed out') ||
+    lower.includes('timeout:') ||
+    lower.includes('exit code 124') ||
+    exitCode === 124;
+  if (hasConnecting && timeoutLike) {
+    // In this SDK flow, wrong password can get stuck at CONNECTING until timeout.
+    return { verdict: 'wrong_password', failCode: null, reason: 'connect_timeout' };
+  }
+
+  if (signal) {
+    return { verdict: 'other_fail', failCode: null, reason: `signal_${signal}` };
+  }
+
+  return { verdict: 'unknown', failCode: null, reason: 'no_marker' };
 }
 
 async function runJoinPasswordProbe({
@@ -168,6 +193,8 @@ async function runJoinPasswordProbe({
   let stdout = '';
   let stderr = '';
   let errorMessage = '';
+  let exitCode = null;
+  let signal = null;
   try {
     const result = await execAsync(probeCommand, {
       cwd: projectDir,
@@ -182,6 +209,8 @@ async function runJoinPasswordProbe({
     stdout = error.stdout || '';
     stderr = error.stderr || '';
     errorMessage = error.message || '';
+    exitCode = Number.isFinite(error.code) ? Number(error.code) : null;
+    signal = error.signal || null;
   } finally {
     try {
       await execAsync(`docker rm -f ${shellQuote(probeName)} >/dev/null 2>&1 || true`, {
@@ -195,10 +224,12 @@ async function runJoinPasswordProbe({
   }
 
   const combinedOutput = [stdout, stderr, errorMessage].filter(Boolean).join('\n');
-  const parsed = evaluateJoinProbe(combinedOutput);
+  const parsed = evaluateJoinProbe(combinedOutput, { exitCode, signal });
   return {
     ...parsed,
-    output: combinedOutput
+    output: combinedOutput,
+    exitCode,
+    signal
   };
 }
 
@@ -478,9 +509,10 @@ app.post('/api/bots/create', async (req, res) => {
       });
 
       if (probeResult.verdict === 'wrong_password') {
+        console.warn(`❌ Pre-check rejected meeting ${meetingId}: ${probeResult.reason || 'wrong_password'}`);
         return res.status(400).json({
           error: 'Invalid meeting password',
-          message: 'The provided meeting password appears to be incorrect. Please verify and try again.',
+          message: 'The meeting password appears incorrect or could not be validated. Please verify meeting ID/password and try again.',
           code: 'WRONG_MEETING_PASSWORD'
         });
       }
@@ -488,7 +520,7 @@ app.post('/api/bots/create', async (req, res) => {
       if (probeResult.verdict === 'ok') {
         console.log(`✅ Pre-check passed for meeting ${meetingId}`);
       } else {
-        console.warn(`⚠️ Pre-check inconclusive (verdict=${probeResult.verdict}${probeResult.failCode ? `, failCode=${probeResult.failCode}` : ''}). Proceeding with bot creation.`);
+        console.warn(`⚠️ Pre-check inconclusive (verdict=${probeResult.verdict}, reason=${probeResult.reason || 'n/a'}${probeResult.failCode ? `, failCode=${probeResult.failCode}` : ''}${probeResult.exitCode !== null ? `, exitCode=${probeResult.exitCode}` : ''}). Proceeding with bot creation.`);
       }
     }
     
