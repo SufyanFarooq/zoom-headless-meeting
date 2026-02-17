@@ -73,8 +73,7 @@ bool Zoom::shouldUseRawVideoSource() const {
 bool Zoom::shouldUseDirectAudioOffJoin() const {
     const char* flag = std::getenv("AUDIO_DIRECT_OFF_JOIN");
     if (!flag || !*flag) {
-        // Default enabled for faster audio-only joins.
-        return true;
+        return false;
     }
     const string value = toLowerCopy(flag);
     return value == "1" || value == "true" || value == "yes" || value == "y" || value == "on";

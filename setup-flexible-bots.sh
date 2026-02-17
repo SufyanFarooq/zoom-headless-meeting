@@ -186,6 +186,7 @@ AUDIO_DEVICE_BASE="${AUDIO_DEVICE_BASE:-$VIDEO_DEVICE_BASE}"
 AUDIO_CAMERA_LABEL_PREFIX="${AUDIO_CAMERA_LABEL_PREFIX:-BotCamAudio}"
 AUDIO_USE_CAMERA="${AUDIO_USE_CAMERA:-true}"
 AUDIO_DEVICE_COUNT="${AUDIO_DEVICE_COUNT:-0}"
+AUDIO_DIRECT_OFF_JOIN="${AUDIO_DIRECT_OFF_JOIN:-false}"
 VIDEO_CPU_LIMIT="${VIDEO_CPU_LIMIT:-0.3}"
 AUDIO_CPU_LIMIT="${AUDIO_CPU_LIMIT:-0.1}"
 VIDEO_MEM_LIMIT="${VIDEO_MEM_LIMIT:-512M}"
@@ -257,33 +258,39 @@ create_compose_services() {
       - dev-null.pcm
       - --dir
       - \"/dev\""
-        if [ "$AUDIO_USE_CAMERA" = "true" ] || [ "$AUDIO_USE_CAMERA" = "1" ]; then
-            if [ -n "$AUDIO_CAMERA_LABEL" ]; then
-                local audio_device_index=$((AUDIO_DEVICE_BASE + AUDIO_DEVICE_INDEX - 1))
-                device_block="    devices:
+        if [ "$AUDIO_DIRECT_OFF_JOIN" = "true" ] || [ "$AUDIO_DIRECT_OFF_JOIN" = "1" ]; then
+            # Fast path: join with audio/video off only, no camera/icon registration.
+            camera_args=""
+            device_block=""
+        else
+            if [ "$AUDIO_USE_CAMERA" = "true" ] || [ "$AUDIO_USE_CAMERA" = "1" ]; then
+                if [ -n "$AUDIO_CAMERA_LABEL" ]; then
+                    local audio_device_index=$((AUDIO_DEVICE_BASE + AUDIO_DEVICE_INDEX - 1))
+                    device_block="    devices:
       - \"/dev/video${audio_device_index}:/dev/video${audio_device_index}\""
-                camera_args="      - --camera-mode
+                    camera_args="      - --camera-mode
       - v4l2
       - --camera-name
       - ${AUDIO_CAMERA_LABEL}"
-            else
-                local audio_slot=$audio_idx
-                if [ "$AUDIO_DEVICE_COUNT" -gt 0 ]; then
-                    audio_slot=$(( (audio_idx - 1) % AUDIO_DEVICE_COUNT + 1 ))
-                fi
-                local audio_device_index=$((AUDIO_DEVICE_BASE + audio_slot - 1))
-                local audio_label="${AUDIO_CAMERA_LABEL_PREFIX}${audio_slot}"
-                device_block="    devices:
+                else
+                    local audio_slot=$audio_idx
+                    if [ "$AUDIO_DEVICE_COUNT" -gt 0 ]; then
+                        audio_slot=$(( (audio_idx - 1) % AUDIO_DEVICE_COUNT + 1 ))
+                    fi
+                    local audio_device_index=$((AUDIO_DEVICE_BASE + audio_slot - 1))
+                    local audio_label="${AUDIO_CAMERA_LABEL_PREFIX}${audio_slot}"
+                    device_block="    devices:
       - \"/dev/video${audio_device_index}:/dev/video${audio_device_index}\""
-                camera_args="      - --camera-mode
+                    camera_args="      - --camera-mode
       - v4l2
       - --camera-name
       - ${audio_label}"
+                fi
             fi
-        fi
-        if [ "$AUDIO_VIDEO_ICON_ONLY" = "true" ] || [ "$AUDIO_VIDEO_ICON_ONLY" = "1" ]; then
-            camera_args="$camera_args
+            if [ "$AUDIO_VIDEO_ICON_ONLY" = "true" ] || [ "$AUDIO_VIDEO_ICON_ONLY" = "1" ]; then
+                camera_args="$camera_args
       - --video-icon-only"
+            fi
         fi
     fi
 
@@ -299,6 +306,7 @@ ${build_cache_volume}
       - JOIN_URL=$JOIN_URL
       - TIMEOUT_SECONDS=$TIMEOUT_SECONDS
       - ZOOM_AUTH_RETRIES=${ZOOM_AUTH_RETRIES:-2}
+      - AUDIO_DIRECT_OFF_JOIN=${AUDIO_DIRECT_OFF_JOIN}
       - QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=:99
