@@ -105,6 +105,12 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating meeting:', error);
+    if (error.code === 'WRONG_MEETING_PASSWORD') {
+      return res.status(400).json({
+        error: 'Invalid meeting password',
+        message: error.message
+      });
+    }
     if (error.code === 'MEETING_NOT_STARTED') {
       return res.status(400).json({
         error: 'Meeting not started',
@@ -231,6 +237,12 @@ router.post('/:id/refill', async (req, res) => {
     });
   } catch (error) {
     console.error('Error refilling meeting:', error);
+    if (error.code === 'WRONG_MEETING_PASSWORD') {
+      return res.status(400).json({
+        error: 'Invalid meeting password',
+        message: error.message
+      });
+    }
     if (error.code === 'MEETING_NOT_STARTED') {
       return res.status(400).json({
         error: 'Meeting not started',

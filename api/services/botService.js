@@ -446,7 +446,11 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
   } catch (error) {
     console.error('Error creating bots:', error);
     if (error.response) {
-      throw new Error(`Bot server error: ${error.response.data?.message || error.message}`);
+      const forwarded = new Error(error.response.data?.message || error.message);
+      forwarded.code = error.response.data?.code || `BOT_SERVER_${error.response.status}`;
+      forwarded.status = error.response.status;
+      forwarded.details = error.response.data;
+      throw forwarded;
     }
     throw error;
   }

@@ -95,6 +95,113 @@ function isWarmDirectAssignConfigured() {
   return prebuiltRuntime && directAssign && poolSize > 0;
 }
 
+function evaluateJoinProbe(logText) {
+  const text = String(logText || '');
+  const lower = text.toLowerCase();
+  const failMatch = text.match(/meetingfailcode\s*(\d+)/i);
+  if (failMatch) {
+    const failCode = Number.parseInt(failMatch[1], 10);
+    if (failCode === 4) {
+      return { verdict: 'wrong_password', failCode };
+    }
+    return { verdict: 'other_fail', failCode };
+  }
+
+  const successMarkers = [
+    'connected',
+    'waiting for the meeting to start',
+    'waiting room',
+    'meeting ended',
+    'disconnecting from the meeting'
+  ];
+  if (successMarkers.some((marker) => lower.includes(marker))) {
+    return { verdict: 'ok', failCode: null };
+  }
+
+  return { verdict: 'unknown', failCode: null };
+}
+
+async function runJoinPasswordProbe({
+  projectDir,
+  hostProjectPath,
+  joinUrl,
+  meetingId
+}) {
+  const probeTimeoutSec = Math.max(
+    10,
+    Number.parseInt(process.env.BOT_PASSWORD_PRECHECK_TIMEOUT_SECONDS || '15', 10) || 15
+  );
+  const runTimeoutMs = (probeTimeoutSec + 12) * 1000;
+  const mountMode = process.env.PROJECT_MOUNT_MODE || 'rw';
+  const image = process.env.BOT_WARM_POOL_IMAGE || 'zoom-bot:latest';
+  const probeSuffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  const probeName = `zoom-probe-${String(meetingId || 'meeting').replace(/[^a-zA-Z0-9_.-]/g, '-')}-${probeSuffix}`;
+  const displayName = `Probe-${probeSuffix.slice(-6)}`;
+  const dockerEnv = { ...process.env, DOCKER_HOST: 'unix:///var/run/docker.sock' };
+
+  const probeCommand = [
+    'docker run --rm',
+    `--name ${shellQuote(probeName)}`,
+    `-v ${shellQuote(`${hostProjectPath}:/tmp/meeting-sdk-linux-sample:${mountMode}`)}`,
+    `-w ${shellQuote('/tmp/meeting-sdk-linux-sample')}`,
+    `-e ${shellQuote(`TIMEOUT_SECONDS=${probeTimeoutSec}`)}`,
+    `-e ${shellQuote('ZOOM_AUTH_RETRIES=1')}`,
+    `-e ${shellQuote('QT_LOGGING_RULES=*.debug=false;*.warning=false;*.info=false;*.critical=false')}`,
+    `-e ${shellQuote('QT_QPA_PLATFORM=offscreen')}`,
+    `-e ${shellQuote('DISPLAY=:99')}`,
+    `-e ${shellQuote('G_MESSAGES_DEBUG=')}`,
+    shellQuote(image),
+    shellQuote('/opt/zoomsdk-runtime/entry-bot-runtime.sh'),
+    '--join-url',
+    shellQuote(joinUrl),
+    '--display-name',
+    shellQuote(displayName),
+    '--config',
+    'config.toml',
+    'RawAudio',
+    '--file',
+    'dev-null.pcm',
+    '--dir',
+    '/dev'
+  ].join(' ');
+
+  let stdout = '';
+  let stderr = '';
+  let errorMessage = '';
+  try {
+    const result = await execAsync(probeCommand, {
+      cwd: projectDir,
+      env: dockerEnv,
+      shell: '/bin/sh',
+      timeout: runTimeoutMs,
+      maxBuffer: 2 * 1024 * 1024
+    });
+    stdout = result.stdout || '';
+    stderr = result.stderr || '';
+  } catch (error) {
+    stdout = error.stdout || '';
+    stderr = error.stderr || '';
+    errorMessage = error.message || '';
+  } finally {
+    try {
+      await execAsync(`docker rm -f ${shellQuote(probeName)} >/dev/null 2>&1 || true`, {
+        cwd: projectDir,
+        env: dockerEnv,
+        shell: '/bin/sh'
+      });
+    } catch {
+      // no-op
+    }
+  }
+
+  const combinedOutput = [stdout, stderr, errorMessage].filter(Boolean).join('\n');
+  const parsed = evaluateJoinProbe(combinedOutput);
+  return {
+    ...parsed,
+    output: combinedOutput
+  };
+}
+
 async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, selectedServices = null) {
   const dockerEnv = {
     ...process.env,
@@ -344,6 +451,7 @@ app.post('/api/bots/create', async (req, res) => {
     // In Docker: mounted at /app/bot-project
     // Local: parent directory
     const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
+    const hostPath = process.env.HOST_PROJECT_PATH || '/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample';
     
     // Verify script exists
     const scriptPath = path.join(projectDir, 'setup-flexible-bots.sh');
@@ -354,6 +462,34 @@ app.post('/api/bots/create', async (req, res) => {
         message: `Script not found at: ${scriptPath}. Project dir: ${projectDir}`,
         files: fs.readdirSync(projectDir).slice(0, 10)
       });
+    }
+
+    const precheckEnabled = req.body?.passwordPrecheck !== undefined
+      ? isTrue(req.body?.passwordPrecheck)
+      : isTrue(process.env.BOT_PASSWORD_PRECHECK ?? 'true');
+
+    if (precheckEnabled) {
+      console.log(`🔍 Running meeting join pre-check probe for meeting ${meetingId}...`);
+      const probeResult = await runJoinPasswordProbe({
+        projectDir,
+        hostProjectPath: hostPath,
+        joinUrl,
+        meetingId
+      });
+
+      if (probeResult.verdict === 'wrong_password') {
+        return res.status(400).json({
+          error: 'Invalid meeting password',
+          message: 'The provided meeting password appears to be incorrect. Please verify and try again.',
+          code: 'WRONG_MEETING_PASSWORD'
+        });
+      }
+
+      if (probeResult.verdict === 'ok') {
+        console.log(`✅ Pre-check passed for meeting ${meetingId}`);
+      } else {
+        console.warn(`⚠️ Pre-check inconclusive (verdict=${probeResult.verdict}${probeResult.failCode ? `, failCode=${probeResult.failCode}` : ''}). Proceeding with bot creation.`);
+      }
     }
     
     // Calculate name offset: count existing containers for this meeting
@@ -381,7 +517,6 @@ app.post('/api/bots/create', async (req, res) => {
     // Pass meetingId and requestId for unique container names and compose file names
     // requestId ensures each bot creation request gets its own compose file, even for same meeting
     // Pass NAME_OFFSET to continue names from where we left off (prevents duplicates)
-    const hostPath = process.env.HOST_PROJECT_PATH || '/Users/mac/Documents/client static sites/meetingsdk-headless-linux-sample';
     // Quote projectDir to handle paths with spaces
     const useSingleZakEnv = (useSingleZak === true || useSingleZak === 'true') ? 'true' : 'false';
     const timeoutSecs = parseInt(timeoutSeconds, 10) || 7200;
