@@ -88,6 +88,13 @@ function parseBotIndexFromName(name) {
   return match ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
 }
 
+function isWarmDirectAssignConfigured() {
+  const prebuiltRuntime = isTrue(process.env.BOT_PREBUILT_RUNTIME);
+  const directAssign = isTrue(process.env.BOT_WARM_POOL_DIRECT_ASSIGN ?? 'true');
+  const poolSize = Number.parseInt(process.env.BOT_WARM_POOL_SIZE || '0', 10) || 0;
+  return prebuiltRuntime && directAssign && poolSize > 0;
+}
+
 async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, selectedServices = null) {
   const dockerEnv = {
     ...process.env,
@@ -163,7 +170,16 @@ async function getComposeServiceSpecs(projectDir, composeFilePath) {
     .sort((a, b) => parseBotIndexFromName(a.containerName) - parseBotIndexFromName(b.containerName));
 }
 
-async function startBotsWithWarmPool(projectDir, composeFilePath, meetingId, requestId, staggerMs = 0) {
+async function startBotsWithWarmPool(projectDir, composeFilePath, meetingId, requestId, totalBots, staggerMs = 0) {
+  if (!isWarmDirectAssignConfigured()) {
+    await startComposeServices(projectDir, composeFilePath, staggerMs);
+    return {
+      assignedIds: [],
+      fallbackServiceNames: [],
+      containerIds: buildContainerIds(meetingId, requestId, totalBots)
+    };
+  }
+
   const specs = await getComposeServiceSpecs(projectDir, composeFilePath);
   if (!specs.length) {
     throw new Error(`No services found in compose file: ${composeFilePath}`);
@@ -429,6 +445,7 @@ app.post('/api/bots/create', async (req, res) => {
             composeFilePath,
             meetingId,
             uniqueRequestId,
+            totalBots,
             startStaggerMs
           );
           console.log(`✅ Async bot creation finished (warm-assigned: ${warmResult.assignedIds.length}, compose-fallback: ${warmResult.fallbackServiceNames.length})`);
@@ -598,6 +615,7 @@ app.post('/api/bots/create', async (req, res) => {
         composeFilePath,
         meetingId,
         uniqueRequestId,
+        totalBots,
         startStaggerMs
       );
       containerIds = warmResult.containerIds;

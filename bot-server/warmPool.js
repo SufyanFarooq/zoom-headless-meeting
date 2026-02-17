@@ -39,11 +39,13 @@ function getConfig() {
   const targetSize = Math.max(0, asInt(process.env.BOT_WARM_POOL_SIZE, 0));
   const prebuiltRuntime = isEnabledFlag(process.env.BOT_PREBUILT_RUNTIME);
   const directAssign = isEnabledFlag(process.env.BOT_WARM_POOL_DIRECT_ASSIGN ?? 'true');
+  const strictReconcile = isEnabledFlag(process.env.BOT_WARM_POOL_STRICT_RECONCILE ?? 'false');
   const prefix = (process.env.BOT_WARM_POOL_PREFIX || 'zoom-warm-bot').trim();
 
   return {
     prebuiltRuntime,
     directAssign,
+    strictReconcile,
     targetSize,
     prefix,
     image: process.env.BOT_WARM_POOL_IMAGE || 'zoom-bot:latest',
@@ -172,7 +174,7 @@ function attachContainersToState(containers, state) {
   state.workers = nextWorkers;
 }
 
-async function refreshBusyWorkers(state, containersByName) {
+async function refreshBusyWorkers(state, containersByName, strictReconcile = false) {
   for (const [workerName, workerState] of Object.entries(state.workers)) {
     const container = containersByName.get(workerName);
     if (!container || container.state !== 'running') {
@@ -180,21 +182,27 @@ async function refreshBusyWorkers(state, containersByName) {
       continue;
     }
 
-    const processRunning = await isWorkerRunningBotProcess(workerName);
-    if (workerState.status === 'busy' && !processRunning) {
-      state.workers[workerName] = { status: 'idle' };
+    // Fast path: only verify busy workers. Idle worker process probing is expensive (docker exec per worker),
+    // so keep it optional behind strict reconcile mode.
+    if (workerState.status === 'busy') {
+      const processRunning = await isWorkerRunningBotProcess(workerName);
+      if (!processRunning) {
+        state.workers[workerName] = { status: 'idle' };
+      }
       continue;
     }
 
-    if (workerState.status !== 'busy' && processRunning) {
-      // Preserve safety if state file was lost: do not reuse this worker until process exits.
-      state.workers[workerName] = {
-        status: 'busy',
-        jobId: workerState.jobId || `orphan-${workerName}`,
-        meetingId: workerState.meetingId || '',
-        requestId: workerState.requestId || '',
-        assignedAt: workerState.assignedAt || new Date().toISOString()
-      };
+    if (strictReconcile) {
+      const processRunning = await isWorkerRunningBotProcess(workerName);
+      if (processRunning) {
+        state.workers[workerName] = {
+          status: 'busy',
+          jobId: workerState.jobId || `orphan-${workerName}`,
+          meetingId: workerState.meetingId || '',
+          requestId: workerState.requestId || '',
+          assignedAt: workerState.assignedAt || new Date().toISOString()
+        };
+      }
     }
   }
 }
@@ -269,7 +277,7 @@ async function ensureWarmPool() {
   const containersByName = new Map(containers.map((entry) => [entry.name, entry]));
   const state = readState();
   attachContainersToState(containers, state);
-  await refreshBusyWorkers(state, containersByName);
+  await refreshBusyWorkers(state, containersByName, config.strictReconcile);
   writeState(state);
 
   return buildWarmStatus(config, containers, state);
@@ -294,7 +302,7 @@ async function getWarmPoolStatus() {
   const containersByName = new Map(containers.map((entry) => [entry.name, entry]));
   const state = readState();
   attachContainersToState(containers, state);
-  await refreshBusyWorkers(state, containersByName);
+  await refreshBusyWorkers(state, containersByName, config.strictReconcile);
   writeState(state);
   return buildWarmStatus(config, containers, state);
 }
@@ -337,15 +345,9 @@ async function assignWarmJobs(jobSpecs) {
   }
 
   const state = readState();
-  const containers = await listWarmContainers(config);
-  const containersByName = new Map(containers.map((entry) => [entry.name, entry]));
-  attachContainersToState(containers, state);
-  await refreshBusyWorkers(state, containersByName);
-
-  const idleWorkers = containers
-    .filter((entry) => entry.state === 'running')
-    .map((entry) => entry.name)
-    .filter((name) => state.workers[name]?.status === 'idle');
+  const idleWorkers = (warmStatus.workers || [])
+    .filter((worker) => worker.containerState === 'running' && worker.status === 'idle')
+    .map((worker) => worker.name);
 
   const assigned = [];
   const unassigned = [];
@@ -361,6 +363,9 @@ async function assignWarmJobs(jobSpecs) {
       await killWorkerProcess(workerName);
       const command = jobToExecCommand(workerName, spec);
       await execAsync(command, getDockerExecOptions());
+      if (!state.workers[workerName]) {
+        state.workers[workerName] = { status: 'idle' };
+      }
       state.workers[workerName] = {
         status: 'busy',
         jobId: spec.jobId,
