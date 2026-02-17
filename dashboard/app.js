@@ -14,6 +14,10 @@ function getErrorMessage(result, fallback) {
     return fallback || 'Request failed';
 }
 
+function sanitizeMeetingId(value) {
+    return String(value || '').replace(/\s+/g, '').trim();
+}
+
 // Check authentication on page load
 window.addEventListener('DOMContentLoaded', () => {
     checkAuthentication();
@@ -163,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Form submission (only if on dashboard page)
     const meetingForm = document.getElementById('meetingForm');
+    const meetingIdInput = document.getElementById('meetingId');
     const totalMembersInput = document.getElementById('totalMembers');
     
     const nameTypeSelect = document.getElementById('nameType');
@@ -171,6 +176,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         totalMembersInput.addEventListener('input', validateTotalMembers);
         if (nameTypeSelect) nameTypeSelect.addEventListener('change', validateTotalMembers);
+    }
+
+    if (meetingIdInput) {
+        const normalizeMeetingId = () => {
+            meetingIdInput.value = sanitizeMeetingId(meetingIdInput.value);
+        };
+        meetingIdInput.addEventListener('input', normalizeMeetingId);
+        meetingIdInput.addEventListener('blur', normalizeMeetingId);
     }
 });
 
@@ -312,8 +325,16 @@ async function handleFormSubmit(e) {
         return;
     }
     
+    const cleanedMeetingId = sanitizeMeetingId(meetingIdEl.value);
+    meetingIdEl.value = cleanedMeetingId;
+
+    if (!cleanedMeetingId) {
+        alert('Meeting ID is required.');
+        return;
+    }
+
     const formData = {
-        meetingId: meetingIdEl.value,
+        meetingId: cleanedMeetingId,
         password: passwordEl.value,
         membersCount: totalMembers,
         videoCount: videoCount,
