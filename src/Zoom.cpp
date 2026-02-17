@@ -171,10 +171,17 @@ SDKError Zoom::auth() {
         }
 
         // AUTHRET_OVERTIME and unknown (e.g. code 5) are often transient under burst starts.
-        const bool retryable = (result == AUTHRET_OVERTIME) || (static_cast<int>(result) == 5);
+        // AUTHRET_JWTTOKENWRONG can happen when a shared pre-generated JWT is rejected;
+        // fallback to local JWT generation and retry.
+        const bool retryable = (result == AUTHRET_OVERTIME)
+            || (result == AUTHRET_JWTTOKENWRONG)
+            || (static_cast<int>(result) == 5);
         if (retryable && m_authRetryCount < maxRetries) {
             m_authRetryCount++;
             const int backoffMs = 400 * m_authRetryCount;
+            if (result == AUTHRET_JWTTOKENWRONG) {
+                Log::info("Shared JWT was rejected by SDK; falling back to local JWT generation");
+            }
             Log::info("Retrying SDK auth (" + to_string(m_authRetryCount) + "/" + to_string(maxRetries) + ") after " + to_string(backoffMs) + "ms");
             std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
 
