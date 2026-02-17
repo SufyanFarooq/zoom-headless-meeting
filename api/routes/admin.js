@@ -408,23 +408,86 @@ router.put('/cost-settings', async (req, res) => {
 
 /**
  * GET /api/admin/meetings - Get meetings for any user (admin only)
- * Query: userId, status
+ * Query: userId, status, meetingId, date, range(today|week), page, pageSize
  */
 router.get('/meetings', async (req, res) => {
   try {
-    const { userId, status } = req.query;
+    const { userId, status, meetingId, date, range } = req.query;
     if (!userId) {
       return res.status(400).json({ error: 'userId required' });
     }
-    let q = 'SELECT * FROM meetings WHERE user_id = $1';
-    const params = [userId];
+
+    const parsedUserId = parseInt(userId, 10);
+    if (!parsedUserId) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize, 10) || 20));
+    const offset = (page - 1) * pageSize;
+
+    let where = 'WHERE user_id = $1';
+    const params = [parsedUserId];
+
     if (status) {
-      q += ' AND status = $2';
+      where += ` AND status = $${params.length + 1}`;
       params.push(status);
     }
-    q += ' ORDER BY created_at DESC';
-    const result = await query(q, params);
-    res.json({ success: true, meetings: result.rows, count: result.rows.length });
+
+    if (meetingId && String(meetingId).trim()) {
+      where += ` AND meeting_id::text ILIKE $${params.length + 1}`;
+      params.push(`%${String(meetingId).trim()}%`);
+    }
+
+    const hasExactDate = Boolean(date && String(date).trim());
+    if (hasExactDate) {
+      const exactDate = String(date).trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(exactDate)) {
+        return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
+      where += ` AND DATE(COALESCE(started_at, created_at)) = $${params.length + 1}::date`;
+      params.push(exactDate);
+    } else if (range === 'today') {
+      where += ' AND DATE(COALESCE(started_at, created_at)) = CURRENT_DATE';
+    } else if (range === 'week') {
+      where += " AND DATE(COALESCE(started_at, created_at)) >= (CURRENT_DATE - INTERVAL '6 days')";
+    }
+
+    const countQuery = `SELECT COUNT(*)::int AS total FROM meetings ${where}`;
+    const countResult = await query(countQuery, params);
+    const total = countResult.rows[0]?.total || 0;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    const dataParams = [...params, pageSize, offset];
+    const dataQuery = `
+      SELECT *
+      FROM meetings
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT $${dataParams.length - 1}
+      OFFSET $${dataParams.length}
+    `;
+    const result = await query(dataQuery, dataParams);
+
+    res.json({
+      success: true,
+      meetings: result.rows,
+      count: result.rows.length,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages,
+        hasPrev: page > 1,
+        hasNext: page < totalPages
+      },
+      filters: {
+        status: status || null,
+        meetingId: meetingId || null,
+        date: hasExactDate ? String(date).trim() : null,
+        range: hasExactDate ? null : (range || null)
+      }
+    });
   } catch (error) {
     console.error('Error fetching admin meetings:', error);
     res.status(500).json({ error: 'Failed to fetch meetings', message: error.message });

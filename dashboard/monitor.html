@@ -7,9 +7,55 @@
     <link rel="stylesheet" href="styles.css">
     <style>
         .user-badge { display: inline-block; padding: 5px 12px; background: #2a3a4a; border-radius: 6px; color: #4a9eff; font-weight: 500; margin-left: 6px; font-size: 13px; }
-        .refresh-note { color: #666; font-size: 12px; margin-top: 14px; }
         .status-active { color: #4ade80; font-weight: 500; }
         .status-stopped { color: #888; }
+        .monitor-filters { display: grid; grid-template-columns: 1fr 180px auto auto auto; gap: 10px; margin-bottom: 14px; align-items: center; }
+        .filter-input {
+            width: 100%;
+            min-height: 38px;
+            padding: 9px 11px;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            color: #fff;
+        }
+        .range-pills { display: inline-flex; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 6px; overflow: hidden; }
+        .range-pill {
+            border: none;
+            background: transparent;
+            color: #ccc;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .range-pill:hover { background: #252525; color: #fff; }
+        .range-pill.active { background: #4a9eff; color: #fff; }
+        .filter-btn {
+            border: 1px solid #3a3a3a;
+            background: #1a1a1a;
+            color: #ddd;
+            min-height: 38px;
+            padding: 0 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .filter-btn:hover { border-color: #4a9eff; color: #fff; }
+        .pagination-row {
+            margin-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .pagination-meta { color: #888; font-size: 12px; }
+        .pagination-controls { display: inline-flex; gap: 8px; align-items: center; }
+        .page-info { color: #ccc; font-size: 12px; min-width: 86px; text-align: center; }
+        @media (max-width: 900px) {
+            .monitor-filters { grid-template-columns: 1fr; }
+            .range-pills { width: fit-content; }
+        }
     </style>
 </head>
 <body>
@@ -25,6 +71,23 @@
 
         <section class="page-section">
             <h2>Meetings</h2>
+            <div class="monitor-filters">
+                <input
+                    type="text"
+                    id="meetingFilter"
+                    class="filter-input"
+                    placeholder="Search by Meeting ID"
+                    autocomplete="off"
+                />
+                <input type="date" id="dateFilter" class="filter-input" />
+                <div class="range-pills" role="group" aria-label="Date range">
+                    <button class="range-pill active" data-range="all" type="button">All</button>
+                    <button class="range-pill" data-range="today" type="button">Today</button>
+                    <button class="range-pill" data-range="week" type="button">Week</button>
+                </div>
+                <button type="button" id="searchFiltersBtn" class="filter-btn">Search</button>
+                <button type="button" id="clearFiltersBtn" class="filter-btn">Clear</button>
+            </div>
             <div class="table-container" style="overflow-x:auto">
                 <table class="data-table">
                     <thead>
@@ -43,7 +106,14 @@
                     </tbody>
                 </table>
             </div>
-            <p class="refresh-note">Auto-refreshes every 10 seconds</p>
+            <div class="pagination-row">
+                <div class="pagination-meta" id="paginationMeta">—</div>
+                <div class="pagination-controls">
+                    <button type="button" id="prevPageBtn" class="filter-btn">Prev</button>
+                    <span class="page-info" id="pageInfo">Page 1 / 1</span>
+                    <button type="button" id="nextPageBtn" class="filter-btn">Next</button>
+                </div>
+            </div>
         </section>
     </div>
 
@@ -52,26 +122,57 @@
         const params = new URLSearchParams(window.location.search);
         const userId = params.get('userId');
         const userName = params.get('name') || 'User';
+        const state = {
+            page: 1,
+            pageSize: 20,
+            totalPages: 1,
+            total: 0,
+            meetingId: '',
+            date: '',
+            range: 'all'
+        };
 
         function getAuthHeaders() {
             const token = localStorage.getItem('authToken');
             return { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
         }
 
-        async function loadMeetings() {
+        function buildMeetingQuery() {
+            const q = new URLSearchParams({
+                userId: String(userId),
+                page: String(state.page),
+                pageSize: String(state.pageSize)
+            });
+            if (state.meetingId) q.set('meetingId', state.meetingId);
+            if (state.date) q.set('date', state.date);
+            else if (state.range && state.range !== 'all') q.set('range', state.range);
+            return q.toString();
+        }
+
+        async function loadMeetings({ resetPage = false } = {}) {
             if (!userId) {
                 document.getElementById('userLabel').textContent = 'Invalid';
                 document.getElementById('meetingsBody').innerHTML = '<tr><td colspan="7" class="no-data">Invalid or missing user</td></tr>';
                 return;
             }
+            if (resetPage) state.page = 1;
             document.getElementById('userLabel').textContent = decodeURIComponent(userName);
             try {
-                const res = await fetch(`${API_BASE}/admin/meetings?userId=${userId}`, { headers: getAuthHeaders() });
+                const res = await fetch(`${API_BASE}/admin/meetings?${buildMeetingQuery()}`, { headers: getAuthHeaders() });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
+                state.total = data.pagination?.total || 0;
+                state.totalPages = data.pagination?.totalPages || 1;
+                if (state.page > state.totalPages) {
+                    state.page = state.totalPages;
+                    return loadMeetings();
+                }
                 renderMeetings(data.meetings || []);
+                updatePagination();
             } catch (e) {
                 document.getElementById('meetingsBody').innerHTML = `<tr><td colspan="7" class="no-data">Error: ${e.message}</td></tr>`;
+                document.getElementById('paginationMeta').textContent = '—';
+                document.getElementById('pageInfo').textContent = 'Page 1 / 1';
             }
         }
 
@@ -81,9 +182,10 @@
                 tbody.innerHTML = '<tr><td colspan="7" class="no-data">No meetings found</td></tr>';
                 return;
             }
+            const startIndex = (state.page - 1) * state.pageSize;
             tbody.innerHTML = meetings.map((m, i) => `
                 <tr>
-                    <td>${i + 1}</td>
+                    <td>${startIndex + i + 1}</td>
                     <td><strong>${escapeHtml(m.meeting_id)}</strong></td>
                     <td>${m.members_count}</td>
                     <td>${m.started_at ? new Date(m.started_at).toLocaleString() : '—'}</td>
@@ -92,6 +194,32 @@
                     <td><span class="status-${m.status === 'active' ? 'active' : 'stopped'}">${m.status}</span></td>
                 </tr>
             `).join('');
+        }
+
+        function updatePagination() {
+            const total = state.total;
+            const start = total === 0 ? 0 : ((state.page - 1) * state.pageSize) + 1;
+            const end = Math.min(state.page * state.pageSize, total);
+            document.getElementById('paginationMeta').textContent = `Showing ${start}-${end} of ${total}`;
+            document.getElementById('pageInfo').textContent = `Page ${state.page} / ${Math.max(state.totalPages, 1)}`;
+            document.getElementById('prevPageBtn').disabled = state.page <= 1;
+            document.getElementById('nextPageBtn').disabled = state.page >= state.totalPages;
+        }
+
+        function setRange(range) {
+            state.range = range;
+            document.querySelectorAll('.range-pill').forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.range === range);
+            });
+        }
+
+        function applyFilters() {
+            const meetingFilterEl = document.getElementById('meetingFilter');
+            const dateFilterEl = document.getElementById('dateFilter');
+            state.meetingId = meetingFilterEl.value.trim();
+            state.date = dateFilterEl.value || '';
+            if (state.date) setRange('all');
+            loadMeetings({ resetPage: true });
         }
 
         function escapeHtml(s) {
@@ -103,8 +231,50 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             if (!localStorage.getItem('authToken')) { window.location.href = 'login.html'; return; }
+
+            document.getElementById('meetingFilter').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') applyFilters();
+            });
+            document.getElementById('searchFiltersBtn').addEventListener('click', applyFilters);
+            document.getElementById('dateFilter').addEventListener('change', () => {
+                state.date = document.getElementById('dateFilter').value || '';
+                if (state.date) setRange('all');
+                loadMeetings({ resetPage: true });
+            });
+
+            document.querySelectorAll('.range-pill').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const range = btn.dataset.range || 'all';
+                    setRange(range);
+                    if (range !== 'all') {
+                        state.date = '';
+                        document.getElementById('dateFilter').value = '';
+                    }
+                    loadMeetings({ resetPage: true });
+                });
+            });
+
+            document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+                document.getElementById('meetingFilter').value = '';
+                document.getElementById('dateFilter').value = '';
+                state.meetingId = '';
+                state.date = '';
+                setRange('all');
+                loadMeetings({ resetPage: true });
+            });
+
+            document.getElementById('prevPageBtn').addEventListener('click', () => {
+                if (state.page <= 1) return;
+                state.page -= 1;
+                loadMeetings();
+            });
+            document.getElementById('nextPageBtn').addEventListener('click', () => {
+                if (state.page >= state.totalPages) return;
+                state.page += 1;
+                loadMeetings();
+            });
+
             loadMeetings();
-            setInterval(loadMeetings, 10000);
         });
     </script>
 </body>
