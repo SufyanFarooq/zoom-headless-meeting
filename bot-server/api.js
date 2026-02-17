@@ -700,7 +700,15 @@ app.post('/api/bots/containers-status', async (req, res) => {
           { cwd: projectDir, shell: '/bin/sh', timeout: 2000 }
         );
         const status = (stdout || '').trim();
-        if (status && !status.includes('Exited')) {
+        const normalized = status.toLowerCase();
+        const isRunning =
+          normalized.startsWith('up') ||
+          normalized.includes('restarting') ||
+          normalized.includes('paused');
+
+        // Treat "Created", "Exited", "Dead", empty status as stopped so stale
+        // containers do not keep meeting status active forever.
+        if (isRunning) {
           running.push(name);
         } else {
           stopped.push(name);

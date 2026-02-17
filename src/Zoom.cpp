@@ -48,6 +48,7 @@ SDKError Zoom::createServices() {
 
     auto meetingServiceEvent = new MeetingServiceEvent();
     meetingServiceEvent->setOnMeetingJoin(onJoin);
+    meetingServiceEvent->setOnMeetingEnd(onMeetingEnd);
 
     err = m_meetingService->SetEvent(meetingServiceEvent);
     if (hasError(err)) return err;

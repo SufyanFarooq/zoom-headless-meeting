@@ -7,6 +7,7 @@
 #include <thread>
 #include <string>
 #include <sstream>
+#include <cstdlib>
 
 #include <jwt-cpp/jwt.h>
 
@@ -215,6 +216,15 @@ class Zoom : public Singleton<Zoom> {
             Log::info("requesting local recording privilege");
             recCtl->RequestLocalRecordingPrivilege();
         }
+    };
+
+    /**
+     * Callback fired when meeting ends (host ended for all / bot disconnected)
+     * Exit process so container stops automatically.
+    */
+    function<void()> onMeetingEnd = [&]() {
+        Log::info("Meeting ended event received. Exiting bot process.");
+        std::_Exit(0);
     };
 
 public:

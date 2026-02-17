@@ -272,18 +272,19 @@ class Scheduler {
       timezone: 'UTC' // Database stores times in UTC
     });
     
-    // Cleanup every 30 seconds - catch exited containers (timeout) quickly
+    // Cleanup every 10 seconds - update meeting status shortly after host ends meeting.
+    const cleanupIntervalMs = 10000;
     this.cleanupInterval = setInterval(() => {
       this.checkAndCleanupStoppedMeetings().catch(e => console.error('[CLEANUP] Error:', e.message));
-    }, 30000);
+    }, cleanupIntervalMs);
     
-    // Run cleanup once after 10s (catch any exited containers from before restart)
+    // Run cleanup once after startup (catch any exited containers from before restart)
     setTimeout(() => {
       console.log('[CLEANUP] Initial run after startup...');
       this.checkAndCleanupStoppedMeetings().catch(e => console.error('[CLEANUP] Init error:', e.message));
-    }, 10000);
+    }, 5000);
     
-    console.log('⏰ Scheduler: cron every minute, cleanup every 30s');
+    console.log(`⏰ Scheduler: cron every minute, cleanup every ${Math.floor(cleanupIntervalMs / 1000)}s`);
   }
   
   /**
@@ -307,4 +308,3 @@ class Scheduler {
 const scheduler = new Scheduler();
 
 module.exports = scheduler;
-
