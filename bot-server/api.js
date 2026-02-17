@@ -4,7 +4,6 @@ const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const crypto = require('crypto');
 const {
   ensureWarmPool,
   getWarmPoolStatus,
@@ -47,36 +46,6 @@ function shellQuote(value) {
 function toNumber(value, fallback = null) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function base64UrlEncode(input) {
-  const buffer = Buffer.isBuffer(input) ? input : Buffer.from(String(input));
-  return buffer.toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-}
-
-function createSharedSdkJwt(clientId, clientSecret) {
-  const now = Math.floor(Date.now() / 1000);
-  const exp = now + (24 * 60 * 60);
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const payload = {
-    appKey: clientId,
-    iat: now,
-    exp,
-    tokenExp: exp
-  };
-
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const signature = crypto
-    .createHmac('sha256', clientSecret)
-    .update(signingInput)
-    .digest();
-  const encodedSignature = base64UrlEncode(signature);
-  return `${signingInput}.${encodedSignature}`;
 }
 
 function readCpuSample() {
@@ -426,8 +395,6 @@ app.post('/api/bots/create', async (req, res) => {
     const resolvedAccountId = (typeof accountId === 'string' && accountId.trim()) || (process.env.ZOOM_ACCOUNT_ID || '').trim();
     const resolvedClientId = (typeof clientId === 'string' && clientId.trim()) || (process.env.ZOOM_CLIENT_ID || '').trim();
     const resolvedClientSecret = (typeof clientSecret === 'string' && clientSecret.trim()) || (process.env.ZOOM_CLIENT_SECRET || '').trim();
-    const useSharedSdkJwt = isTrue(process.env.BOT_SHARED_SDK_JWT ?? 'true');
-    let sharedSdkJwt = '';
 
     if (meetingType === 'Profile Pic Member' && (!resolvedAccountId || !resolvedClientId || !resolvedClientSecret)) {
       return res.status(400).json({
@@ -436,16 +403,7 @@ app.post('/api/bots/create', async (req, res) => {
       });
     }
 
-    if (useSharedSdkJwt && resolvedClientId && resolvedClientSecret) {
-      try {
-        sharedSdkJwt = createSharedSdkJwt(resolvedClientId, resolvedClientSecret);
-        console.log('🔐 Using shared SDK JWT for this batch (reuse signing work across bots)');
-      } catch (jwtError) {
-        console.warn(`⚠️ Failed to create shared SDK JWT, falling back to per-bot JWT generation: ${jwtError.message}`);
-      }
-    }
-
-    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && VIDEO_FILE=${shellQuote(videoFileEnv)} MEETING_TYPE=${shellQuote(meetingType)} NAME_TYPE=${shellQuote(nameType)} NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} SDK_JWT_TOKEN=${shellQuote(sharedSdkJwt)} bash setup-flexible-bots.sh ${video} ${audio} ${shellQuote(joinUrl)} ${shellQuote(resolvedAccountId)} ${shellQuote(resolvedClientId)} ${shellQuote(resolvedClientSecret)} ${shellQuote(meetingId)} ${shellQuote(uniqueRequestId)} ${timeoutSecs}`;
+    const command = `cd "${projectDir}" && chmod +x setup-flexible-bots.sh generate-flexible-bots.sh auto-setup-bots.sh update-compose-zak.py && VIDEO_FILE=${shellQuote(videoFileEnv)} MEETING_TYPE=${shellQuote(meetingType)} NAME_TYPE=${shellQuote(nameType)} NAME_OFFSET=${nameOffset} USE_SINGLE_ZAK=${useSingleZakEnv} bash setup-flexible-bots.sh ${video} ${audio} ${shellQuote(joinUrl)} ${shellQuote(resolvedAccountId)} ${shellQuote(resolvedClientId)} ${shellQuote(resolvedClientSecret)} ${shellQuote(meetingId)} ${shellQuote(uniqueRequestId)} ${timeoutSecs}`;
     const composeFileName = `compose-${meetingId}-${uniqueRequestId}-bots.yaml`;
     const composeFilePath = path.join(projectDir, composeFileName);
 

@@ -140,8 +140,6 @@ SDKError Zoom::auth() {
 
     auto id = m_config.clientId();
     auto secret = m_config.clientSecret();
-    const char* sharedJwt = std::getenv("ZOOM_SDK_JWT");
-    const bool hasSharedJwt = sharedJwt && *sharedJwt;
 
     if (id.empty()) {
         Log::error("Client ID cannot be blank");
@@ -171,17 +169,13 @@ SDKError Zoom::auth() {
         }
 
         // AUTHRET_OVERTIME and unknown (e.g. code 5) are often transient under burst starts.
-        // AUTHRET_JWTTOKENWRONG can happen when a shared pre-generated JWT is rejected;
-        // fallback to local JWT generation and retry.
+        // AUTHRET_JWTTOKENWRONG can also recover after a fresh JWT generation.
         const bool retryable = (result == AUTHRET_OVERTIME)
             || (result == AUTHRET_JWTTOKENWRONG)
             || (static_cast<int>(result) == 5);
         if (retryable && m_authRetryCount < maxRetries) {
             m_authRetryCount++;
             const int backoffMs = 400 * m_authRetryCount;
-            if (result == AUTHRET_JWTTOKENWRONG) {
-                Log::info("Shared JWT was rejected by SDK; falling back to local JWT generation");
-            }
             Log::info("Retrying SDK auth (" + to_string(m_authRetryCount) + "/" + to_string(maxRetries) + ") after " + to_string(backoffMs) + "ms");
             std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
 
@@ -201,16 +195,11 @@ SDKError Zoom::auth() {
     err = m_authService->SetEvent(authEvent);
     if (hasError(err)) return err;
 
-    if (hasSharedJwt) {
-        m_jwt = string(sharedJwt);
-        Log::info("Using shared SDK JWT from environment");
-    } else {
-        generateJWT(m_config.clientId(), m_config.clientSecret());
-        // Debug: Log JWT info (first 50 chars only for security)
-        Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
-        Log::info("Client ID: " + m_config.clientId());
-        Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
-    }
+    generateJWT(m_config.clientId(), m_config.clientSecret());
+    // Debug: Log JWT info (first 50 chars only for security)
+    Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
+    Log::info("Client ID: " + m_config.clientId());
+    Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
 
     AuthContext ctx;
     ctx.jwt_token =  m_jwt.c_str();
