@@ -105,6 +105,12 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating meeting:', error);
+    if (error.code === 'MEETING_PRECHECK_TIMEOUT') {
+      return res.status(408).json({
+        error: 'Meeting validation timed out',
+        message: error.message
+      });
+    }
     if (error.code === 'WRONG_MEETING_PASSWORD') {
       return res.status(400).json({
         error: 'Invalid meeting password',
@@ -237,6 +243,12 @@ router.post('/:id/refill', async (req, res) => {
     });
   } catch (error) {
     console.error('Error refilling meeting:', error);
+    if (error.code === 'MEETING_PRECHECK_TIMEOUT') {
+      return res.status(408).json({
+        error: 'Meeting validation timed out',
+        message: error.message
+      });
+    }
     if (error.code === 'WRONG_MEETING_PASSWORD') {
       return res.status(400).json({
         error: 'Invalid meeting password',

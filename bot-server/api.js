@@ -135,8 +135,8 @@ function evaluateJoinProbe(logText, { exitCode = null, signal = null } = {}) {
     lower.includes('exit code 124') ||
     exitCode === 124;
   if (hasConnecting && timeoutLike) {
-    // In this SDK flow, wrong password can get stuck at CONNECTING until timeout.
-    return { verdict: 'wrong_password', failCode: null, reason: 'connect_timeout' };
+    // Timeout while connecting can be transient (network/Zoom edge), so keep it separate.
+    return { verdict: 'timeout', failCode: null, reason: 'connect_timeout' };
   }
 
   if (signal) {
@@ -507,6 +507,7 @@ app.post('/api/bots/create', async (req, res) => {
         joinUrl,
         meetingId
       });
+      const blockOnProbeTimeout = isTrue(process.env.BOT_PASSWORD_PRECHECK_BLOCK_ON_TIMEOUT ?? 'false');
 
       if (probeResult.verdict === 'wrong_password') {
         console.warn(`❌ Pre-check rejected meeting ${meetingId}: ${probeResult.reason || 'wrong_password'}`);
@@ -514,6 +515,15 @@ app.post('/api/bots/create', async (req, res) => {
           error: 'Invalid meeting password',
           message: 'The meeting password appears incorrect or could not be validated. Please verify meeting ID/password and try again.',
           code: 'WRONG_MEETING_PASSWORD'
+        });
+      }
+
+      if (probeResult.verdict === 'timeout' && blockOnProbeTimeout) {
+        console.warn(`❌ Pre-check timed out for meeting ${meetingId}; rejecting due to BOT_PASSWORD_PRECHECK_BLOCK_ON_TIMEOUT=true`);
+        return res.status(400).json({
+          error: 'Meeting validation timed out',
+          message: 'Could not validate meeting credentials in time. Please retry in a few seconds.',
+          code: 'MEETING_PRECHECK_TIMEOUT'
         });
       }
 
