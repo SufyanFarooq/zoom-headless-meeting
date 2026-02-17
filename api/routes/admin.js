@@ -106,6 +106,86 @@ router.post('/users', async (req, res) => {
 });
 
 /**
+ * PUT /api/admin/users/:id - Update user details (admin only)
+ */
+router.put('/users/:id', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { username, email, password } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const hasUsername = username !== undefined;
+    const hasEmail = email !== undefined;
+    const hasPassword = password !== undefined && password !== null && String(password).length > 0;
+
+    if (!hasUsername && !hasEmail && !hasPassword) {
+      return res.status(400).json({ error: 'At least one field is required: username, email, or password' });
+    }
+
+    const target = await getUserById(userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!canManageUser(target, req.user?.id)) {
+      return res.status(403).json({ error: 'Not allowed to update this user' });
+    }
+
+    const nextUsername = hasUsername ? String(username).trim() : target.username;
+    const nextEmail = hasEmail ? String(email).trim() : target.email;
+
+    if (!nextUsername) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    if (!nextEmail) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    if (hasPassword && String(password).length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const existing = await query(
+      `SELECT id FROM users
+       WHERE id <> $1 AND (username = $2 OR email = $3)
+       LIMIT 1`,
+      [userId, nextUsername, nextEmail]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Username or email already exists' });
+    }
+
+    if (hasPassword) {
+      const saltRounds = 10;
+      const passwordHash = await bcrypt.hash(String(password), saltRounds);
+      await query(
+        `UPDATE users
+         SET username = $1, email = $2, password_hash = $3, updated_at = NOW()
+         WHERE id = $4`,
+        [nextUsername, nextEmail, passwordHash, userId]
+      );
+    } else {
+      await query(
+        `UPDATE users
+         SET username = $1, email = $2, updated_at = NOW()
+         WHERE id = $3`,
+        [nextUsername, nextEmail, userId]
+      );
+    }
+
+    const updated = await getUserById(userId);
+    res.json({
+      success: true,
+      message: 'User details updated',
+      user: updated
+    });
+  } catch (error) {
+    console.error('Error updating user details:', error);
+    res.status(500).json({ error: 'Failed to update user details', message: error.message });
+  }
+});
+
+/**
  * PUT /api/admin/users/:id/password - Update user password (admin only)
  */
 router.put('/users/:id/password', async (req, res) => {

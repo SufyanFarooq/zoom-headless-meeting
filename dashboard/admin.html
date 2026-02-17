@@ -33,6 +33,15 @@
         .menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; background: transparent; border: none; color: #e6e6e6; text-decoration: none; cursor: pointer; font-size: 13px; }
         .menu-item:hover { background: #2f2f2f; }
         .menu-item.is-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: none; align-items: center; justify-content: center; z-index: 1200; padding: 16px; }
+        .modal-overlay.show { display: flex; }
+        .admin-modal { width: 100%; max-width: 460px; background: #222; border: 1px solid #3a3a3a; border-radius: 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); }
+        .admin-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #3a3a3a; }
+        .admin-modal-title { margin: 0; font-size: 16px; color: #fff; }
+        .admin-modal-close { background: transparent; border: none; color: #aaa; font-size: 22px; line-height: 1; cursor: pointer; padding: 0; }
+        .admin-modal-close:hover { color: #fff; }
+        .admin-modal-body { padding: 16px; }
+        .admin-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
     </style>
 </head>
 <body>
@@ -179,7 +188,8 @@
                                 class="btn-link btn-more"
                                 title="Actions"
                                 data-user-id="${u.id}"
-                                data-name="${escapeHtml(u.username || '')}"
+                                data-username="${escapeHtml(u.username || '')}"
+                                data-email="${escapeHtml(u.email || '')}"
                                 data-max-limit="${u.max_members_limit || ''}"
                                 data-blocked="${blocked ? 'true' : 'false'}"
                                 data-is-admin="${u.is_admin ? 'true' : 'false'}"
@@ -232,25 +242,68 @@
             }
         }
 
-        async function updatePassword(userId) {
+        let activeUpdateUserId = null;
+
+        function openUpdateModal(userId, currentUsername, currentEmail) {
             closeAllMenus();
-            const newPassword = prompt('Enter new password (min 6 characters):');
-            if (newPassword === null) return;
-            if (!newPassword || newPassword.length < 6) {
+            activeUpdateUserId = userId;
+            document.getElementById('updateUsername').value = currentUsername || '';
+            document.getElementById('updateEmail').value = currentEmail || '';
+            document.getElementById('updatePassword').value = '';
+            document.getElementById('updateUserModal').classList.add('show');
+            setTimeout(() => document.getElementById('updateUsername').focus(), 0);
+        }
+
+        function closeUpdateModal() {
+            document.getElementById('updateUserModal').classList.remove('show');
+            document.getElementById('updateUserForm').reset();
+            activeUpdateUserId = null;
+        }
+
+        async function submitUpdateUserForm(event) {
+            event.preventDefault();
+            if (!activeUpdateUserId) return;
+
+            const username = document.getElementById('updateUsername').value.trim();
+            const email = document.getElementById('updateEmail').value.trim();
+            const password = document.getElementById('updatePassword').value.trim();
+
+            if (!username) {
+                alert('Username is required');
+                return;
+            }
+            if (!email) {
+                alert('Email is required');
+                return;
+            }
+            if (password && password.length < 6) {
                 alert('Password must be at least 6 characters');
                 return;
             }
+
+            const saveBtn = document.getElementById('updateUserSaveBtn');
+            const payload = { username, email };
+            if (password) payload.password = password;
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
             try {
-                const res = await fetch(`${API_BASE}/admin/users/${userId}/password`, {
+                const res = await fetch(`${API_BASE}/admin/users/${activeUpdateUserId}`, {
                     method: 'PUT',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ newPassword })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
-                alert('Password updated');
+                closeUpdateModal();
+                alert('User details updated');
+                loadUsers();
             } catch (e) {
                 alert(e.message);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Changes';
             }
         }
 
@@ -313,22 +366,23 @@
             closeAllMenus();
 
             const userId = trigger.dataset.userId;
-            const nameRaw = trigger.dataset.name || '';
+            const usernameRaw = trigger.dataset.username || '';
+            const emailRaw = trigger.dataset.email || '';
             const maxLimitRaw = trigger.dataset.maxLimit || '';
             const isBlocked = trigger.dataset.blocked === 'true';
             const isAdmin = trigger.dataset.isAdmin === 'true';
 
             const monitor = menu.querySelector('[data-action="monitor"]');
             const report = menu.querySelector('[data-action="report"]');
-            const passwordBtn = menu.querySelector('[data-action="password"]');
+            const updateBtn = menu.querySelector('[data-action="update"]');
             const blockBtn = menu.querySelector('[data-action="block"]');
             const limitBtn = menu.querySelector('[data-action="limit"]');
 
-            const nameParam = encodeURIComponent(nameRaw);
+            const nameParam = encodeURIComponent(usernameRaw);
             monitor.href = `monitor.html?userId=${userId}&name=${nameParam}`;
             report.href = `user-report.html?userId=${userId}&name=${nameParam}`;
 
-            passwordBtn.onclick = () => updatePassword(parseInt(userId, 10));
+            updateBtn.onclick = () => openUpdateModal(parseInt(userId, 10), usernameRaw, emailRaw);
             limitBtn.onclick = () => updateLimit(parseInt(userId, 10), maxLimitRaw || null);
 
             const blockLabel = isBlocked ? 'Unblock' : 'Block';
@@ -372,6 +426,9 @@
         document.addEventListener('click', () => closeAllMenus());
         window.addEventListener('resize', () => closeAllMenus());
         window.addEventListener('scroll', () => closeAllMenus(), true);
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeUpdateModal();
+        });
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (await checkAdmin()) loadUsers();
@@ -380,9 +437,35 @@
     <div id="actionsMenu" class="menu-dropdown" onclick="event.stopPropagation()">
         <a href="#" class="menu-item" data-action="monitor">Monitor</a>
         <a href="#" class="menu-item" data-action="report">Report</a>
-        <button class="menu-item" type="button" data-action="password">Set Password</button>
+        <button class="menu-item" type="button" data-action="update">Update</button>
         <button class="menu-item" type="button" data-action="block">Block</button>
         <button class="menu-item" type="button" data-action="limit">Set Limit</button>
+    </div>
+    <div id="updateUserModal" class="modal-overlay" onclick="if(event.target === this) closeUpdateModal()">
+        <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="updateUserTitle">
+            <div class="admin-modal-header">
+                <h3 id="updateUserTitle" class="admin-modal-title">Update User</h3>
+                <button type="button" class="admin-modal-close" onclick="closeUpdateModal()" aria-label="Close">×</button>
+            </div>
+            <form id="updateUserForm" class="admin-modal-body form-stack" onsubmit="submitUpdateUserForm(event)">
+                <div class="form-group">
+                    <label for="updateUsername">Username</label>
+                    <input type="text" id="updateUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="updateEmail">Email</label>
+                    <input type="email" id="updateEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="updatePassword">Password (optional)</label>
+                    <input type="password" id="updatePassword" minlength="6" placeholder="Leave blank to keep current password">
+                </div>
+                <div class="admin-modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeUpdateModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="updateUserSaveBtn">Save Changes</button>
+                </div>
+            </form>
+        </div>
     </div>
 </body>
 </html>
