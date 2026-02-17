@@ -543,7 +543,7 @@ async function checkContainersStatus(serverId, containerIds) {
 
     const { data } = await axios.post(`${serverUrl}/api/bots/containers-status`, {
       containerIds
-    }, { timeout: 10000 });
+    }, { timeout: 20000 });
     return { allStopped: data.allStopped === true };
   } catch (error) {
     console.error('[checkContainersStatus] FAILED:', error.code, error.message, error.config?.url);

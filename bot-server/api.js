@@ -688,32 +688,43 @@ app.post('/api/bots/containers-status', async (req, res) => {
     const running = [];
     const stopped = [];
     const warmStatusMap = await getWarmJobsStatus(containerIds);
+    const targetNames = new Set(containerIds);
+    const dockerStatusByName = new Map();
+
+    // Single Docker call for all containers (much faster than 1 call/container).
+    const { stdout: dockerStatuses } = await execAsync(
+      'docker ps -a --format "{{.Names}}|{{.Status}}"',
+      { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
+    );
+    for (const rawLine of (dockerStatuses || '').split('\n')) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      const sep = line.indexOf('|');
+      if (sep <= 0) continue;
+      const name = line.slice(0, sep).trim();
+      if (!targetNames.has(name)) continue;
+      const status = line.slice(sep + 1).trim();
+      dockerStatusByName.set(name, status);
+    }
 
     for (const name of containerIds) {
       if (warmStatusMap[name]?.running) {
         running.push(name);
         continue;
       }
-      try {
-        const { stdout } = await execAsync(
-          `docker ps -a --filter "name=^${name}$" --format "{{.Status}}"`,
-          { cwd: projectDir, shell: '/bin/sh', timeout: 2000 }
-        );
-        const status = (stdout || '').trim();
-        const normalized = status.toLowerCase();
-        const isRunning =
-          normalized.startsWith('up') ||
-          normalized.includes('restarting') ||
-          normalized.includes('paused');
 
-        // Treat "Created", "Exited", "Dead", empty status as stopped so stale
-        // containers do not keep meeting status active forever.
-        if (isRunning) {
-          running.push(name);
-        } else {
-          stopped.push(name);
-        }
-      } catch {
+      const status = (dockerStatusByName.get(name) || '').trim();
+      const normalized = status.toLowerCase();
+      const isRunning =
+        normalized.startsWith('up') ||
+        normalized.includes('restarting') ||
+        normalized.includes('paused');
+
+      // Treat "Created", "Exited", "Dead", empty status as stopped so stale
+      // containers do not keep meeting status active forever.
+      if (isRunning) {
+        running.push(name);
+      } else {
         stopped.push(name);
       }
     }
