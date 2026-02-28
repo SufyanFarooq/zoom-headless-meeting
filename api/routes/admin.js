@@ -33,6 +33,70 @@ function canManageUser(targetUser, adminId) {
   return true;
 }
 
+async function getTotalActiveServerCapacity() {
+  const result = await query(
+    `SELECT COALESCE(SUM(capacity), 0) AS total_capacity
+     FROM bot_servers
+     WHERE status = 'active'`
+  );
+  return parseInt(result.rows[0]?.total_capacity, 10) || 0;
+}
+
+async function getAllocatedUserLimits(excludeUserId = null) {
+  const params = [];
+  let sql = `SELECT COALESCE(SUM(max_members_limit), 0) AS allocated_limits
+             FROM users
+             WHERE max_members_limit IS NOT NULL AND max_members_limit > 0`;
+  if (excludeUserId) {
+    sql += ' AND id <> $1';
+    params.push(excludeUserId);
+  }
+  const result = await query(sql, params);
+  return parseInt(result.rows[0]?.allocated_limits, 10) || 0;
+}
+
+async function validateUserLimitCapacity(requestedLimit, excludeUserId = null) {
+  if (!Number.isFinite(requestedLimit) || requestedLimit <= 0) {
+    return { ok: true };
+  }
+
+  const totalCapacity = await getTotalActiveServerCapacity();
+  if (totalCapacity <= 0) {
+    return {
+      ok: false,
+      code: 'NO_SERVER_CAPACITY',
+      message: 'No active bot server capacity configured. Please set bot server capacity first.'
+    };
+  }
+
+  const allocatedLimits = await getAllocatedUserLimits(excludeUserId);
+  const availableForThisUser = Math.max(0, totalCapacity - allocatedLimits);
+
+  if (requestedLimit > availableForThisUser) {
+    return {
+      ok: false,
+      code: 'LIMIT_EXCEEDS_CAPACITY',
+      message: `Max members limit cannot exceed remaining capacity (${availableForThisUser}).`,
+      details: {
+        requestedLimit,
+        availableForThisUser,
+        allocatedLimits,
+        totalCapacity
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    details: {
+      requestedLimit,
+      availableForThisUser,
+      allocatedLimits,
+      totalCapacity
+    }
+  };
+}
+
 /**
  * GET /api/admin/users - List all users (admin only)
  */
@@ -85,6 +149,15 @@ router.post('/users', async (req, res) => {
         return res.status(400).json({ error: 'Max members limit must be a positive number' });
       }
       maxLimit = parsed;
+
+      const capacityCheck = await validateUserLimitCapacity(maxLimit);
+      if (!capacityCheck.ok) {
+        return res.status(400).json({
+          error: capacityCheck.message,
+          code: capacityCheck.code,
+          ...capacityCheck.details
+        });
+      }
     }
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
@@ -275,6 +348,17 @@ router.put('/users/:id/limit', async (req, res) => {
     if (!target) return res.status(404).json({ error: 'User not found' });
     if (!canManageUser(target, req.user?.id)) {
       return res.status(403).json({ error: 'Not allowed to update this user' });
+    }
+
+    if (maxLimit !== null) {
+      const capacityCheck = await validateUserLimitCapacity(maxLimit, userId);
+      if (!capacityCheck.ok) {
+        return res.status(400).json({
+          error: capacityCheck.message,
+          code: capacityCheck.code,
+          ...capacityCheck.details
+        });
+      }
     }
 
     await query(

@@ -112,7 +112,5 @@ RUN chmod +x /tini /opt/zoomsdk-runtime/entry-bot-runtime.sh /opt/zoomsdk-runtim
     && mkdir -p /tmp/meeting-sdk-linux-sample/out /tmp/build-logs \
     && if [ -f /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so ] && [ ! -f /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so.1 ]; then \
          cp /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so.1; \
-       fi
-
-ENTRYPOINT ["/tini", "--"]
+       fiENTRYPOINT ["/tini", "--"]
 CMD ["/opt/zoomsdk-runtime/entry-bot-runtime.sh", "--warmup-only"]

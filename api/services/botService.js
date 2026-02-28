@@ -5,6 +5,11 @@ const { getNamesForBots } = require('./nameService');
 let zoomAccessToken = null;
 let zoomAccessTokenExpiry = 0;
 
+function isEnabled(value, fallback = false) {
+  if (value == null) return fallback;
+  return ['1', 'true', 'yes', 'y', 'on'].includes(String(value).toLowerCase());
+}
+
 /**
  * Calculate bot distribution based on meeting type
  * Note: Now videoCount and audioCount are passed directly from frontend
@@ -162,7 +167,8 @@ async function refreshServerLoad(serverId) {
     const { data } = await axios.get(`${serverUrl}/api/bots/capacity`, { timeout: 5000 });
     const currentLoad = Number.parseInt(data?.currentLoad, 10);
     const schedulerLoad = Number.parseInt(data?.schedulerLoad, 10);
-    const effectiveLoad = Number.isFinite(schedulerLoad) ? schedulerLoad : currentLoad;
+    const useSchedulerLoad = isEnabled(process.env.USE_SCHEDULER_LOAD_FOR_DB, false);
+    const effectiveLoad = useSchedulerLoad && Number.isFinite(schedulerLoad) ? schedulerLoad : currentLoad;
     if (!Number.isFinite(effectiveLoad)) {
       console.warn(`[refreshServerLoad] Invalid load from ${serverUrl}:`, {
         currentLoad: data?.currentLoad,
@@ -203,10 +209,15 @@ async function refreshAllServerLoads() {
 /**
  * Select best bot server based on priority and capacity
  * Uses priority if column exists; otherwise selects by current_load
- * If none found, refreshes server loads from bot-server and retries once.
+ * Refreshes server loads before selection by default.
  */
 async function selectBestServer(membersCount) {
   try {
+    const refreshBeforeSelect = isEnabled(process.env.REFRESH_SERVER_LOAD_BEFORE_SELECT, true);
+    if (refreshBeforeSelect) {
+      await refreshAllServerLoads();
+    }
+
     let server = await selectBestServerFromDb(membersCount);
     if (server) return server;
 
@@ -561,5 +572,6 @@ module.exports = {
   checkContainersStatus,
   calculateBotDistribution,
   selectBestServer,
-  updateServerLoad
+  updateServerLoad,
+  refreshAllServerLoads
 };

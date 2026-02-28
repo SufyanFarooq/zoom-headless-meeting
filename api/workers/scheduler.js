@@ -1,5 +1,5 @@
 const { query } = require('../db');
-const { createBots, checkContainersStatus, stopBots } = require('../services/botService');
+const { createBots, checkContainersStatus, stopBots, refreshAllServerLoads } = require('../services/botService');
 const { updateUsage, decreaseUsage } = require('../services/usageService');
 const cron = require('node-cron');
 
@@ -166,6 +166,16 @@ class Scheduler {
       await this.checkAndCleanupStoppedMeetings();
     } catch (cleanupError) {
       console.error('[CLEANUP] Error:', cleanupError.message);
+    }
+
+    // Keep bot_servers.current_load synced with live bot-server load.
+    try {
+      const refreshed = await refreshAllServerLoads();
+      if (refreshed > 0) {
+        console.log(`[LOAD] Refreshed load for ${refreshed} active bot server(s)`);
+      }
+    } catch (loadError) {
+      console.error('[LOAD] Refresh error:', loadError.message);
     }
   }
 

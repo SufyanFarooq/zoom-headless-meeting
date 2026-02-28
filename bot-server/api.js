@@ -1108,13 +1108,17 @@ app.get('/api/bots/capacity', async (req, res) => {
   try {
     const projectDir = path.join(__dirname, '..');
     
-    // Get running containers count
-    const { stdout: runningCount } = await execAsync(
-      'docker ps --filter "name=zoom-bot" -q | wc -l',
+    // Get running meeting bot containers only (exclude bot-server service container).
+    const { stdout: runningNames } = await execAsync(
+      'docker ps --format "{{.Names}}"',
       { cwd: projectDir, shell: '/bin/sh' }
     );
-    
-    const composeLoad = parseInt(runningCount.trim(), 10) || 0;
+
+    const composeLoad = (runningNames || '')
+      .split('\n')
+      .map((name) => name.trim())
+      .filter((name) => /^zoom-bot-\d/.test(name))
+      .length;
     let warmBusy = 0;
     try {
       const warm = await getWarmPoolStatus();

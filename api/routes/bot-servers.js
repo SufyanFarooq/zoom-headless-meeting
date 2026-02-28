@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db');
+const { refreshAllServerLoads } = require('../services/botService');
 
 /**
  * POST /api/bot-servers - Register a bot server
@@ -47,6 +48,11 @@ router.post('/', async (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
+    const shouldRefresh = String(req.query.refresh ?? '1').toLowerCase() !== '0';
+    if (shouldRefresh) {
+      await refreshAllServerLoads();
+    }
+
     const result = await query(
       'SELECT * FROM bot_servers ORDER BY created_at DESC'
     );
@@ -93,4 +99,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
-
