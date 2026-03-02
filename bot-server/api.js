@@ -109,6 +109,7 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, 
   }
 
   const safeStaggerMs = Number.isFinite(staggerMs) && staggerMs > 0 ? Math.floor(staggerMs) : 0;
+  const batchSize = Math.max(1, parseInt(process.env.BOT_START_BATCH_SIZE || '1', 10) || 1);
   if (safeStaggerMs <= 0) {
     const serviceArgs = serviceFilter ? ` ${serviceFilter.map((s) => shellQuote(s)).join(' ')}` : '';
     const startCommand = `docker-compose -f "${composeFilePath}" up -d --force-recreate${serviceArgs}`;
@@ -133,12 +134,14 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, 
     return execAsync(fallbackCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
   }
 
-  console.log(`🚦 Starting ${services.length} services with stagger ${safeStaggerMs}ms`);
-  for (let i = 0; i < services.length; i++) {
-    const service = services[i];
-    const upCommand = `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${shellQuote(service)}`;
+  const totalBatches = Math.ceil(services.length / batchSize);
+  console.log(`🚦 Starting ${services.length} services with stagger ${safeStaggerMs}ms (batchSize=${batchSize}, batches=${totalBatches})`);
+  for (let i = 0; i < services.length; i += batchSize) {
+    const batch = services.slice(i, i + batchSize);
+    const serviceArgs = batch.map((service) => shellQuote(service)).join(' ');
+    const upCommand = `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${serviceArgs}`;
     await execAsync(upCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
-    if (i < services.length - 1) {
+    if (i + batchSize < services.length) {
       await delay(safeStaggerMs);
     }
   }
@@ -410,6 +413,7 @@ app.post('/api/bots/create', async (req, res) => {
     const asyncMode = req.body?.async !== undefined
       ? isTrue(req.body?.async)
       : isTrue(process.env.BOT_CREATE_ASYNC ?? 'true');
+    console.log(`⚙️  Create mode: ${asyncMode ? 'async' : 'sync'} (BOT_CREATE_ASYNC=${process.env.BOT_CREATE_ASYNC || 'unset'})`);
     if (asyncMode) {
       const containerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
       res.status(202).json({
