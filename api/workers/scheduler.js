@@ -184,6 +184,10 @@ class Scheduler {
    */
   async checkAndCleanupStoppedMeetings() {
     try {
+      const cleanupGraceSec = Math.max(
+        0,
+        Number.parseInt(process.env.BOT_CLEANUP_GRACE_SECONDS || '180', 10) || 180
+      );
       const result = await query(
         `SELECT id, meeting_id, members_count, container_ids, bot_server_id, timeout_seconds, started_at
          FROM meetings WHERE status = 'active' AND container_ids IS NOT NULL AND array_length(container_ids, 1) > 0`
@@ -210,6 +214,9 @@ class Scheduler {
           continue;
         }
 
+        const started = meeting.started_at ? new Date(meeting.started_at) : null;
+        const elapsedSec = started ? (Date.now() - started.getTime()) / 1000 : 0;
+
         let allStopped = false;
         try {
           const status = await checkContainersStatus(meeting.bot_server_id, containerIds);
@@ -219,6 +226,15 @@ class Scheduler {
           continue;
         }
         console.log(`[CLEANUP] Meeting ${meeting.meeting_id} (id ${meeting.id}): allStopped=${allStopped}, containers=${containerIds.length}`);
+
+        // Guard against async provisioning race:
+        // while containers are still being created, names may not exist yet and
+        // status endpoint returns allStopped=true. Skip cleanup briefly.
+        if (allStopped && elapsedSec >= 0 && elapsedSec < cleanupGraceSec) {
+          console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: allStopped during startup grace (${Math.floor(elapsedSec)}s < ${cleanupGraceSec}s), skipping`);
+          continue;
+        }
+
         if (allStopped) {
           try {
             console.log(`[CLEANUP] Calling stopBots for meeting ${meeting.meeting_id} (id ${meeting.id})`);
@@ -234,8 +250,6 @@ class Scheduler {
           console.log(`🧹 Auto-marked meeting ${meeting.meeting_id} (id ${meeting.id}) as stopped`);
         } else {
           const timeoutSec = meeting.timeout_seconds || 7200;
-          const started = meeting.started_at ? new Date(meeting.started_at) : null;
-          const elapsedSec = started ? (Date.now() - started.getTime()) / 1000 : 0;
           if (elapsedSec > timeoutSec + 60) {
             console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: allStopped=false but elapsed ${Math.floor(elapsedSec)}s > timeout ${timeoutSec}s+60, forcing cleanup-by-meeting`);
             try {
