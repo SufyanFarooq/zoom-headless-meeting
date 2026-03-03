@@ -11,6 +11,7 @@ class Scheduler {
   constructor() {
     this.cronJob = null;
     this.isRunning = false;
+    this.allStoppedSeenCounts = new Map();
   }
   
   /**
@@ -188,16 +189,24 @@ class Scheduler {
         0,
         Number.parseInt(process.env.BOT_CLEANUP_GRACE_SECONDS || '180', 10) || 180
       );
+      const requiredAllStoppedChecks = 2;
       const result = await query(
         `SELECT id, meeting_id, members_count, container_ids, bot_server_id, timeout_seconds, started_at
          FROM meetings WHERE status = 'active' AND container_ids IS NOT NULL AND array_length(container_ids, 1) > 0`
       );
+      const activeMeetingKeys = new Set(result.rows.map((m) => String(m.id)));
+      for (const key of Array.from(this.allStoppedSeenCounts.keys())) {
+        if (!activeMeetingKeys.has(key)) {
+          this.allStoppedSeenCounts.delete(key);
+        }
+      }
       if (result.rows.length === 0) return;
       if (result.rows.length > 0) {
         console.log(`[CLEANUP] Found ${result.rows.length} active meeting(s) to check`);
       }
 
       for (const meeting of result.rows) {
+        const meetingKey = String(meeting.id);
         let containerIds = meeting.container_ids;
         if (!Array.isArray(containerIds)) {
           if (typeof containerIds === 'string') {
@@ -222,10 +231,15 @@ class Scheduler {
           const status = await checkContainersStatus(meeting.bot_server_id, containerIds);
           allStopped = status.allStopped === true;
           if ((status.pendingCount || 0) > 0) {
+            this.allStoppedSeenCounts.delete(meetingKey);
             console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: pending=${status.pendingCount}, skip cleanup`);
             continue;
           }
+          if (!allStopped) {
+            this.allStoppedSeenCounts.delete(meetingKey);
+          }
         } catch (statusErr) {
+          this.allStoppedSeenCounts.delete(meetingKey);
           console.error(`[CLEANUP] checkContainersStatus FAILED for ${meeting.meeting_id}:`, statusErr.message);
           continue;
         }
@@ -235,11 +249,24 @@ class Scheduler {
         // while containers are still being created, names may not exist yet and
         // status endpoint returns allStopped=true. Skip cleanup briefly.
         if (allStopped && elapsedSec >= 0 && elapsedSec < cleanupGraceSec) {
+          this.allStoppedSeenCounts.delete(meetingKey);
           console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: allStopped during startup grace (${Math.floor(elapsedSec)}s < ${cleanupGraceSec}s), skipping`);
           continue;
         }
 
         if (allStopped) {
+          const seen = (this.allStoppedSeenCounts.get(meetingKey) || 0) + 1;
+          this.allStoppedSeenCounts.set(meetingKey, seen);
+          if (seen < requiredAllStoppedChecks) {
+            console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: allStopped seen ${seen}/${requiredAllStoppedChecks}, waiting for confirmation`);
+            continue;
+          }
+          const confirm = await checkContainersStatus(meeting.bot_server_id, containerIds);
+          if (!confirm.allStopped || (confirm.pendingCount || 0) > 0 || (confirm.runningCount || 0) > 0) {
+            this.allStoppedSeenCounts.delete(meetingKey);
+            console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: confirmation check says still active, skip cleanup`);
+            continue;
+          }
           try {
             console.log(`[CLEANUP] Calling stopBots for meeting ${meeting.meeting_id} (id ${meeting.id})`);
             await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
@@ -251,6 +278,7 @@ class Scheduler {
             [meeting.id]
           );
           await decreaseUsage(meeting.members_count);
+          this.allStoppedSeenCounts.delete(meetingKey);
           console.log(`🧹 Auto-marked meeting ${meeting.meeting_id} (id ${meeting.id}) as stopped`);
         } else {
           const timeoutSec = meeting.timeout_seconds || 7200;
@@ -260,6 +288,7 @@ class Scheduler {
               await stopBots(meeting.meeting_id, [], meeting.bot_server_id);
               await query(`UPDATE meetings SET status = 'stopped', stopped_at = NOW() WHERE id = $1`, [meeting.id]);
               await decreaseUsage(meeting.members_count);
+              this.allStoppedSeenCounts.delete(meetingKey);
               console.log(`🧹 Force-cleaned meeting ${meeting.meeting_id} (id ${meeting.id})`);
             } catch (e) {
               console.error(`[CLEANUP] Force cleanup failed:`, e.message);
