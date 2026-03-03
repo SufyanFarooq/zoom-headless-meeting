@@ -771,6 +771,40 @@ app.post('/api/bots/containers-status', async (req, res) => {
       }
     }
 
+    // Safety guard:
+    // if exact-name matching says all stopped, verify by request prefix as a fallback.
+    // This prevents false allStopped during high load / name list mismatch.
+    if (running.length === 0 && pending.length === 0 && containerIds.length > 0) {
+      const prefixes = new Set();
+      for (const id of containerIds) {
+        const match = String(id).match(/^zoom-bot-(\d+)-(\d+)-\d+$/);
+        if (match) {
+          prefixes.add(`zoom-bot-${match[1]}-${match[2]}-`);
+        }
+      }
+      if (prefixes.size > 0) {
+        try {
+          const { stdout: runningNamesOut } = await execAsync(
+            'docker ps --format "{{.Names}}"',
+            { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
+          );
+          const runningNames = (runningNamesOut || '')
+            .split('\n')
+            .map((v) => v.trim())
+            .filter(Boolean);
+          const prefixMatches = runningNames.filter((name) =>
+            Array.from(prefixes).some((prefix) => name.startsWith(prefix))
+          );
+          if (prefixMatches.length > 0) {
+            running.push(...prefixMatches);
+            console.log('[STATUS] Prefix safety guard matched running containers:', prefixMatches.length);
+          }
+        } catch (guardErr) {
+          console.warn('[STATUS] Prefix safety guard failed:', guardErr.message);
+        }
+      }
+    }
+
     const allStopped = running.length === 0 && pending.length === 0;
     console.log('[STATUS] Result: running=', running.length, 'pending=', pending.length, 'stopped=', stopped.length, 'allStopped=', allStopped);
     res.json({ running, pending, stopped, allStopped });
