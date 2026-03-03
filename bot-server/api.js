@@ -690,10 +690,17 @@ app.post('/api/bots/containers-status', async (req, res) => {
 
     const projectDir = process.env.BOT_PROJECT_DIR || path.join(__dirname, '..');
     const running = [];
+    const pending = [];
     const stopped = [];
     const warmStatusMap = await getWarmJobsStatus(containerIds);
     const targetNames = new Set(containerIds);
     const dockerStatusByName = new Map();
+    const pendingRequestIds = new Set(Array.from(inFlightJobs.keys()).map((v) => String(v)));
+
+    const extractRequestId = (containerName) => {
+      const match = String(containerName || '').match(/^zoom-bot-\d+-(\d+)-\d+$/);
+      return match ? match[1] : null;
+    };
 
     // Single Docker call for all containers (much faster than 1 call/container).
     const { stdout: dockerStatuses } = await execAsync(
@@ -724,17 +731,26 @@ app.post('/api/bots/containers-status', async (req, res) => {
         normalized.includes('restarting') ||
         normalized.includes('paused');
 
-      // Treat "Created", "Exited", "Dead", empty status as stopped so stale
-      // containers do not keep meeting status active forever.
       if (isRunning) {
         running.push(name);
+      } else if (!status) {
+        // Async create race: container may not exist yet while create job is still running.
+        // Keep it pending (not stopped) until job finalizes.
+        const reqId = extractRequestId(name);
+        if (reqId && pendingRequestIds.has(reqId)) {
+          pending.push(name);
+        } else {
+          stopped.push(name);
+        }
       } else {
+        // "Created", "Exited", "Dead" are treated as stopped.
         stopped.push(name);
       }
     }
 
-    console.log('[STATUS] Result: running=', running.length, 'stopped=', stopped.length, 'allStopped=', running.length === 0);
-    res.json({ running, stopped, allStopped: running.length === 0 });
+    const allStopped = running.length === 0 && pending.length === 0;
+    console.log('[STATUS] Result: running=', running.length, 'pending=', pending.length, 'stopped=', stopped.length, 'allStopped=', allStopped);
+    res.json({ running, pending, stopped, allStopped });
   } catch (error) {
     console.error('[STATUS] Error:', error.message);
     res.status(500).json({ error: error.message });

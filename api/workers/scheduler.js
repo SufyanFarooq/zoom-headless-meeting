@@ -221,6 +221,10 @@ class Scheduler {
         try {
           const status = await checkContainersStatus(meeting.bot_server_id, containerIds);
           allStopped = status.allStopped === true;
+          if ((status.pendingCount || 0) > 0) {
+            console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: pending=${status.pendingCount}, skip cleanup`);
+            continue;
+          }
         } catch (statusErr) {
           console.error(`[CLEANUP] checkContainersStatus FAILED for ${meeting.meeting_id}:`, statusErr.message);
           continue;

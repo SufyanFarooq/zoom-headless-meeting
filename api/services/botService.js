@@ -559,7 +559,12 @@ async function checkContainersStatus(serverId, containerIds) {
     const { data } = await axios.post(`${serverUrl}/api/bots/containers-status`, {
       containerIds
     }, { timeout: 20000 });
-    return { allStopped: data.allStopped === true };
+    return {
+      allStopped: data.allStopped === true,
+      runningCount: Array.isArray(data.running) ? data.running.length : 0,
+      pendingCount: Array.isArray(data.pending) ? data.pending.length : 0,
+      stoppedCount: Array.isArray(data.stopped) ? data.stopped.length : 0
+    };
   } catch (error) {
     console.error('[checkContainersStatus] FAILED:', error.code, error.message, error.config?.url);
     return { allStopped: false };
