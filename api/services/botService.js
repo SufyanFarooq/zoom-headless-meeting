@@ -525,18 +525,25 @@ async function stopBots(meetingId, containerIds, serverId) {
       console.log(`[stopBots] /stop response:`, res.status, res.data?.message);
     } catch (err) {
       console.error(`[stopBots] /stop FAILED:`, err.code, err.message, err.response?.data);
-      console.log(`[stopBots] Fallback: cleanup-by-meeting meetingId=${meetingId}`);
-      try {
-        const res2 = await axios.post(
-          `${serverUrl}/api/bots/cleanup-by-meeting`,
-          { meetingId },
-          { timeout: cleanupTimeoutMs }
-        );
-        console.log(`[stopBots] cleanup-by-meeting OK:`, res2.data);
-        await refreshServerLoad(serverId);
-        return true;
-      } catch (e2) {
-        console.error(`[stopBots] cleanup-by-meeting FAILED:`, e2.code, e2.message);
+      const firstId = String(containerIds[0] || '').trim();
+      const parsed = firstId.match(/^zoom-bot-(\d+)-(\d+)-\d+$/);
+      if (parsed) {
+        const [, parsedMeetingId, requestId] = parsed;
+        console.log(`[stopBots] Fallback: cleanup-compose meetingId=${parsedMeetingId} requestId=${requestId}`);
+        try {
+          const res2 = await axios.post(
+            `${serverUrl}/api/bots/cleanup-compose`,
+            { meetingId: parsedMeetingId, requestId },
+            { timeout: cleanupTimeoutMs }
+          );
+          console.log(`[stopBots] cleanup-compose OK:`, res2.data);
+          await refreshServerLoad(serverId);
+          return true;
+        } catch (e2) {
+          console.error(`[stopBots] cleanup-compose FAILED:`, e2.code, e2.message);
+        }
+      } else {
+        console.error(`[stopBots] Unable to parse requestId from container ID, skip broad meeting cleanup. firstId=${firstId}`);
       }
       throw err;
     }
