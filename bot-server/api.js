@@ -696,11 +696,34 @@ app.post('/api/bots/containers-status', async (req, res) => {
     const targetNames = new Set(containerIds);
     const dockerStatusByName = new Map();
     const pendingRequestIds = new Set(Array.from(inFlightJobs.keys()).map((v) => String(v)));
+    const fastPendingMinCount = Math.max(1, Number.parseInt(process.env.BOT_STATUS_FAST_PENDING_MIN_COUNT || '100', 10) || 100);
+    const fastPendingEnabled = isTrue(process.env.BOT_STATUS_FAST_PENDING_ENABLED ?? 'true');
 
     const extractRequestId = (containerName) => {
       const match = String(containerName || '').match(/^zoom-bot-\d+-(\d+)-\d+$/);
       return match ? match[1] : null;
     };
+
+    const requestedIds = new Set(
+      containerIds
+        .map((name) => extractRequestId(name))
+        .filter(Boolean)
+    );
+
+    if (
+      fastPendingEnabled &&
+      containerIds.length >= fastPendingMinCount &&
+      requestedIds.size > 0 &&
+      Array.from(requestedIds).every((id) => pendingRequestIds.has(id))
+    ) {
+      console.log('[STATUS] Fast pending path:', containerIds.length, 'containers in in-flight create jobs');
+      return res.json({
+        running: [],
+        pending: containerIds,
+        stopped: [],
+        allStopped: false
+      });
+    }
 
     // Single Docker call for all containers (much faster than 1 call/container).
     const { stdout: dockerStatuses } = await execAsync(
@@ -836,61 +859,41 @@ app.post('/api/bots/stop', async (req, res) => {
         continue;
       }
       
-      // Stop batch in parallel
-      const batchPromises = dockerBatch.map(async (containerId) => {
-        try {
-          // First check if container exists and is running
+      // Fast path: remove a full batch in one Docker call (docker rm -f also stops running containers).
+      try {
+        const bulkTimeout = Math.max(15000, dockerBatch.length * 5000);
+        await execAsync(`docker rm -f ${dockerBatch.join(' ')}`, {
+          cwd: projectDir,
+          shell: '/bin/sh',
+          timeout: bulkTimeout
+        });
+        dockerBatch.forEach((containerId) => {
+          results.push({ id: containerId, status: 'stopped' });
+        });
+      } catch (bulkError) {
+        console.warn(`[STOP] Bulk remove failed for batch of ${dockerBatch.length}: ${bulkError.message}`);
+        console.warn('[STOP] Falling back to per-container removal for this batch');
+        for (const containerId of dockerBatch) {
           try {
-            const { stdout } = await execAsync(`docker ps -a --filter "name=^${containerId}$" --format "{{.Status}}"`, {
+            await execAsync(`docker rm -f ${containerId}`, {
               cwd: projectDir,
               shell: '/bin/sh',
-              timeout: 2000
+              timeout: 10000
             });
-            
-            // If container doesn't exist or already stopped - remove (docker rm -f works on exited)
-            if (!stdout || stdout.trim() === '' || stdout.includes('Exited')) {
-              try {
-                await execAsync(`docker rm -f ${containerId}`, { cwd: projectDir, shell: '/bin/sh', timeout: 5000 });
-                console.log(`✅ Removed exited container: ${containerId}`);
-              } catch (rmErr) {
-                if (!rmErr.message.includes('No such container')) console.warn(`⚠️ docker rm ${containerId}:`, rmErr.message);
-              }
-              return { id: containerId, status: 'already_stopped' };
+            results.push({ id: containerId, status: 'stopped' });
+          } catch (error) {
+            if (
+              error.message.includes('No such container') ||
+              error.message.includes('is not running')
+            ) {
+              results.push({ id: containerId, status: 'already_stopped' });
+            } else {
+              console.error(`❌ Error removing container ${containerId}:`, error.message);
+              results.push({ id: containerId, status: 'failed', error: error.message });
             }
-          } catch (checkError) {
-            // Container might not exist, try to stop anyway
-            console.log(`⚠️  Could not check status of ${containerId}, attempting stop...`);
           }
-          
-          // Stop and remove container
-          await execAsync(`docker stop ${containerId}`, { 
-            cwd: projectDir, 
-            shell: '/bin/sh',
-            timeout: 5000
-          });
-          try {
-            await execAsync(`docker rm ${containerId}`, { cwd: projectDir, shell: '/bin/sh', timeout: 3000 });
-            console.log(`✅ Stopped and removed container: ${containerId}`);
-          } catch (rmErr) {
-            console.log(`✅ Stopped container: ${containerId} (rm: ${rmErr.message})`);
-          }
-          return { id: containerId, status: 'stopped' };
-        } catch (error) {
-          // If error says container doesn't exist or already stopped, that's OK
-          if (error.message.includes('No such container') || 
-              error.message.includes('already stopped') ||
-              error.message.includes('is not running')) {
-            console.log(`ℹ️  Container ${containerId} already stopped or doesn't exist`);
-            return { id: containerId, status: 'already_stopped' };
-          }
-          console.error(`❌ Error stopping container ${containerId}:`, error.message);
-          return { id: containerId, status: 'failed', error: error.message };
         }
-      });
-      
-      // Wait for batch to complete
-      const batchResults = await Promise.all(batchPromises);
-      results.push(...batchResults);
+      }
       
       // Small delay between batches to avoid overwhelming Docker
       if (i + batchSize < cleanIds.length) {

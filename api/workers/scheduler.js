@@ -300,8 +300,12 @@ class Scheduler {
       timezone: 'UTC' // Database stores times in UTC
     });
     
-    // Cleanup every 10 seconds - update meeting status shortly after host ends meeting.
-    const cleanupIntervalMs = 10000;
+    // Cleanup interval is configurable. For high bot counts, a longer interval
+    // reduces pressure on bot-server status checks.
+    const cleanupIntervalMs = Math.max(
+      5000,
+      Number.parseInt(process.env.BOT_CLEANUP_INTERVAL_MS || '30000', 10) || 30000
+    );
     this.cleanupInterval = setInterval(() => {
       this.checkAndCleanupStoppedMeetings().catch(e => console.error('[CLEANUP] Error:', e.message));
     }, cleanupIntervalMs);

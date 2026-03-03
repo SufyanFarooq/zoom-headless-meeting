@@ -164,7 +164,22 @@ async function selectBestServerFromDb(membersCount) {
 async function refreshServerLoad(serverId) {
   try {
     const serverUrl = await getBotServerUrl(serverId);
-    const { data } = await axios.get(`${serverUrl}/api/bots/capacity`, { timeout: 5000 });
+    const refreshTimeoutMs = Math.max(
+      2000,
+      Number.parseInt(process.env.BOT_SERVER_CAPACITY_TIMEOUT_MS || '15000', 10) || 15000
+    );
+    let data = null;
+    let lastError = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await axios.get(`${serverUrl}/api/bots/capacity`, { timeout: refreshTimeoutMs });
+        data = response.data;
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!data) throw lastError || new Error('No capacity response');
     const currentLoad = Number.parseInt(data?.currentLoad, 10);
     const schedulerLoad = Number.parseInt(data?.schedulerLoad, 10);
     const useSchedulerLoad = isEnabled(process.env.USE_SCHEDULER_LOAD_FOR_DB, false);
@@ -444,8 +459,15 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
       timeout: 180000 // 3 minute timeout (bot setup can take 2+ minutes for many bots)
     });
     
-    // Update server load
+    // Keep create endpoint fast:
+    // 1) immediately apply optimistic load
+    // 2) reconcile to real load in background (best-effort)
     await updateServerLoad(server.id, membersCount);
+    setTimeout(() => {
+      refreshServerLoad(server.id).catch((err) => {
+        console.warn(`[createBots] background refreshServerLoad failed for server ${server.id}:`, err.message);
+      });
+    }, 0);
     
     return {
       serverId: server.id,
@@ -493,7 +515,8 @@ async function getBotServerUrl(serverId) {
 async function stopBots(meetingId, containerIds, serverId) {
   const serverUrl = await getBotServerUrl(serverId);
   const batches = Math.ceil((containerIds?.length || 0) / 10);
-  const timeoutMs = Math.min(Math.max(batches * 2000 + 30000, 60000), 600000);
+  const timeoutMs = Math.min(Math.max(batches * 3000 + 60000, 120000), 600000);
+  const cleanupTimeoutMs = Math.min(Math.max(batches * 2000 + 30000, 60000), 300000);
 
   if (containerIds && containerIds.length > 0) {
     console.log(`[stopBots] Calling ${serverUrl}/api/bots/stop with ${containerIds.length} containers`);
@@ -502,25 +525,29 @@ async function stopBots(meetingId, containerIds, serverId) {
       console.log(`[stopBots] /stop response:`, res.status, res.data?.message);
     } catch (err) {
       console.error(`[stopBots] /stop FAILED:`, err.code, err.message, err.response?.data);
-      const first = containerIds[0] || '';
-      const m = first.match(/^zoom-bot-(\d+)-(\d+)-\d+$/);
-      if (m) {
-        console.log(`[stopBots] Fallback: cleanup-compose meetingId=${m[1]} requestId=${m[2]}`);
-        try {
-          const res2 = await axios.post(`${serverUrl}/api/bots/cleanup-compose`, { meetingId: m[1], requestId: m[2] }, { timeout: 15000 });
-          console.log(`[stopBots] cleanup-compose OK:`, res2.data);
-          if (containerIds.length > 0) await updateServerLoad(serverId, -containerIds.length);
-          return true;
-        } catch (e2) {
-          console.error(`[stopBots] cleanup-compose FAILED:`, e2.code, e2.message);
-        }
+      console.log(`[stopBots] Fallback: cleanup-by-meeting meetingId=${meetingId}`);
+      try {
+        const res2 = await axios.post(
+          `${serverUrl}/api/bots/cleanup-by-meeting`,
+          { meetingId },
+          { timeout: cleanupTimeoutMs }
+        );
+        console.log(`[stopBots] cleanup-by-meeting OK:`, res2.data);
+        await refreshServerLoad(serverId);
+        return true;
+      } catch (e2) {
+        console.error(`[stopBots] cleanup-by-meeting FAILED:`, e2.code, e2.message);
       }
       throw err;
     }
   } else {
     console.log(`[stopBots] No container_ids, calling cleanup-by-meeting for ${meetingId}`);
     try {
-      const res = await axios.post(`${serverUrl}/api/bots/cleanup-by-meeting`, { meetingId }, { timeout: 15000 });
+      const res = await axios.post(
+        `${serverUrl}/api/bots/cleanup-by-meeting`,
+        { meetingId },
+        { timeout: cleanupTimeoutMs }
+      );
       console.log(`[stopBots] cleanup-by-meeting OK:`, res.data);
     } catch (err) {
       console.error(`[stopBots] cleanup-by-meeting FAILED:`, err.code, err.message);
@@ -528,9 +555,7 @@ async function stopBots(meetingId, containerIds, serverId) {
     }
   }
 
-  if (containerIds && containerIds.length > 0) {
-    await updateServerLoad(serverId, -containerIds.length);
-  }
+  await refreshServerLoad(serverId);
   return true;
 }
 
@@ -556,9 +581,13 @@ async function checkContainersStatus(serverId, containerIds) {
       }
     }
 
+    const statusTimeoutMs = Math.max(
+      5000,
+      Number.parseInt(process.env.BOT_STATUS_TIMEOUT_MS || '60000', 10) || 60000
+    );
     const { data } = await axios.post(`${serverUrl}/api/bots/containers-status`, {
       containerIds
-    }, { timeout: 20000 });
+    }, { timeout: statusTimeoutMs });
     return {
       allStopped: data.allStopped === true,
       runningCount: Array.isArray(data.running) ? data.running.length : 0,
