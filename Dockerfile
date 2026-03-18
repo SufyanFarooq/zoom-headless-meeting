@@ -91,6 +91,14 @@ FROM deps AS build
 WORKDIR $cwd
 COPY . .
 ARG BUILD_JOBS=4
+RUN test -f lib/zoomsdk/h/zoom_sdk.h \
+    && test -f lib/zoomsdk/h/auth_service_interface.h \
+    && test -f lib/zoomsdk/libmeetingsdk.so \
+    || (echo "Missing Zoom Linux Meeting SDK files in lib/zoomsdk." \
+      && echo "Download the SDK from Zoom Marketplace and copy the extracted files into lib/zoomsdk on this server before building." \
+      && ls -la lib 2>/dev/null || true \
+      && ls -la lib/zoomsdk 2>/dev/null || true \
+      && exit 1)
 RUN chmod +x bin/*.sh \
     && cmake -S . -B build \
       -DCMAKE_BUILD_TYPE=Release \
@@ -112,5 +120,7 @@ RUN chmod +x /tini /opt/zoomsdk-runtime/entry-bot-runtime.sh /opt/zoomsdk-runtim
     && mkdir -p /tmp/meeting-sdk-linux-sample/out /tmp/build-logs \
     && if [ -f /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so ] && [ ! -f /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so.1 ]; then \
          cp /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so /opt/zoomsdk-runtime/lib/zoomsdk/libmeetingsdk.so.1; \
-       fiENTRYPOINT ["/tini", "--"]
+       fi
+
+ENTRYPOINT ["/tini", "--"]
 CMD ["/opt/zoomsdk-runtime/entry-bot-runtime.sh", "--warmup-only"]

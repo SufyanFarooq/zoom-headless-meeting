@@ -25,6 +25,10 @@ git clone git@github.com:zoom/meetingsdk-headless-linux-sample.git
 Download the latest version of the Zoom SDK for Linux from the Zoom Marketplace and place it in
 the [lib/zoomsdk](lib/zoomsdk) folder of this repository.
 
+Important: the SDK binaries and headers inside `lib/zoomsdk` are intentionally not tracked in git.
+If you deploy this project to a new server, you must copy `lib/zoomsdk` to that server manually before
+running `docker compose up` or any image build.
+
 ## 3. Configure the App
 
 If you don't already have them, follow the section on how
