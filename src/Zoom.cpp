@@ -135,6 +135,48 @@ bool Zoom::selectCameraDevice() {
     return false;
 }
 
+void Zoom::startAuthWatchdog(int generation) {
+    const char* timeoutEnv = std::getenv("ZOOM_AUTH_CALLBACK_TIMEOUT_MS");
+    int timeoutMs = 15000;
+    if (timeoutEnv && *timeoutEnv) {
+        timeoutMs = std::max(0, std::atoi(timeoutEnv));
+    }
+    if (timeoutMs <= 0) {
+        return;
+    }
+
+    std::thread([this, generation, timeoutMs]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(timeoutMs));
+        if (m_authRequestGeneration.load() != generation) {
+            return;
+        }
+        if (m_authCallbackReceived.load()) {
+            return;
+        }
+        Log::error("authentication callback timed out after " + std::to_string(timeoutMs) + "ms");
+        std::_Exit(3);
+    }).detach();
+}
+
+SDKError Zoom::submitAuthRequest() {
+    m_authCallbackReceived.store(false);
+    const int generation = m_authRequestGeneration.fetch_add(1) + 1;
+
+    generateJWT(m_config.clientId(), m_config.clientSecret());
+    Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
+    Log::info("Client ID: " + m_config.clientId());
+    Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
+
+    AuthContext ctx;
+    ctx.jwt_token = m_jwt.c_str();
+
+    const SDKError err = m_authService->SDKAuth(ctx);
+    if (err == SDKERR_SUCCESS) {
+        startAuthWatchdog(generation);
+    }
+    return err;
+}
+
 SDKError Zoom::auth() {
     SDKError err{SDKERR_UNINITIALIZE};
 
@@ -155,7 +197,9 @@ SDKError Zoom::auth() {
     auto* authEvent = new AuthServiceEvent(onAuth);
     m_authRetryCount = 0;
     authEvent->setOnAuthenticationReturn([&](AuthResult result) {
+        m_authCallbackReceived.store(true);
         if (result == AUTHRET_SUCCESS) {
+            Log::success("authentication callback success");
             if (onAuth) onAuth();
             return;
         }
@@ -179,10 +223,7 @@ SDKError Zoom::auth() {
             Log::info("Retrying SDK auth (" + to_string(m_authRetryCount) + "/" + to_string(maxRetries) + ") after " + to_string(backoffMs) + "ms");
             std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
 
-            generateJWT(m_config.clientId(), m_config.clientSecret());
-            AuthContext retryCtx;
-            retryCtx.jwt_token = m_jwt.c_str();
-            auto retryErr = m_authService->SDKAuth(retryCtx);
+            auto retryErr = submitAuthRequest();
             if (hasError(retryErr, "retry authorize")) {
                 std::_Exit(2);
             }
@@ -195,16 +236,7 @@ SDKError Zoom::auth() {
     err = m_authService->SetEvent(authEvent);
     if (hasError(err)) return err;
 
-    generateJWT(m_config.clientId(), m_config.clientSecret());
-    // Debug: Log JWT info (first 50 chars only for security)
-    Log::info("JWT generated (first 50 chars): " + m_jwt.substr(0, 50) + "...");
-    Log::info("Client ID: " + m_config.clientId());
-    Log::info("Client Secret length: " + to_string(m_config.clientSecret().length()));
-
-    AuthContext ctx;
-    ctx.jwt_token =  m_jwt.c_str();
-
-    return m_authService->SDKAuth(ctx);
+    return submitAuthRequest();
 }
 
 void Zoom::generateJWT(const string& key, const string& secret) {

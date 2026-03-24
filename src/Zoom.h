@@ -8,6 +8,7 @@
 #include <string>
 #include <sstream>
 #include <cstdlib>
+#include <atomic>
 
 #include <jwt-cpp/jwt.h>
 
@@ -65,9 +66,13 @@ class Zoom : public Singleton<Zoom> {
     ZoomSDKVideoSource* m_videoSource;
     bool m_cameraSelected = false;
     int m_authRetryCount = 0;
+    std::atomic<bool> m_authCallbackReceived{false};
+    std::atomic<int> m_authRequestGeneration{0};
 
     SDKError createServices();
     void generateJWT(const string& key, const string& secret);
+    SDKError submitAuthRequest();
+    void startAuthWatchdog(int generation);
     bool selectCameraDevice();
     void ensureVideoCapabilityForDesktop();
     bool shouldUseRawVideoSource() const;

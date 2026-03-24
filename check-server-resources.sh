@@ -6,6 +6,19 @@ echo "🔍 Checking Server Resources..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+DOCKER_CMD=""
+DOCKER_ERROR=""
+
+if command -v docker > /dev/null 2>&1; then
+    if docker info > /dev/null 2>&1; then
+        DOCKER_CMD="docker"
+    elif command -v sudo > /dev/null 2>&1 && sudo -n docker info > /dev/null 2>&1; then
+        DOCKER_CMD="sudo -n docker"
+    else
+        DOCKER_ERROR="Docker is installed but this user cannot access it directly. Run this script with sudo or add the user to the docker group."
+    fi
+fi
+
 # Get CPU info
 echo "📊 CPU Information:"
 CPU_CORES=$(nproc 2>/dev/null || echo "unknown")
@@ -53,15 +66,17 @@ echo ""
 
 # Docker resource usage
 echo "🐳 Docker Resource Usage:"
-if command -v docker > /dev/null 2>&1; then
-    RUNNING_CONTAINERS=$(docker ps -q | wc -l)
+if [ -n "$DOCKER_CMD" ]; then
+    RUNNING_CONTAINERS=$($DOCKER_CMD ps -q | wc -l)
     echo "  Running Containers: $RUNNING_CONTAINERS"
     
     if [ "$RUNNING_CONTAINERS" -gt 0 ]; then
         echo ""
         echo "  Container Resource Usage:"
-        docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" 2>/dev/null | head -11
+        $DOCKER_CMD stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" 2>/dev/null | head -11
     fi
+elif [ -n "$DOCKER_ERROR" ]; then
+    echo "  $DOCKER_ERROR"
 else
     echo "  Docker not available"
 fi
@@ -142,7 +157,11 @@ if [ "$CPU_CORES" != "unknown" ] && [ "$MEM_AVAIL_MB" -gt 0 ]; then
     echo "  Memory Reservation: $MAX_BOTS_MEM_RES bots ($MEM_AVAIL_MB MB / $BOT_MEMORY_RESERVATION MB per bot)"
     echo ""
     echo "💡 Recommendation:"
-    CURRENT_BOTS=$(docker ps --format "{{.Names}}" | grep -c "zoom-bot" || echo "0")
+    if [ -n "$DOCKER_CMD" ]; then
+        CURRENT_BOTS=$($DOCKER_CMD ps --format "{{.Names}}" | grep -c "zoom-bot" || echo "0")
+    else
+        CURRENT_BOTS=0
+    fi
     REMAINING_SAFE=$((MAX_BOTS_SAFE - CURRENT_BOTS))
     REMAINING_OPTIMISTIC=$((MAX_BOTS_OPTIMISTIC - CURRENT_BOTS))
     
