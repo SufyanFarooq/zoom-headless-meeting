@@ -21,6 +21,7 @@ SDKError Zoom::init() {
     InitParam initParam;
 
     auto host = m_config.zoomHost().c_str();
+    Log::info("Using Zoom SDK host: " + m_config.zoomHost());
 
     initParam.strWebDomain = host;
     initParam.strSupportUrl = host;

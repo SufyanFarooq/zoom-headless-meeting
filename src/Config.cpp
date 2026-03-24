@@ -1,6 +1,16 @@
 #include "Config.h"
 #include <cstdlib>
 
+static bool envEnabled(const char* key) {
+    const char* value = std::getenv(key);
+    if (!value || !*value) return false;
+    string normalized(value);
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return normalized == "1" || normalized == "true" || normalized == "yes" ||
+           normalized == "y" || normalized == "on";
+}
+
 Config::Config() :
         m_app(m_name, "zoomsdk"),
         m_rawRecordAudioCmd(m_app.add_subcommand("RawAudio", "Enable Audio Raw Recording")),
@@ -58,6 +68,11 @@ int Config::read(int ac, char **av) {
     if (!m_joinUrl.empty())
         parseUrl(m_joinUrl);
 
+    const char* sdkHostOverride = std::getenv("ZOOM_SDK_HOST");
+    if (sdkHostOverride && *sdkHostOverride) {
+        m_zoomHost = sdkHostOverride;
+    }
+
     const bool debugConfig = std::getenv("BOT_VERBOSE_CONFIG") != nullptr;
     if (debugConfig) {
         // Debug: Check what was parsed BEFORE clearing
@@ -98,9 +113,10 @@ bool Config::parseUrl(const string& join_url) {
         return false;
     }
 
-    // Prefer meeting's regional host from join URL (e.g. us06web.zoom.us)
-    // to avoid extra redirects through default zoom.us.
-    if (!url.scheme.empty() && !url.host.empty()) {
+    // Canonical SDK host is more stable for auth callbacks on some servers.
+    // If needed, regional host preference can be re-enabled with:
+    //   ZOOM_PREFER_REGIONAL_HOST=true
+    if (envEnabled("ZOOM_PREFER_REGIONAL_HOST") && !url.scheme.empty() && !url.host.empty()) {
         m_zoomHost = url.scheme + "://" + url.host;
     }
     
