@@ -23,6 +23,7 @@ const PORT = process.env.BOT_SERVER_PORT || 3001;
 app.use(express.json());
 
 const inFlightJobs = new Map();
+const postJoinThrottleJobs = new Map();
 
 function isTrue(val) {
   if (val === true) return true;
@@ -46,6 +47,163 @@ function shellQuote(value) {
 function toNumber(value, fallback = null) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function hasEffectiveResourceValue(value) {
+  if (value == null) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return false;
+  return !['0', '0.0', '0m', '0mb', '0g', '0gb'].includes(normalized);
+}
+
+function getPostJoinThrottleConfig() {
+  const enabled = isTrue(process.env.BOT_POST_JOIN_THROTTLE_ENABLED ?? 'false');
+  const cpu = String(process.env.BOT_POST_JOIN_THROTTLE_CPU || '').trim();
+  const memory = String(process.env.BOT_POST_JOIN_THROTTLE_MEMORY || '').trim();
+  const memoryReservation = String(process.env.BOT_POST_JOIN_THROTTLE_MEMORY_RESERVATION || '').trim();
+  const initialDelayMs = Math.max(0, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_INITIAL_DELAY_MS || '15000', 10) || 15000);
+  const pollMs = Math.max(1000, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_POLL_MS || '5000', 10) || 5000);
+  const connectedGraceMs = Math.max(0, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_CONNECTED_GRACE_MS || '10000', 10) || 10000);
+  const maxWaitMs = Math.max(initialDelayMs, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_MAX_WAIT_MS || '180000', 10) || 180000);
+  const hasTargets = hasEffectiveResourceValue(cpu) || hasEffectiveResourceValue(memory) || hasEffectiveResourceValue(memoryReservation);
+
+  return {
+    enabled: enabled && hasTargets,
+    cpu,
+    memory,
+    memoryReservation,
+    initialDelayMs,
+    pollMs,
+    connectedGraceMs,
+    maxWaitMs
+  };
+}
+
+async function isContainerRunning(projectDir, containerId) {
+  try {
+    const { stdout } = await execAsync(
+      `docker inspect -f '{{.State.Running}}' ${shellQuote(containerId)}`,
+      { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
+    );
+    return String(stdout || '').trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function getContainerLogs(projectDir, containerId, tailCount = 200) {
+  try {
+    const { stdout, stderr } = await execAsync(
+      `docker logs --tail ${Math.max(10, tailCount)} ${shellQuote(containerId)}`,
+      { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
+    );
+    return `${stdout || ''}\n${stderr || ''}`;
+  } catch (error) {
+    return `${error.stdout || ''}\n${error.stderr || ''}`;
+  }
+}
+
+async function applyPostJoinThrottle(projectDir, containerId, config) {
+  const args = ['docker', 'update'];
+  if (hasEffectiveResourceValue(config.cpu)) {
+    args.push('--cpus', shellQuote(config.cpu));
+  }
+  if (hasEffectiveResourceValue(config.memory)) {
+    args.push('--memory', shellQuote(config.memory));
+  }
+  if (hasEffectiveResourceValue(config.memoryReservation)) {
+    args.push('--memory-reservation', shellQuote(config.memoryReservation));
+  }
+  args.push(shellQuote(containerId));
+
+  if (args.length <= 3) {
+    return false;
+  }
+
+  const command = args.join(' ');
+  await execAsync(command, {
+    cwd: projectDir,
+    shell: '/bin/sh',
+    timeout: 15000
+  });
+
+  console.log(
+    `[THROTTLE] Applied post-join limits to ${containerId}` +
+    ` cpu=${config.cpu || 'unchanged'} memory=${config.memory || 'unchanged'}` +
+    ` memoryReservation=${config.memoryReservation || 'unchanged'}`
+  );
+  return true;
+}
+
+async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
+  const config = getPostJoinThrottleConfig();
+  if (!config.enabled) {
+    return;
+  }
+
+  if (postJoinThrottleJobs.has(containerId)) {
+    return;
+  }
+
+  const jobPromise = (async () => {
+    try {
+      if (config.initialDelayMs > 0) {
+        await delay(config.initialDelayMs);
+      }
+
+      const startedAt = Date.now();
+      while (Date.now() - startedAt <= config.maxWaitMs) {
+        const running = await isContainerRunning(projectDir, containerId);
+        if (!running) {
+          console.log(`[THROTTLE] Skipping ${containerId}: container is no longer running`);
+          return;
+        }
+
+        const logs = await getContainerLogs(projectDir, containerId, 250);
+        if ((logs || '').includes('✅ connected') || (logs || '').includes('connected')) {
+          if (config.connectedGraceMs > 0) {
+            await delay(config.connectedGraceMs);
+          }
+
+          if (!(await isContainerRunning(projectDir, containerId))) {
+            console.log(`[THROTTLE] Skipping ${containerId}: container stopped during grace period`);
+            return;
+          }
+
+          await applyPostJoinThrottle(projectDir, containerId, config);
+          return;
+        }
+
+        await delay(config.pollMs);
+      }
+
+      console.warn(`[THROTTLE] Did not detect connected state for ${containerId} within ${config.maxWaitMs}ms`);
+    } catch (error) {
+      console.warn(`[THROTTLE] Failed for ${containerId}: ${error.message}`);
+    } finally {
+      postJoinThrottleJobs.delete(containerId);
+    }
+  })();
+
+  postJoinThrottleJobs.set(containerId, jobPromise);
+}
+
+function schedulePostJoinThrottle(projectDir, containerIds = []) {
+  const config = getPostJoinThrottleConfig();
+  if (!config.enabled || !Array.isArray(containerIds) || containerIds.length === 0) {
+    return;
+  }
+
+  console.log(
+    `[THROTTLE] Scheduling ${containerIds.length} containers ` +
+    `(cpu=${config.cpu || 'unchanged'}, memory=${config.memory || 'unchanged'}, ` +
+    `memoryReservation=${config.memoryReservation || 'unchanged'})`
+  );
+
+  for (const containerId of containerIds) {
+    if (!containerId) continue;
+    monitorContainerForPostJoinThrottle(projectDir, containerId);
+  }
 }
 
 function readCpuSample() {
@@ -452,6 +610,7 @@ app.post('/api/bots/create', async (req, res) => {
             totalBots,
             startStaggerMs
           );
+          schedulePostJoinThrottle(projectDir, warmResult.containerIds);
           console.log(`✅ Async bot creation finished (warm-assigned: ${warmResult.assignedIds.length}, compose-fallback: ${warmResult.fallbackServiceNames.length})`);
         } catch (startError) {
           console.error('❌ Async bot creation failed:', startError.message);
@@ -623,6 +782,7 @@ app.post('/api/bots/create', async (req, res) => {
         startStaggerMs
       );
       containerIds = warmResult.containerIds;
+      schedulePostJoinThrottle(projectDir, containerIds);
       console.log(`🔥 Warm assigned: ${warmResult.assignedIds.length}, compose fallback: ${warmResult.fallbackServiceNames.length}`);
     } catch (dockerError) {
       // Docker-compose command failed - log detailed error
@@ -1197,7 +1357,9 @@ app.get('/api/bots/capacity', async (req, res) => {
           cpuBasedCapacity = Math.floor(cpuTargetPercent / avgCpuPerBotPercent);
         }
       } else {
+        const throttleConfig = getPostJoinThrottleConfig();
         const perBotCpuCores =
+          (throttleConfig.enabled ? toNumber(throttleConfig.cpu, null) : null) ??
           toNumber(process.env.CAPACITY_CPU_PER_BOT, null) ??
           toNumber(process.env.AUDIO_CPU_LIMIT, null) ??
           toNumber(process.env.VIDEO_CPU_LIMIT, 0.1);

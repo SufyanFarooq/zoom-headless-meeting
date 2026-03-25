@@ -2,6 +2,14 @@
 
 # Script to check server resources and calculate bot capacity
 
+# Load local .env when present so capacity reflects current deployment config.
+if [ -f ".env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . ./.env
+    set +a
+fi
+
 echo "🔍 Checking Server Resources..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -98,16 +106,45 @@ get_mb() {
     fi
 }
 
+has_effective_resource_value() {
+    local v="${1:-}"
+    local lower
+    lower=$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')
+    [ -n "$lower" ] || return 1
+    case "$lower" in
+        0|0.0|0m|0mb|0g|0gb)
+            return 1
+            ;;
+    esac
+    return 0
+}
+
 BOT_CPU_LIMIT="${BOT_CPU_LIMIT:-${VIDEO_CPU_LIMIT:-0.3}}"
 BOT_MEMORY_LIMIT="$(get_mb "${BOT_MEMORY_LIMIT:-${VIDEO_MEM_LIMIT:-256M}}")"
 BOT_CPU_RESERVATION="${BOT_CPU_RESERVATION:-${VIDEO_CPU_RESERVATION:-0.05}}"
 BOT_MEMORY_RESERVATION="$(get_mb "${BOT_MEMORY_RESERVATION:-${VIDEO_MEM_RESERVATION:-128M}}")"
+
+THROTTLE_ENABLED="${BOT_POST_JOIN_THROTTLE_ENABLED:-false}"
+if [[ "$THROTTLE_ENABLED" =~ ^(1|true|yes|y|on)$ ]]; then
+    if has_effective_resource_value "${BOT_POST_JOIN_THROTTLE_CPU:-}"; then
+        BOT_CPU_LIMIT="${BOT_POST_JOIN_THROTTLE_CPU}"
+    fi
+    if has_effective_resource_value "${BOT_POST_JOIN_THROTTLE_MEMORY:-}"; then
+        BOT_MEMORY_LIMIT="$(get_mb "${BOT_POST_JOIN_THROTTLE_MEMORY}")"
+    fi
+    if has_effective_resource_value "${BOT_POST_JOIN_THROTTLE_MEMORY_RESERVATION:-}"; then
+        BOT_MEMORY_RESERVATION="$(get_mb "${BOT_POST_JOIN_THROTTLE_MEMORY_RESERVATION}")"
+    fi
+fi
 
 echo "Current Bot Configuration:"
 echo "  CPU Limit: ${BOT_CPU_LIMIT} cores per bot"
 echo "  Memory Limit: ${BOT_MEMORY_LIMIT}MB per bot"
 echo "  CPU Reservation: ${BOT_CPU_RESERVATION} cores per bot"
 echo "  Memory Reservation: ${BOT_MEMORY_RESERVATION}MB per bot"
+if [[ "$THROTTLE_ENABLED" =~ ^(1|true|yes|y|on)$ ]]; then
+    echo "  Post-Join Throttle: enabled"
+fi
 echo ""
 
 if [ "$CPU_CORES" != "unknown" ] && [ "$MEM_AVAIL_MB" -gt 0 ]; then
