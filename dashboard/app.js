@@ -436,8 +436,8 @@ function validateTotalMembers() {
     const totalValue = parseInt(totalInput.value) || 0;
     const errorElement = document.getElementById('totalMembersError');
     
-    if (totalValue <= 0 || totalValue % 10 !== 0 || totalValue > 500) {
-        if (errorElement) errorElement.textContent = 'Must be divisible by 10 and not zero (max 500)';
+    if (totalValue <= 0 || totalValue > 500) {
+        if (errorElement) errorElement.textContent = 'Must be greater than 0 (max 500)';
         totalInput.style.borderColor = '#ff4444';
         return false;
     }
@@ -500,10 +500,6 @@ function validateVideoAudioCounts(totalMembers, videoCount, audioCount) {
     // Validate total members
     if (isNaN(totalMembers) || totalMembers <= 0) {
         if (totalError) totalError.textContent = 'Total must be greater than 0';
-        if (totalInput) totalInput.style.borderColor = '#ff4444';
-        isValid = false;
-    } else if (totalMembers % 10 !== 0) {
-        if (totalError) totalError.textContent = 'Must be divisible by 10';
         if (totalInput) totalInput.style.borderColor = '#ff4444';
         isValid = false;
     } else if (totalMembers > 500) {

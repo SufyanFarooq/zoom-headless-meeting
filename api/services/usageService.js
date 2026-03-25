@@ -52,19 +52,14 @@ async function getUsageForUser(userId, limit) {
 }
 
 /**
- * Check if members count is valid (divisible by 10, not zero, within limit)
+ * Check if members count is valid (greater than zero, within limit)
  */
 async function validateMembersCount(membersCount) {
   const errors = [];
-  
-  // Must be divisible by 10
-  if (membersCount % 10 !== 0) {
-    errors.push('Members count must be divisible by 10');
-  }
-  
-  // Must not be zero
-  if (membersCount === 0) {
-    errors.push('Members count must not be zero');
+
+  // Must be greater than zero
+  if (membersCount <= 0) {
+    errors.push('Members count must be greater than 0');
   }
   
   // Must not exceed 500 (as per requirement: 100+ not allowed)
