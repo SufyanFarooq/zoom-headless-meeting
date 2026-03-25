@@ -187,14 +187,25 @@ AUDIO_CAMERA_LABEL_PREFIX="${AUDIO_CAMERA_LABEL_PREFIX:-BotCamAudio}"
 AUDIO_USE_CAMERA="${AUDIO_USE_CAMERA:-true}"
 AUDIO_DEVICE_COUNT="${AUDIO_DEVICE_COUNT:-0}"
 AUDIO_DIRECT_OFF_JOIN="${AUDIO_DIRECT_OFF_JOIN:-false}"
-VIDEO_CPU_LIMIT="${VIDEO_CPU_LIMIT:-0.3}"
-AUDIO_CPU_LIMIT="${AUDIO_CPU_LIMIT:-0.1}"
-VIDEO_MEM_LIMIT="${VIDEO_MEM_LIMIT:-512M}"
-AUDIO_MEM_LIMIT="${AUDIO_MEM_LIMIT:-256M}"
-VIDEO_CPU_RESERVATION="${VIDEO_CPU_RESERVATION:-0.05}"
-AUDIO_CPU_RESERVATION="${AUDIO_CPU_RESERVATION:-0.02}"
-VIDEO_MEM_RESERVATION="${VIDEO_MEM_RESERVATION:-256M}"
-AUDIO_MEM_RESERVATION="${AUDIO_MEM_RESERVATION:-128M}"
+VIDEO_CPU_LIMIT="${VIDEO_CPU_LIMIT-0.3}"
+AUDIO_CPU_LIMIT="${AUDIO_CPU_LIMIT-0.1}"
+VIDEO_MEM_LIMIT="${VIDEO_MEM_LIMIT-512M}"
+AUDIO_MEM_LIMIT="${AUDIO_MEM_LIMIT-256M}"
+VIDEO_CPU_RESERVATION="${VIDEO_CPU_RESERVATION-0.05}"
+AUDIO_CPU_RESERVATION="${AUDIO_CPU_RESERVATION-0.02}"
+VIDEO_MEM_RESERVATION="${VIDEO_MEM_RESERVATION-256M}"
+AUDIO_MEM_RESERVATION="${AUDIO_MEM_RESERVATION-128M}"
+
+is_limit_enabled() {
+    local value="${1:-}"
+    [ -n "$value" ] || return 1
+    case "$value" in
+        0|0.0|0m|0M|0mb|0MB|0g|0G|0gb|0GB)
+            return 1
+            ;;
+    esac
+    return 0
+}
 
 # Create services section for docker-compose
 create_compose_services() {
@@ -294,6 +305,63 @@ create_compose_services() {
         fi
     fi
 
+    local runtime_env_block=""
+    if [ -n "${ZOOM_SDK_HOST:-}" ]; then
+        runtime_env_block="${runtime_env_block}
+      - ZOOM_SDK_HOST=${ZOOM_SDK_HOST}"
+    fi
+    if [ -n "${ZOOM_PREFER_REGIONAL_HOST:-}" ]; then
+        runtime_env_block="${runtime_env_block}
+      - ZOOM_PREFER_REGIONAL_HOST=${ZOOM_PREFER_REGIONAL_HOST}"
+    fi
+    if [ -n "${ZOOM_AUTH_CALLBACK_TIMEOUT_MS:-}" ]; then
+        runtime_env_block="${runtime_env_block}
+      - ZOOM_AUTH_CALLBACK_TIMEOUT_MS=${ZOOM_AUTH_CALLBACK_TIMEOUT_MS}"
+    fi
+    if [ -n "${ENTRY_DEBUG_ARGS:-}" ]; then
+        runtime_env_block="${runtime_env_block}
+      - ENTRY_DEBUG_ARGS=${ENTRY_DEBUG_ARGS}"
+    fi
+
+    local resource_block=""
+    local deploy_limits=""
+    local deploy_reservations=""
+    if is_limit_enabled "$cpu_limit"; then
+        resource_block="${resource_block}
+    cpus: \"${cpu_limit}\""
+        deploy_limits="${deploy_limits}
+          cpus: '${cpu_limit}'"
+    fi
+    if is_limit_enabled "$mem_limit"; then
+        resource_block="${resource_block}
+    mem_limit: ${mem_limit}"
+        deploy_limits="${deploy_limits}
+          memory: ${mem_limit}"
+    fi
+    if is_limit_enabled "$mem_res"; then
+        resource_block="${resource_block}
+    mem_reservation: ${mem_res}"
+        deploy_reservations="${deploy_reservations}
+          memory: ${mem_res}"
+    fi
+    if is_limit_enabled "$cpu_res"; then
+        deploy_reservations="${deploy_reservations}
+          cpus: '${cpu_res}'"
+    fi
+    if [ -n "$deploy_limits" ] || [ -n "$deploy_reservations" ]; then
+        resource_block="${resource_block}
+    deploy:
+      resources:"
+        if [ -n "$deploy_limits" ]; then
+            resource_block="${resource_block}
+        limits:${deploy_limits}"
+        fi
+        if [ -n "$deploy_reservations" ]; then
+            resource_block="${resource_block}
+        reservations:${deploy_reservations}"
+        fi
+    fi
+
     cat << EOF
   $service_name:
     image: zoom-bot:latest
@@ -311,6 +379,7 @@ ${build_cache_volume}
       - QT_QPA_PLATFORM=offscreen
       - DISPLAY=:99
       - G_MESSAGES_DEBUG=
+${runtime_env_block}
     working_dir: /tmp/meeting-sdk-linux-sample
     entrypoint:
       - /tini
@@ -326,17 +395,7 @@ ${build_cache_volume}
 $camera_args
 $video_args
 ${device_block}
-    cpus: "${cpu_limit}"
-    mem_limit: ${mem_limit}
-    mem_reservation: ${mem_res}
-    deploy:
-      resources:
-        limits:
-          cpus: '${cpu_limit}'
-          memory: ${mem_limit}
-        reservations:
-          cpus: '${cpu_res}'
-          memory: ${mem_res}
+${resource_block}
     stop_grace_period: 2s
     restart: 'no'
 EOF
