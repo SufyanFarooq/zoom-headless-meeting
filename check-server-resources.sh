@@ -218,7 +218,7 @@ if [ "$CPU_CORES" != "unknown" ] && [ "$MEM_AVAIL_MB" -gt 0 ]; then
     echo ""
     echo "💡 Recommendation:"
     if [ -n "$DOCKER_CMD" ]; then
-        CURRENT_BOTS=$($DOCKER_CMD ps --format "{{.Names}}" | grep -cE '^zoom-bot-[0-9]+-.*-[0-9]+$' || echo "0")
+        CURRENT_BOTS=$($DOCKER_CMD ps --format "{{.Names}}" | grep -E '^zoom-bot-[0-9]+-.*-[0-9]+$' | wc -l | tr -d ' ')
     else
         CURRENT_BOTS=0
     fi
