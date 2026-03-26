@@ -110,6 +110,9 @@ async function applyPostJoinThrottle(projectDir, containerId, config) {
   }
   if (hasEffectiveResourceValue(config.memory)) {
     args.push('--memory', shellQuote(config.memory));
+    // Keep swap equal to memory so Docker can lower memory on an already-running
+    // container without tripping over the previous unlimited swap setting.
+    args.push('--memory-swap', shellQuote(config.memory));
   }
   if (hasEffectiveResourceValue(config.memoryReservation)) {
     args.push('--memory-reservation', shellQuote(config.memoryReservation));
