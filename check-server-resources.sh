@@ -2,13 +2,36 @@
 
 # Script to check server resources and calculate bot capacity
 
+load_env_file() {
+    local env_file="$1"
+    [ -f "$env_file" ] || return 0
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            ''|'#'*) continue
+                ;;
+        esac
+
+        if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+            continue
+        fi
+
+        local key="${line%%=*}"
+        local value="${line#*=}"
+
+        # Strip matching surrounding quotes only; do not execute the file.
+        if [[ "$value" =~ ^\".*\"$ ]]; then
+            value="${value:1:${#value}-2}"
+        elif [[ "$value" =~ ^\'.*\'$ ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+
+        export "$key=$value"
+    done < "$env_file"
+}
+
 # Load local .env when present so capacity reflects current deployment config.
-if [ -f ".env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . ./.env
-    set +a
-fi
+load_env_file ".env"
 
 echo "🔍 Checking Server Resources..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -195,7 +218,7 @@ if [ "$CPU_CORES" != "unknown" ] && [ "$MEM_AVAIL_MB" -gt 0 ]; then
     echo ""
     echo "💡 Recommendation:"
     if [ -n "$DOCKER_CMD" ]; then
-        CURRENT_BOTS=$($DOCKER_CMD ps --format "{{.Names}}" | grep -c "zoom-bot" || echo "0")
+        CURRENT_BOTS=$($DOCKER_CMD ps --format "{{.Names}}" | grep -cE '^zoom-bot-[0-9]+-.*-[0-9]+$' || echo "0")
     else
         CURRENT_BOTS=0
     fi
