@@ -24,6 +24,7 @@ app.use(express.json());
 
 const inFlightJobs = new Map();
 const postJoinThrottleJobs = new Map();
+const composeServiceSpecsCache = new Map();
 
 function isTrue(val) {
   if (val === true) return true;
@@ -66,6 +67,8 @@ function getPostJoinThrottleConfig() {
   const connectedGraceMs = Math.max(0, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_CONNECTED_GRACE_MS || '10000', 10) || 10000);
   const maxWaitMs = Math.max(initialDelayMs, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_MAX_WAIT_MS || '180000', 10) || 180000);
   const cleanupOnTimeout = isTrue(process.env.BOT_STARTUP_TIMEOUT_CLEANUP ?? 'true');
+  const retryCount = Math.max(0, Number.parseInt(process.env.BOT_STARTUP_TIMEOUT_RETRY_COUNT || '1', 10) || 0);
+  const retryDelayMs = Math.max(0, Number.parseInt(process.env.BOT_STARTUP_TIMEOUT_RETRY_DELAY_MS || '2000', 10) || 2000);
   const hasTargets = hasEffectiveResourceValue(cpu) || hasEffectiveResourceValue(memory) || hasEffectiveResourceValue(memoryReservation);
 
   return {
@@ -77,7 +80,9 @@ function getPostJoinThrottleConfig() {
     pollMs,
     connectedGraceMs,
     maxWaitMs,
-    cleanupOnTimeout
+    cleanupOnTimeout,
+    retryCount,
+    retryDelayMs
   };
 }
 
@@ -269,7 +274,7 @@ async function applyPostJoinThrottle(projectDir, containerId, config) {
   return true;
 }
 
-async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
+async function monitorContainerForPostJoinThrottle(projectDir, containerId, options = {}) {
   const config = getPostJoinThrottleConfig();
   if (!config.enabled) {
     return;
@@ -281,37 +286,62 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
 
   const jobPromise = (async () => {
     try {
-      if (config.initialDelayMs > 0) {
-        await delay(config.initialDelayMs);
-      }
-
-      const startedAt = Date.now();
-      while (Date.now() - startedAt <= config.maxWaitMs) {
-        const running = await isContainerRunning(projectDir, containerId);
-        if (!running) {
-          await delay(config.pollMs);
-          continue;
+      let attempt = 0;
+      while (attempt <= config.retryCount) {
+        if (attempt === 0) {
+          if (config.initialDelayMs > 0) {
+            await delay(config.initialDelayMs);
+          }
+        } else if (config.retryDelayMs > 0) {
+          await delay(config.retryDelayMs);
         }
 
-        const logs = await getContainerLogs(projectDir, containerId, 250);
-        if ((logs || '').includes('✅ connected') || (logs || '').includes('connected')) {
-          if (config.connectedGraceMs > 0) {
-            await delay(config.connectedGraceMs);
+        const startedAt = Date.now();
+        while (Date.now() - startedAt <= config.maxWaitMs) {
+          const running = await isContainerRunning(projectDir, containerId);
+          if (!running) {
+            await delay(config.pollMs);
+            continue;
           }
 
-          if (!(await isContainerRunning(projectDir, containerId))) {
-            console.log(`[THROTTLE] Skipping ${containerId}: container stopped during grace period`);
+          const logs = await getContainerLogs(projectDir, containerId, 250);
+          if ((logs || '').includes('✅ connected') || (logs || '').includes('connected')) {
+            if (config.connectedGraceMs > 0) {
+              await delay(config.connectedGraceMs);
+            }
+
+            if (!(await isContainerRunning(projectDir, containerId))) {
+              console.log(`[THROTTLE] Skipping ${containerId}: container stopped during grace period`);
+              return;
+            }
+
+            await applyPostJoinThrottle(projectDir, containerId, config);
             return;
           }
 
-          await applyPostJoinThrottle(projectDir, containerId, config);
-          return;
+          await delay(config.pollMs);
         }
 
-        await delay(config.pollMs);
+        console.warn(
+          `[THROTTLE] Did not detect connected state for ${containerId} within ${config.maxWaitMs}ms ` +
+          `(attempt ${attempt + 1}/${config.retryCount + 1})`
+        );
+
+        if (attempt >= config.retryCount) {
+          break;
+        }
+
+        try {
+          await removeContainer(projectDir, containerId, `startup-timeout>${config.maxWaitMs}ms`);
+          await restartTimedOutContainer(projectDir, options.composeFilePath, containerId);
+          attempt += 1;
+          continue;
+        } catch (retryError) {
+          console.warn(`[STARTUP] Failed to retry timed-out container ${containerId}: ${retryError.message}`);
+          break;
+        }
       }
 
-      console.warn(`[THROTTLE] Did not detect connected state for ${containerId} within ${config.maxWaitMs}ms`);
       if (config.cleanupOnTimeout) {
         try {
           await removeContainer(projectDir, containerId, `startup-timeout>${config.maxWaitMs}ms`);
@@ -329,7 +359,7 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
   postJoinThrottleJobs.set(containerId, jobPromise);
 }
 
-function schedulePostJoinThrottle(projectDir, containerIds = []) {
+function schedulePostJoinThrottle(projectDir, containerIds = [], options = {}) {
   const config = getPostJoinThrottleConfig();
   if (!config.enabled || !Array.isArray(containerIds) || containerIds.length === 0) {
     return;
@@ -343,7 +373,7 @@ function schedulePostJoinThrottle(projectDir, containerIds = []) {
 
   for (const containerId of containerIds) {
     if (!containerId) continue;
-    monitorContainerForPostJoinThrottle(projectDir, containerId);
+    monitorContainerForPostJoinThrottle(projectDir, containerId, options);
   }
 }
 
@@ -448,6 +478,11 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, 
 }
 
 async function getComposeServiceSpecs(projectDir, composeFilePath) {
+  const cacheKey = `${projectDir}::${composeFilePath}`;
+  if (composeServiceSpecsCache.has(cacheKey)) {
+    return composeServiceSpecsCache.get(cacheKey);
+  }
+
   const dockerEnv = {
     ...process.env,
     DOCKER_HOST: 'unix:///var/run/docker.sock'
@@ -468,9 +503,44 @@ async function getComposeServiceSpecs(projectDir, composeFilePath) {
     workingDir: service.working_dir || '/tmp/meeting-sdk-linux-sample'
   }));
 
-  return specs
+  const orderedSpecs = specs
     .filter((spec) => spec.containerName)
     .sort((a, b) => parseBotIndexFromName(a.containerName) - parseBotIndexFromName(b.containerName));
+
+  composeServiceSpecsCache.set(cacheKey, orderedSpecs);
+  return orderedSpecs;
+}
+
+async function getComposeServiceSpecByContainer(projectDir, composeFilePath, containerId) {
+  if (!composeFilePath) {
+    return null;
+  }
+
+  const specs = await getComposeServiceSpecs(projectDir, composeFilePath);
+  return specs.find((spec) => spec.containerName === containerId) || null;
+}
+
+async function restartTimedOutContainer(projectDir, composeFilePath, containerId) {
+  const spec = await getComposeServiceSpecByContainer(projectDir, composeFilePath, containerId);
+  if (!spec?.serviceName) {
+    throw new Error(`No compose service found for ${containerId}`);
+  }
+
+  await waitForStartWindow(projectDir, 1);
+  await execAsync(
+    `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${shellQuote(spec.serviceName)}`,
+    {
+      cwd: projectDir,
+      env: {
+        ...process.env,
+        DOCKER_HOST: 'unix:///var/run/docker.sock'
+      },
+      shell: '/bin/sh',
+      timeout: 15000
+    }
+  );
+
+  console.warn(`[STARTUP] Retrying container ${containerId} via service ${spec.serviceName}`);
 }
 
 async function startBotsWithWarmPool(projectDir, composeFilePath, meetingId, requestId, totalBots, staggerMs = 0) {
@@ -745,7 +815,7 @@ app.post('/api/bots/create', async (req, res) => {
           }
 
           const scheduledContainerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
-          schedulePostJoinThrottle(projectDir, scheduledContainerIds);
+          schedulePostJoinThrottle(projectDir, scheduledContainerIds, { composeFilePath });
           const warmResult = await startBotsWithWarmPool(
             projectDir,
             composeFilePath,
@@ -917,7 +987,7 @@ app.post('/api/bots/create', async (req, res) => {
     let containerIds = [];
     try {
       const scheduledContainerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
-      schedulePostJoinThrottle(projectDir, scheduledContainerIds);
+      schedulePostJoinThrottle(projectDir, scheduledContainerIds, { composeFilePath });
       const warmResult = await startBotsWithWarmPool(
         projectDir,
         composeFilePath,
