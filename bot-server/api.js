@@ -131,11 +131,16 @@ function getStartBackpressureConfig() {
   const enabled = isTrue(process.env.BOT_START_BACKPRESSURE_ENABLED ?? 'true');
   const maxUnthrottled = Math.max(1, Number.parseInt(process.env.BOT_START_MAX_UNTHROTTLED || '25', 10) || 25);
   const maxCpuPercent = Math.max(50, Math.min(99, Number.parseFloat(process.env.BOT_START_MAX_CPU_PERCENT || '80') || 80));
+  const retryMaxCpuPercent = Math.max(
+    maxCpuPercent,
+    Math.min(99, Number.parseFloat(process.env.BOT_START_RETRY_MAX_CPU_PERCENT || '90') || 90)
+  );
   const pollMs = Math.max(1000, Number.parseInt(process.env.BOT_START_BACKPRESSURE_POLL_MS || '3000', 10) || 3000);
   return {
     enabled,
     maxUnthrottled,
     maxCpuPercent,
+    retryMaxCpuPercent,
     pollMs
   };
 }
@@ -205,11 +210,14 @@ async function countUnthrottledRunningBots(projectDir) {
   return count;
 }
 
-async function waitForStartWindow(projectDir, upcomingCount = 0) {
+async function waitForStartWindow(projectDir, upcomingCount = 0, options = {}) {
   const config = getStartBackpressureConfig();
   if (!config.enabled) {
     return;
   }
+
+  const isRetry = options?.isRetry === true;
+  const effectiveMaxCpuPercent = isRetry ? config.retryMaxCpuPercent : config.maxCpuPercent;
 
   while (true) {
     let unthrottled = 0;
@@ -223,7 +231,7 @@ async function waitForStartWindow(projectDir, upcomingCount = 0) {
       continue;
     }
 
-    const cpuOk = !Number.isFinite(cpuUsagePercent) || cpuUsagePercent < config.maxCpuPercent;
+    const cpuOk = !Number.isFinite(cpuUsagePercent) || cpuUsagePercent < effectiveMaxCpuPercent;
     const joinWindowOk = (unthrottled + upcomingCount) <= config.maxUnthrottled;
     if (cpuOk && joinWindowOk) {
       return;
@@ -233,7 +241,7 @@ async function waitForStartWindow(projectDir, upcomingCount = 0) {
       `[BACKPRESSURE] Waiting before next batch: unthrottled=${unthrottled}, ` +
       `upcoming=${upcomingCount}, maxUnthrottled=${config.maxUnthrottled}, ` +
       `cpu=${Number.isFinite(cpuUsagePercent) ? cpuUsagePercent.toFixed(1) : 'n/a'}%, ` +
-      `maxCpu=${config.maxCpuPercent}%`
+      `maxCpu=${effectiveMaxCpuPercent}%${isRetry ? ', retry=true' : ''}`
     );
     await delay(config.pollMs);
   }
@@ -526,7 +534,7 @@ async function restartTimedOutContainer(projectDir, composeFilePath, containerId
     throw new Error(`No compose service found for ${containerId}`);
   }
 
-  await waitForStartWindow(projectDir, 1);
+  await waitForStartWindow(projectDir, 1, { isRetry: true });
   await execAsync(
     `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${shellQuote(spec.serviceName)}`,
     {
