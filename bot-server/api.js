@@ -24,6 +24,7 @@ app.use(express.json());
 
 const inFlightJobs = new Map();
 const postJoinThrottleJobs = new Map();
+const startupWindowJobs = new Set();
 
 function isTrue(val) {
   if (val === true) return true;
@@ -77,6 +78,29 @@ function getPostJoinThrottleConfig() {
     connectedGraceMs,
     maxWaitMs
   };
+}
+
+function getStartupWindowConfig() {
+  return {
+    enabled: isTrue(process.env.BOT_START_WINDOW_ENABLED ?? 'true'),
+    maxInFlight: Math.max(1, Number.parseInt(process.env.BOT_START_MAX_IN_FLIGHT || '16', 10) || 16),
+    maxCpuPercent: Math.max(40, Math.min(99, Number.parseFloat(process.env.BOT_START_MAX_CPU_PERCENT || '75') || 75)),
+    pollMs: Math.max(500, Number.parseInt(process.env.BOT_START_POLL_MS || '1000', 10) || 1000)
+  };
+}
+
+function trackStartupWindowBatch(containerIds = []) {
+  for (const containerId of containerIds) {
+    if (containerId) {
+      startupWindowJobs.add(containerId);
+    }
+  }
+}
+
+function releaseStartupWindowSlot(containerId) {
+  if (containerId) {
+    startupWindowJobs.delete(containerId);
+  }
 }
 
 async function isContainerRunning(projectDir, containerId) {
@@ -158,8 +182,8 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
       while (Date.now() - startedAt <= config.maxWaitMs) {
         const running = await isContainerRunning(projectDir, containerId);
         if (!running) {
-          console.log(`[THROTTLE] Skipping ${containerId}: container is no longer running`);
-          return;
+          await delay(config.pollMs);
+          continue;
         }
 
         const logs = await getContainerLogs(projectDir, containerId, 250);
@@ -184,6 +208,7 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
     } catch (error) {
       console.warn(`[THROTTLE] Failed for ${containerId}: ${error.message}`);
     } finally {
+      releaseStartupWindowSlot(containerId);
       postJoinThrottleJobs.delete(containerId);
     }
   })();
@@ -244,6 +269,30 @@ async function getCpuUsagePercent(sampleMs = 250) {
   return Math.max(0, Math.min(100, usage));
 }
 
+async function waitForStartupWindow(upcomingCount = 1) {
+  const config = getStartupWindowConfig();
+  if (!config.enabled) {
+    return;
+  }
+
+  while (true) {
+    const cpuUsagePercent = await getCpuUsagePercent(250);
+    const cpuOk = !Number.isFinite(cpuUsagePercent) || cpuUsagePercent < config.maxCpuPercent;
+    const availableSlots = config.maxInFlight - startupWindowJobs.size;
+    if (cpuOk && availableSlots >= upcomingCount) {
+      return;
+    }
+
+    console.log(
+      `[START_WINDOW] Waiting: inFlight=${startupWindowJobs.size}, ` +
+      `upcoming=${upcomingCount}, maxInFlight=${config.maxInFlight}, ` +
+      `cpu=${Number.isFinite(cpuUsagePercent) ? cpuUsagePercent.toFixed(1) : 'n/a'}%, ` +
+      `maxCpu=${config.maxCpuPercent}%`
+    );
+    await delay(config.pollMs);
+  }
+}
+
 function parseBotIndexFromName(name) {
   const match = String(name || '').match(/-(\d+)$/);
   return match ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
@@ -256,7 +305,7 @@ function isWarmDirectAssignConfigured() {
   return prebuiltRuntime && directAssign && poolSize > 0;
 }
 
-async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, selectedServices = null) {
+async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, selectedServices = null, serviceToContainerName = null) {
   const dockerEnv = {
     ...process.env,
     DOCKER_HOST: 'unix:///var/run/docker.sock'
@@ -299,9 +348,18 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, 
   console.log(`🚦 Starting ${services.length} services with stagger ${safeStaggerMs}ms (batchSize=${batchSize}, batches=${totalBatches})`);
   for (let i = 0; i < services.length; i += batchSize) {
     const batch = services.slice(i, i + batchSize);
+    const batchContainerIds = batch
+      .map((service) => serviceToContainerName?.get(service))
+      .filter(Boolean);
+    const startupUnits = batchContainerIds.length || batch.length;
+    await waitForStartupWindow(startupUnits);
     const serviceArgs = batch.map((service) => shellQuote(service)).join(' ');
     const upCommand = `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${serviceArgs}`;
     await execAsync(upCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
+    if (batchContainerIds.length) {
+      trackStartupWindowBatch(batchContainerIds);
+      schedulePostJoinThrottle(projectDir, batchContainerIds);
+    }
     if (i + batchSize < services.length) {
       await delay(safeStaggerMs);
     }
@@ -335,16 +393,22 @@ async function getComposeServiceSpecs(projectDir, composeFilePath) {
 }
 
 async function startBotsWithWarmPool(projectDir, composeFilePath, meetingId, requestId, totalBots, staggerMs = 0) {
+  const specs = await getComposeServiceSpecs(projectDir, composeFilePath);
+  const serviceToContainerName = new Map(
+    specs
+      .filter((spec) => spec.serviceName && spec.containerName)
+      .map((spec) => [spec.serviceName, spec.containerName])
+  );
+
   if (!isWarmDirectAssignConfigured()) {
-    await startComposeServices(projectDir, composeFilePath, staggerMs);
+    await startComposeServices(projectDir, composeFilePath, staggerMs, null, serviceToContainerName);
     return {
       assignedIds: [],
       fallbackServiceNames: [],
-      containerIds: buildContainerIds(meetingId, requestId, totalBots)
+      containerIds: specs.length ? specs.map((spec) => spec.containerName) : buildContainerIds(meetingId, requestId, totalBots)
     };
   }
 
-  const specs = await getComposeServiceSpecs(projectDir, composeFilePath);
   if (!specs.length) {
     throw new Error(`No services found in compose file: ${composeFilePath}`);
   }
@@ -361,7 +425,7 @@ async function startBotsWithWarmPool(projectDir, composeFilePath, meetingId, req
   const fallbackServices = unassigned.map((entry) => entry.serviceName);
 
   if (fallbackServices.length > 0) {
-    await startComposeServices(projectDir, composeFilePath, staggerMs, fallbackServices);
+    await startComposeServices(projectDir, composeFilePath, staggerMs, fallbackServices, serviceToContainerName);
   }
 
   return {
