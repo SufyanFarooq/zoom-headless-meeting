@@ -24,7 +24,6 @@ app.use(express.json());
 
 const inFlightJobs = new Map();
 const postJoinThrottleJobs = new Map();
-const composeServiceSpecsCache = new Map();
 
 function isTrue(val) {
   if (val === true) return true;
@@ -66,9 +65,6 @@ function getPostJoinThrottleConfig() {
   const pollMs = Math.max(1000, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_POLL_MS || '5000', 10) || 5000);
   const connectedGraceMs = Math.max(0, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_CONNECTED_GRACE_MS || '10000', 10) || 10000);
   const maxWaitMs = Math.max(initialDelayMs, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_MAX_WAIT_MS || '180000', 10) || 180000);
-  const cleanupOnTimeout = isTrue(process.env.BOT_STARTUP_TIMEOUT_CLEANUP ?? 'true');
-  const retryCount = Math.max(0, Number.parseInt(process.env.BOT_STARTUP_TIMEOUT_RETRY_COUNT || '1', 10) || 0);
-  const retryDelayMs = Math.max(0, Number.parseInt(process.env.BOT_STARTUP_TIMEOUT_RETRY_DELAY_MS || '2000', 10) || 2000);
   const hasTargets = hasEffectiveResourceValue(cpu) || hasEffectiveResourceValue(memory) || hasEffectiveResourceValue(memoryReservation);
 
   return {
@@ -79,28 +75,8 @@ function getPostJoinThrottleConfig() {
     initialDelayMs,
     pollMs,
     connectedGraceMs,
-    maxWaitMs,
-    cleanupOnTimeout,
-    retryCount,
-    retryDelayMs
+    maxWaitMs
   };
-}
-
-async function removeContainer(projectDir, containerId, reason = 'cleanup') {
-  try {
-    await execAsync(
-      `docker rm -f ${shellQuote(containerId)}`,
-      { cwd: projectDir, shell: '/bin/sh', timeout: 10000 }
-    );
-    console.warn(`[STARTUP] Removed container ${containerId} (${reason})`);
-    return true;
-  } catch (error) {
-    const msg = error.message || '';
-    if (msg.includes('No such container')) {
-      return false;
-    }
-    throw error;
-  }
 }
 
 async function isContainerRunning(projectDir, containerId) {
@@ -124,126 +100,6 @@ async function getContainerLogs(projectDir, containerId, tailCount = 200) {
     return `${stdout || ''}\n${stderr || ''}`;
   } catch (error) {
     return `${error.stdout || ''}\n${error.stderr || ''}`;
-  }
-}
-
-function getStartBackpressureConfig() {
-  const enabled = isTrue(process.env.BOT_START_BACKPRESSURE_ENABLED ?? 'true');
-  const maxUnthrottled = Math.max(1, Number.parseInt(process.env.BOT_START_MAX_UNTHROTTLED || '25', 10) || 25);
-  const maxCpuPercent = Math.max(50, Math.min(99, Number.parseFloat(process.env.BOT_START_MAX_CPU_PERCENT || '80') || 80));
-  const retryMaxCpuPercent = Math.max(
-    maxCpuPercent,
-    Math.min(99, Number.parseFloat(process.env.BOT_START_RETRY_MAX_CPU_PERCENT || '90') || 90)
-  );
-  const pollMs = Math.max(1000, Number.parseInt(process.env.BOT_START_BACKPRESSURE_POLL_MS || '3000', 10) || 3000);
-  return {
-    enabled,
-    maxUnthrottled,
-    maxCpuPercent,
-    retryMaxCpuPercent,
-    pollMs
-  };
-}
-
-async function countUnthrottledRunningBots(projectDir) {
-  const { stdout: namesOut } = await execAsync(
-    'docker ps --format "{{.Names}}"',
-    { cwd: projectDir, shell: '/bin/sh' }
-  );
-
-  const botNames = (namesOut || '')
-    .split('\n')
-    .map((name) => name.trim())
-    .filter((name) => /^zoom-bot-\d/.test(name));
-
-  if (!botNames.length) {
-    return 0;
-  }
-
-  let count = 0;
-  const chunkSize = 40;
-  for (let i = 0; i < botNames.length; i += chunkSize) {
-    const chunk = botNames.slice(i, i + chunkSize);
-    const inspectCommand =
-      `docker inspect --format '{{.Name}} {{.State.Status}} {{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}' ${chunk.map((name) => shellQuote(name)).join(' ')}`;
-    try {
-      const { stdout: inspectOut } = await execAsync(
-        inspectCommand,
-        { cwd: projectDir, shell: '/bin/sh', maxBuffer: 1024 * 1024 * 4 }
-      );
-      count += (inspectOut || '')
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .reduce((sum, line) => {
-          const parts = line.split(/\s+/);
-          const status = parts[1] || '';
-          const nanoCpus = Number.parseInt(parts[2] || '0', 10) || 0;
-          const memory = Number.parseInt(parts[3] || '0', 10) || 0;
-          if (status === 'running' && nanoCpus === 0 && memory === 0) {
-            return sum + 1;
-          }
-          return sum;
-        }, 0);
-    } catch (error) {
-      console.warn(`[BACKPRESSURE] Chunk inspect failed, retrying individually: ${error.message}`);
-      for (const name of chunk) {
-        try {
-          const { stdout: inspectOut } = await execAsync(
-            `docker inspect --format '{{.State.Status}} {{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}' ${shellQuote(name)}`,
-            { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
-          );
-          const parts = String(inspectOut || '').trim().split(/\s+/);
-          const status = parts[0] || '';
-          const nanoCpus = Number.parseInt(parts[1] || '0', 10) || 0;
-          const memory = Number.parseInt(parts[2] || '0', 10) || 0;
-          if (status === 'running' && nanoCpus === 0 && memory === 0) {
-            count += 1;
-          }
-        } catch {
-          // Container may have disappeared between docker ps and inspect; ignore it.
-        }
-      }
-    }
-  }
-
-  return count;
-}
-
-async function waitForStartWindow(projectDir, upcomingCount = 0, options = {}) {
-  const config = getStartBackpressureConfig();
-  if (!config.enabled) {
-    return Math.max(1, upcomingCount || 1);
-  }
-
-  const isRetry = options?.isRetry === true;
-  const effectiveMaxCpuPercent = isRetry ? config.retryMaxCpuPercent : config.maxCpuPercent;
-
-  while (true) {
-    let unthrottled = 0;
-    let cpuUsagePercent = null;
-    try {
-      unthrottled = await countUnthrottledRunningBots(projectDir);
-      cpuUsagePercent = await getCpuUsagePercent(250);
-    } catch (error) {
-      console.warn(`[BACKPRESSURE] Probe failed, retrying: ${error.message}`);
-      await delay(config.pollMs);
-      continue;
-    }
-
-    const cpuOk = !Number.isFinite(cpuUsagePercent) || cpuUsagePercent < effectiveMaxCpuPercent;
-    const availableSlots = Math.max(0, config.maxUnthrottled - unthrottled);
-    if (cpuOk && availableSlots > 0) {
-      return Math.max(1, Math.min(upcomingCount || 1, availableSlots));
-    }
-
-    console.log(
-      `[BACKPRESSURE] Waiting before next batch: unthrottled=${unthrottled}, ` +
-      `upcoming=${upcomingCount}, maxUnthrottled=${config.maxUnthrottled}, ` +
-      `cpu=${Number.isFinite(cpuUsagePercent) ? cpuUsagePercent.toFixed(1) : 'n/a'}%, ` +
-      `maxCpu=${effectiveMaxCpuPercent}%${isRetry ? ', retry=true' : ''}`
-    );
-    await delay(config.pollMs);
   }
 }
 
@@ -282,7 +138,7 @@ async function applyPostJoinThrottle(projectDir, containerId, config) {
   return true;
 }
 
-async function monitorContainerForPostJoinThrottle(projectDir, containerId, options = {}) {
+async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
   const config = getPostJoinThrottleConfig();
   if (!config.enabled) {
     return;
@@ -294,69 +150,37 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId, opti
 
   const jobPromise = (async () => {
     try {
-      let attempt = 0;
-      while (attempt <= config.retryCount) {
-        if (attempt === 0) {
-          if (config.initialDelayMs > 0) {
-            await delay(config.initialDelayMs);
-          }
-        } else if (config.retryDelayMs > 0) {
-          await delay(config.retryDelayMs);
+      if (config.initialDelayMs > 0) {
+        await delay(config.initialDelayMs);
+      }
+
+      const startedAt = Date.now();
+      while (Date.now() - startedAt <= config.maxWaitMs) {
+        const running = await isContainerRunning(projectDir, containerId);
+        if (!running) {
+          console.log(`[THROTTLE] Skipping ${containerId}: container is no longer running`);
+          return;
         }
 
-        const startedAt = Date.now();
-        while (Date.now() - startedAt <= config.maxWaitMs) {
-          const running = await isContainerRunning(projectDir, containerId);
-          if (!running) {
-            await delay(config.pollMs);
-            continue;
+        const logs = await getContainerLogs(projectDir, containerId, 250);
+        if ((logs || '').includes('✅ connected') || (logs || '').includes('connected')) {
+          if (config.connectedGraceMs > 0) {
+            await delay(config.connectedGraceMs);
           }
 
-          const logs = await getContainerLogs(projectDir, containerId, 250);
-          if ((logs || '').includes('✅ connected') || (logs || '').includes('connected')) {
-            if (config.connectedGraceMs > 0) {
-              await delay(config.connectedGraceMs);
-            }
-
-            if (!(await isContainerRunning(projectDir, containerId))) {
-              console.log(`[THROTTLE] Skipping ${containerId}: container stopped during grace period`);
-              return;
-            }
-
-            await applyPostJoinThrottle(projectDir, containerId, config);
+          if (!(await isContainerRunning(projectDir, containerId))) {
+            console.log(`[THROTTLE] Skipping ${containerId}: container stopped during grace period`);
             return;
           }
 
-          await delay(config.pollMs);
+          await applyPostJoinThrottle(projectDir, containerId, config);
+          return;
         }
 
-        console.warn(
-          `[THROTTLE] Did not detect connected state for ${containerId} within ${config.maxWaitMs}ms ` +
-          `(attempt ${attempt + 1}/${config.retryCount + 1})`
-        );
-
-        if (attempt >= config.retryCount) {
-          break;
-        }
-
-        try {
-          await removeContainer(projectDir, containerId, `startup-timeout>${config.maxWaitMs}ms`);
-          await restartTimedOutContainer(projectDir, options.composeFilePath, containerId);
-          attempt += 1;
-          continue;
-        } catch (retryError) {
-          console.warn(`[STARTUP] Failed to retry timed-out container ${containerId}: ${retryError.message}`);
-          break;
-        }
+        await delay(config.pollMs);
       }
 
-      if (config.cleanupOnTimeout) {
-        try {
-          await removeContainer(projectDir, containerId, `startup-timeout>${config.maxWaitMs}ms`);
-        } catch (cleanupError) {
-          console.warn(`[STARTUP] Failed to remove timed-out container ${containerId}: ${cleanupError.message}`);
-        }
-      }
+      console.warn(`[THROTTLE] Did not detect connected state for ${containerId} within ${config.maxWaitMs}ms`);
     } catch (error) {
       console.warn(`[THROTTLE] Failed for ${containerId}: ${error.message}`);
     } finally {
@@ -367,7 +191,7 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId, opti
   postJoinThrottleJobs.set(containerId, jobPromise);
 }
 
-function schedulePostJoinThrottle(projectDir, containerIds = [], options = {}) {
+function schedulePostJoinThrottle(projectDir, containerIds = []) {
   const config = getPostJoinThrottleConfig();
   if (!config.enabled || !Array.isArray(containerIds) || containerIds.length === 0) {
     return;
@@ -381,7 +205,7 @@ function schedulePostJoinThrottle(projectDir, containerIds = [], options = {}) {
 
   for (const containerId of containerIds) {
     if (!containerId) continue;
-    monitorContainerForPostJoinThrottle(projectDir, containerId, options);
+    monitorContainerForPostJoinThrottle(projectDir, containerId);
   }
 }
 
@@ -473,30 +297,18 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, 
 
   const totalBatches = Math.ceil(services.length / batchSize);
   console.log(`🚦 Starting ${services.length} services with stagger ${safeStaggerMs}ms (batchSize=${batchSize}, batches=${totalBatches})`);
-  for (let i = 0; i < services.length;) {
-    const remaining = services.length - i;
-    const desiredCount = Math.min(batchSize, remaining);
-    const launchCount = await waitForStartWindow(projectDir, desiredCount);
-    const batch = services.slice(i, i + launchCount);
-    if (launchCount < desiredCount) {
-      console.log(`🚦 Partial batch start: launching ${launchCount}/${desiredCount} services due to current headroom`);
-    }
+  for (let i = 0; i < services.length; i += batchSize) {
+    const batch = services.slice(i, i + batchSize);
     const serviceArgs = batch.map((service) => shellQuote(service)).join(' ');
     const upCommand = `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${serviceArgs}`;
     await execAsync(upCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
-    i += batch.length;
-    if (i < services.length) {
+    if (i + batchSize < services.length) {
       await delay(safeStaggerMs);
     }
   }
 }
 
 async function getComposeServiceSpecs(projectDir, composeFilePath) {
-  const cacheKey = `${projectDir}::${composeFilePath}`;
-  if (composeServiceSpecsCache.has(cacheKey)) {
-    return composeServiceSpecsCache.get(cacheKey);
-  }
-
   const dockerEnv = {
     ...process.env,
     DOCKER_HOST: 'unix:///var/run/docker.sock'
@@ -517,44 +329,9 @@ async function getComposeServiceSpecs(projectDir, composeFilePath) {
     workingDir: service.working_dir || '/tmp/meeting-sdk-linux-sample'
   }));
 
-  const orderedSpecs = specs
+  return specs
     .filter((spec) => spec.containerName)
     .sort((a, b) => parseBotIndexFromName(a.containerName) - parseBotIndexFromName(b.containerName));
-
-  composeServiceSpecsCache.set(cacheKey, orderedSpecs);
-  return orderedSpecs;
-}
-
-async function getComposeServiceSpecByContainer(projectDir, composeFilePath, containerId) {
-  if (!composeFilePath) {
-    return null;
-  }
-
-  const specs = await getComposeServiceSpecs(projectDir, composeFilePath);
-  return specs.find((spec) => spec.containerName === containerId) || null;
-}
-
-async function restartTimedOutContainer(projectDir, composeFilePath, containerId) {
-  const spec = await getComposeServiceSpecByContainer(projectDir, composeFilePath, containerId);
-  if (!spec?.serviceName) {
-    throw new Error(`No compose service found for ${containerId}`);
-  }
-
-  await waitForStartWindow(projectDir, 1, { isRetry: true });
-  await execAsync(
-    `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${shellQuote(spec.serviceName)}`,
-    {
-      cwd: projectDir,
-      env: {
-        ...process.env,
-        DOCKER_HOST: 'unix:///var/run/docker.sock'
-      },
-      shell: '/bin/sh',
-      timeout: 15000
-    }
-  );
-
-  console.warn(`[STARTUP] Retrying container ${containerId} via service ${spec.serviceName}`);
 }
 
 async function startBotsWithWarmPool(projectDir, composeFilePath, meetingId, requestId, totalBots, staggerMs = 0) {
@@ -828,8 +605,6 @@ app.post('/api/bots/create', async (req, res) => {
             return;
           }
 
-          const scheduledContainerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
-          schedulePostJoinThrottle(projectDir, scheduledContainerIds, { composeFilePath });
           const warmResult = await startBotsWithWarmPool(
             projectDir,
             composeFilePath,
@@ -838,6 +613,7 @@ app.post('/api/bots/create', async (req, res) => {
             totalBots,
             startStaggerMs
           );
+          schedulePostJoinThrottle(projectDir, warmResult.containerIds);
           console.log(`✅ Async bot creation finished (warm-assigned: ${warmResult.assignedIds.length}, compose-fallback: ${warmResult.fallbackServiceNames.length})`);
         } catch (startError) {
           console.error('❌ Async bot creation failed:', startError.message);
@@ -1000,8 +776,6 @@ app.post('/api/bots/create', async (req, res) => {
     
     let containerIds = [];
     try {
-      const scheduledContainerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
-      schedulePostJoinThrottle(projectDir, scheduledContainerIds, { composeFilePath });
       const warmResult = await startBotsWithWarmPool(
         projectDir,
         composeFilePath,
@@ -1011,6 +785,7 @@ app.post('/api/bots/create', async (req, res) => {
         startStaggerMs
       );
       containerIds = warmResult.containerIds;
+      schedulePostJoinThrottle(projectDir, containerIds);
       console.log(`🔥 Warm assigned: ${warmResult.assignedIds.length}, compose fallback: ${warmResult.fallbackServiceNames.length}`);
     } catch (dockerError) {
       // Docker-compose command failed - log detailed error
