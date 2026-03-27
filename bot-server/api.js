@@ -103,6 +103,90 @@ async function getContainerLogs(projectDir, containerId, tailCount = 200) {
   }
 }
 
+function getStartBackpressureConfig() {
+  const enabled = isTrue(process.env.BOT_START_BACKPRESSURE_ENABLED ?? 'true');
+  const maxUnthrottled = Math.max(1, Number.parseInt(process.env.BOT_START_MAX_UNTHROTTLED || '25', 10) || 25);
+  const maxCpuPercent = Math.max(50, Math.min(99, Number.parseFloat(process.env.BOT_START_MAX_CPU_PERCENT || '80') || 80));
+  const pollMs = Math.max(1000, Number.parseInt(process.env.BOT_START_BACKPRESSURE_POLL_MS || '3000', 10) || 3000);
+  return {
+    enabled,
+    maxUnthrottled,
+    maxCpuPercent,
+    pollMs
+  };
+}
+
+async function countUnthrottledRunningBots(projectDir) {
+  const { stdout: namesOut } = await execAsync(
+    'docker ps --format "{{.Names}}"',
+    { cwd: projectDir, shell: '/bin/sh' }
+  );
+
+  const botNames = (namesOut || '')
+    .split('\n')
+    .map((name) => name.trim())
+    .filter((name) => /^zoom-bot-\d/.test(name));
+
+  if (!botNames.length) {
+    return 0;
+  }
+
+  const inspectCommand =
+    `docker inspect --format '{{.Name}} {{.State.Status}} {{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}' ${botNames.map((name) => shellQuote(name)).join(' ')}`;
+  const { stdout: inspectOut } = await execAsync(
+    inspectCommand,
+    { cwd: projectDir, shell: '/bin/sh', maxBuffer: 1024 * 1024 * 8 }
+  );
+
+  return (inspectOut || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reduce((count, line) => {
+      const parts = line.split(/\s+/);
+      const status = parts[1] || '';
+      const nanoCpus = Number.parseInt(parts[2] || '0', 10) || 0;
+      const memory = Number.parseInt(parts[3] || '0', 10) || 0;
+      if (status === 'running' && nanoCpus === 0 && memory === 0) {
+        return count + 1;
+      }
+      return count;
+    }, 0);
+}
+
+async function waitForStartWindow(projectDir, upcomingCount = 0) {
+  const config = getStartBackpressureConfig();
+  if (!config.enabled) {
+    return;
+  }
+
+  while (true) {
+    let unthrottled = 0;
+    let cpuUsagePercent = null;
+    try {
+      unthrottled = await countUnthrottledRunningBots(projectDir);
+      cpuUsagePercent = await getCpuUsagePercent(250);
+    } catch (error) {
+      console.warn(`[BACKPRESSURE] Probe failed, allowing next batch: ${error.message}`);
+      return;
+    }
+
+    const cpuOk = !Number.isFinite(cpuUsagePercent) || cpuUsagePercent < config.maxCpuPercent;
+    const joinWindowOk = (unthrottled + upcomingCount) <= config.maxUnthrottled;
+    if (cpuOk && joinWindowOk) {
+      return;
+    }
+
+    console.log(
+      `[BACKPRESSURE] Waiting before next batch: unthrottled=${unthrottled}, ` +
+      `upcoming=${upcomingCount}, maxUnthrottled=${config.maxUnthrottled}, ` +
+      `cpu=${Number.isFinite(cpuUsagePercent) ? cpuUsagePercent.toFixed(1) : 'n/a'}%, ` +
+      `maxCpu=${config.maxCpuPercent}%`
+    );
+    await delay(config.pollMs);
+  }
+}
+
 async function applyPostJoinThrottle(projectDir, containerId, config) {
   const args = ['docker', 'update'];
   if (hasEffectiveResourceValue(config.cpu)) {
@@ -299,6 +383,7 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, 
   console.log(`🚦 Starting ${services.length} services with stagger ${safeStaggerMs}ms (batchSize=${batchSize}, batches=${totalBatches})`);
   for (let i = 0; i < services.length; i += batchSize) {
     const batch = services.slice(i, i + batchSize);
+    await waitForStartWindow(projectDir, batch.length);
     const serviceArgs = batch.map((service) => shellQuote(service)).join(' ');
     const upCommand = `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${serviceArgs}`;
     await execAsync(upCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
