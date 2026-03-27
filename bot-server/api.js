@@ -131,27 +131,54 @@ async function countUnthrottledRunningBots(projectDir) {
     return 0;
   }
 
-  const inspectCommand =
-    `docker inspect --format '{{.Name}} {{.State.Status}} {{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}' ${botNames.map((name) => shellQuote(name)).join(' ')}`;
-  const { stdout: inspectOut } = await execAsync(
-    inspectCommand,
-    { cwd: projectDir, shell: '/bin/sh', maxBuffer: 1024 * 1024 * 8 }
-  );
-
-  return (inspectOut || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .reduce((count, line) => {
-      const parts = line.split(/\s+/);
-      const status = parts[1] || '';
-      const nanoCpus = Number.parseInt(parts[2] || '0', 10) || 0;
-      const memory = Number.parseInt(parts[3] || '0', 10) || 0;
-      if (status === 'running' && nanoCpus === 0 && memory === 0) {
-        return count + 1;
+  let count = 0;
+  const chunkSize = 40;
+  for (let i = 0; i < botNames.length; i += chunkSize) {
+    const chunk = botNames.slice(i, i + chunkSize);
+    const inspectCommand =
+      `docker inspect --format '{{.Name}} {{.State.Status}} {{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}' ${chunk.map((name) => shellQuote(name)).join(' ')}`;
+    try {
+      const { stdout: inspectOut } = await execAsync(
+        inspectCommand,
+        { cwd: projectDir, shell: '/bin/sh', maxBuffer: 1024 * 1024 * 4 }
+      );
+      count += (inspectOut || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .reduce((sum, line) => {
+          const parts = line.split(/\s+/);
+          const status = parts[1] || '';
+          const nanoCpus = Number.parseInt(parts[2] || '0', 10) || 0;
+          const memory = Number.parseInt(parts[3] || '0', 10) || 0;
+          if (status === 'running' && nanoCpus === 0 && memory === 0) {
+            return sum + 1;
+          }
+          return sum;
+        }, 0);
+    } catch (error) {
+      console.warn(`[BACKPRESSURE] Chunk inspect failed, retrying individually: ${error.message}`);
+      for (const name of chunk) {
+        try {
+          const { stdout: inspectOut } = await execAsync(
+            `docker inspect --format '{{.State.Status}} {{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}' ${shellQuote(name)}`,
+            { cwd: projectDir, shell: '/bin/sh', timeout: 5000 }
+          );
+          const parts = String(inspectOut || '').trim().split(/\s+/);
+          const status = parts[0] || '';
+          const nanoCpus = Number.parseInt(parts[1] || '0', 10) || 0;
+          const memory = Number.parseInt(parts[2] || '0', 10) || 0;
+          if (status === 'running' && nanoCpus === 0 && memory === 0) {
+            count += 1;
+          }
+        } catch {
+          // Container may have disappeared between docker ps and inspect; ignore it.
+        }
       }
-      return count;
-    }, 0);
+    }
+  }
+
+  return count;
 }
 
 async function waitForStartWindow(projectDir, upcomingCount = 0) {
@@ -167,8 +194,9 @@ async function waitForStartWindow(projectDir, upcomingCount = 0) {
       unthrottled = await countUnthrottledRunningBots(projectDir);
       cpuUsagePercent = await getCpuUsagePercent(250);
     } catch (error) {
-      console.warn(`[BACKPRESSURE] Probe failed, allowing next batch: ${error.message}`);
-      return;
+      console.warn(`[BACKPRESSURE] Probe failed, retrying: ${error.message}`);
+      await delay(config.pollMs);
+      continue;
     }
 
     const cpuOk = !Number.isFinite(cpuUsagePercent) || cpuUsagePercent < config.maxCpuPercent;
