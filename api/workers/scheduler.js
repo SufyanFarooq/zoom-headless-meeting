@@ -102,8 +102,8 @@ class Scheduler {
           await query(
             `INSERT INTO meetings 
              (meeting_id, password, members_count, name_type, meeting_type, status, 
-              timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at, user_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)`,
+              timeout_seconds, bot_server_id, request_id, container_ids, video_count, audio_count, started_at, user_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13)`,
             [
               task.meeting_id,
               task.password,
@@ -113,6 +113,7 @@ class Scheduler {
               'active',
               task.timeout_seconds || 7200,
               botResult.serverId,
+              botResult.requestId,
               botResult.containerIds,
               botResult.videoCount,
               botResult.audioCount,
@@ -191,7 +192,7 @@ class Scheduler {
       );
       const requiredAllStoppedChecks = 2;
       const result = await query(
-        `SELECT id, meeting_id, members_count, container_ids, bot_server_id, timeout_seconds, started_at
+        `SELECT id, meeting_id, members_count, request_id, container_ids, bot_server_id, timeout_seconds, started_at
          FROM meetings WHERE status = 'active' AND container_ids IS NOT NULL AND array_length(container_ids, 1) > 0`
       );
       const activeMeetingKeys = new Set(result.rows.map((m) => String(m.id)));
@@ -269,7 +270,7 @@ class Scheduler {
           }
           try {
             console.log(`[CLEANUP] Calling stopBots for meeting ${meeting.meeting_id} (id ${meeting.id})`);
-            await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
+            await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id, meeting.request_id);
           } catch (stopErr) {
             console.error(`[CLEANUP] stopBots FAILED for ${meeting.meeting_id}:`, stopErr.message, stopErr.code);
           }
@@ -285,7 +286,7 @@ class Scheduler {
           if (elapsedSec > timeoutSec + 60) {
             console.log(`[CLEANUP] Meeting ${meeting.meeting_id}: allStopped=false but elapsed ${Math.floor(elapsedSec)}s > timeout ${timeoutSec}s+60, forcing cleanup-by-meeting`);
             try {
-              await stopBots(meeting.meeting_id, [], meeting.bot_server_id);
+              await stopBots(meeting.meeting_id, [], meeting.bot_server_id, meeting.request_id);
               await query(`UPDATE meetings SET status = 'stopped', stopped_at = NOW() WHERE id = $1`, [meeting.id]);
               await decreaseUsage(meeting.members_count);
               this.allStoppedSeenCounts.delete(meetingKey);

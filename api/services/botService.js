@@ -472,6 +472,7 @@ async function createBots(meetingId, password, membersCount, videoCount, audioCo
     return {
       serverId: server.id,
       serverName: server.server_name,
+      requestId,
       containerIds: response.data.containerIds || [],
       videoCount,
       audioCount
@@ -512,7 +513,7 @@ async function getBotServerUrl(serverId) {
 /**
  * Stop bots on bot server - removes containers and deletes compose file
  */
-async function stopBots(meetingId, containerIds, serverId) {
+async function stopBots(meetingId, containerIds, serverId, requestId = null) {
   const serverUrl = await getBotServerUrl(serverId);
   const batches = Math.ceil((containerIds?.length || 0) / 10);
   const timeoutMs = Math.min(Math.max(batches * 3000 + 60000, 120000), 600000);
@@ -547,8 +548,21 @@ async function stopBots(meetingId, containerIds, serverId) {
       }
       throw err;
     }
+  } else if (requestId) {
+    console.log(`[stopBots] No container_ids, using scoped cleanup-compose for meetingId=${meetingId} requestId=${requestId}`);
+    try {
+      const res = await axios.post(
+        `${serverUrl}/api/bots/cleanup-compose`,
+        { meetingId, requestId },
+        { timeout: cleanupTimeoutMs }
+      );
+      console.log(`[stopBots] cleanup-compose OK:`, res.data);
+    } catch (err) {
+      console.error(`[stopBots] cleanup-compose FAILED:`, err.code, err.message);
+      throw new Error(`Scoped cleanup failed: ${err.message}`);
+    }
   } else {
-    console.log(`[stopBots] No container_ids, calling cleanup-by-meeting for ${meetingId}`);
+    console.warn(`[stopBots] No container_ids/requestId, falling back to broad cleanup-by-meeting for ${meetingId}`);
     try {
       const res = await axios.post(
         `${serverUrl}/api/bots/cleanup-by-meeting`,

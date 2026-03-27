@@ -76,8 +76,8 @@ router.post('/', async (req, res) => {
     const meetingResult = await query(
       `INSERT INTO meetings 
        (meeting_id, password, members_count, name_type, meeting_type, status, 
-        timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)
+        timeout_seconds, bot_server_id, request_id, container_ids, video_count, audio_count, started_at, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13)
        RETURNING *`,
       [
         meetingId,
@@ -88,6 +88,7 @@ router.post('/', async (req, res) => {
         'active',
         timeoutSeconds || 7200,
         botResult.serverId,
+        botResult.requestId,
         botResult.containerIds,
         botResult.videoCount,
         botResult.audioCount,
@@ -203,8 +204,8 @@ router.post('/:id/refill', async (req, res) => {
     await query(
       `INSERT INTO meetings 
        (meeting_id, password, members_count, name_type, meeting_type, status, 
-        timeout_seconds, bot_server_id, container_ids, video_count, audio_count, started_at, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)
+        timeout_seconds, bot_server_id, request_id, container_ids, video_count, audio_count, started_at, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13)
        RETURNING *`,
       [
         src.meeting_id,
@@ -215,6 +216,7 @@ router.post('/:id/refill', async (req, res) => {
         'active',
         src.timeout_seconds || 7200,
         botResult.serverId,
+        botResult.requestId,
         botResult.containerIds,
         video,
         audio,
@@ -324,7 +326,7 @@ router.delete('/:id', async (req, res) => {
     }
     const stopAsync = isTrue(req.query?.async) || isTrue(process.env.BOT_STOP_ASYNC);
     if (stopAsync) {
-      stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id)
+      stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id, meeting.request_id)
         .then(async () => {
           console.log(`[STOP] stopBots succeeded (async)`);
           try {
@@ -357,7 +359,7 @@ router.delete('/:id', async (req, res) => {
       });
     } else {
       try {
-        stopBotsResult = await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id);
+        stopBotsResult = await stopBots(meeting.meeting_id, containerIds, meeting.bot_server_id, meeting.request_id);
         console.log(`[STOP] stopBots succeeded`);
       } catch (error) {
         console.error(`[STOP] stopBots FAILED:`, {

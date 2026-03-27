@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS meetings (
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'stopped', 'completed')),
   timeout_seconds INTEGER DEFAULT 7200,
   bot_server_id INTEGER,
+  request_id VARCHAR(50), -- Unique bot creation batch/request ID
   container_ids TEXT[], -- Array of Docker container IDs
   video_count INTEGER DEFAULT 0,
   audio_count INTEGER DEFAULT 0,
@@ -83,6 +84,7 @@ ON CONFLICT DO NOTHING;
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);
 CREATE INDEX IF NOT EXISTS idx_meetings_created_at ON meetings(created_at);
+CREATE INDEX IF NOT EXISTS idx_meetings_request_id ON meetings(request_id);
 CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_status ON scheduled_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_time ON scheduled_tasks(scheduled_time_ist);
 CREATE INDEX IF NOT EXISTS idx_bot_servers_status ON bot_servers(status);
