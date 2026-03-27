@@ -65,6 +65,7 @@ function getPostJoinThrottleConfig() {
   const pollMs = Math.max(1000, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_POLL_MS || '5000', 10) || 5000);
   const connectedGraceMs = Math.max(0, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_CONNECTED_GRACE_MS || '10000', 10) || 10000);
   const maxWaitMs = Math.max(initialDelayMs, Number.parseInt(process.env.BOT_POST_JOIN_THROTTLE_MAX_WAIT_MS || '180000', 10) || 180000);
+  const cleanupOnTimeout = isTrue(process.env.BOT_STARTUP_TIMEOUT_CLEANUP ?? 'true');
   const hasTargets = hasEffectiveResourceValue(cpu) || hasEffectiveResourceValue(memory) || hasEffectiveResourceValue(memoryReservation);
 
   return {
@@ -75,8 +76,26 @@ function getPostJoinThrottleConfig() {
     initialDelayMs,
     pollMs,
     connectedGraceMs,
-    maxWaitMs
+    maxWaitMs,
+    cleanupOnTimeout
   };
+}
+
+async function removeContainer(projectDir, containerId, reason = 'cleanup') {
+  try {
+    await execAsync(
+      `docker rm -f ${shellQuote(containerId)}`,
+      { cwd: projectDir, shell: '/bin/sh', timeout: 10000 }
+    );
+    console.warn(`[STARTUP] Removed container ${containerId} (${reason})`);
+    return true;
+  } catch (error) {
+    const msg = error.message || '';
+    if (msg.includes('No such container')) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function isContainerRunning(projectDir, containerId) {
@@ -293,6 +312,13 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
       }
 
       console.warn(`[THROTTLE] Did not detect connected state for ${containerId} within ${config.maxWaitMs}ms`);
+      if (config.cleanupOnTimeout) {
+        try {
+          await removeContainer(projectDir, containerId, `startup-timeout>${config.maxWaitMs}ms`);
+        } catch (cleanupError) {
+          console.warn(`[STARTUP] Failed to remove timed-out container ${containerId}: ${cleanupError.message}`);
+        }
+      }
     } catch (error) {
       console.warn(`[THROTTLE] Failed for ${containerId}: ${error.message}`);
     } finally {
