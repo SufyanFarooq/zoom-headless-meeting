@@ -213,7 +213,7 @@ async function countUnthrottledRunningBots(projectDir) {
 async function waitForStartWindow(projectDir, upcomingCount = 0, options = {}) {
   const config = getStartBackpressureConfig();
   if (!config.enabled) {
-    return;
+    return Math.max(1, upcomingCount || 1);
   }
 
   const isRetry = options?.isRetry === true;
@@ -232,9 +232,9 @@ async function waitForStartWindow(projectDir, upcomingCount = 0, options = {}) {
     }
 
     const cpuOk = !Number.isFinite(cpuUsagePercent) || cpuUsagePercent < effectiveMaxCpuPercent;
-    const joinWindowOk = (unthrottled + upcomingCount) <= config.maxUnthrottled;
-    if (cpuOk && joinWindowOk) {
-      return;
+    const availableSlots = Math.max(0, config.maxUnthrottled - unthrottled);
+    if (cpuOk && availableSlots > 0) {
+      return Math.max(1, Math.min(upcomingCount || 1, availableSlots));
     }
 
     console.log(
@@ -473,13 +473,19 @@ async function startComposeServices(projectDir, composeFilePath, staggerMs = 0, 
 
   const totalBatches = Math.ceil(services.length / batchSize);
   console.log(`🚦 Starting ${services.length} services with stagger ${safeStaggerMs}ms (batchSize=${batchSize}, batches=${totalBatches})`);
-  for (let i = 0; i < services.length; i += batchSize) {
-    const batch = services.slice(i, i + batchSize);
-    await waitForStartWindow(projectDir, batch.length);
+  for (let i = 0; i < services.length;) {
+    const remaining = services.length - i;
+    const desiredCount = Math.min(batchSize, remaining);
+    const launchCount = await waitForStartWindow(projectDir, desiredCount);
+    const batch = services.slice(i, i + launchCount);
+    if (launchCount < desiredCount) {
+      console.log(`🚦 Partial batch start: launching ${launchCount}/${desiredCount} services due to current headroom`);
+    }
     const serviceArgs = batch.map((service) => shellQuote(service)).join(' ');
     const upCommand = `docker-compose -f "${composeFilePath}" up -d --no-deps --force-recreate ${serviceArgs}`;
     await execAsync(upCommand, { cwd: projectDir, env: dockerEnv, shell: '/bin/sh' });
-    if (i + batchSize < services.length) {
+    i += batch.length;
+    if (i < services.length) {
       await delay(safeStaggerMs);
     }
   }
