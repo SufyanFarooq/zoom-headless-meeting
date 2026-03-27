@@ -242,8 +242,8 @@ async function monitorContainerForPostJoinThrottle(projectDir, containerId) {
       while (Date.now() - startedAt <= config.maxWaitMs) {
         const running = await isContainerRunning(projectDir, containerId);
         if (!running) {
-          console.log(`[THROTTLE] Skipping ${containerId}: container is no longer running`);
-          return;
+          await delay(config.pollMs);
+          continue;
         }
 
         const logs = await getContainerLogs(projectDir, containerId, 250);
@@ -690,6 +690,8 @@ app.post('/api/bots/create', async (req, res) => {
             return;
           }
 
+          const scheduledContainerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
+          schedulePostJoinThrottle(projectDir, scheduledContainerIds);
           const warmResult = await startBotsWithWarmPool(
             projectDir,
             composeFilePath,
@@ -698,7 +700,6 @@ app.post('/api/bots/create', async (req, res) => {
             totalBots,
             startStaggerMs
           );
-          schedulePostJoinThrottle(projectDir, warmResult.containerIds);
           console.log(`✅ Async bot creation finished (warm-assigned: ${warmResult.assignedIds.length}, compose-fallback: ${warmResult.fallbackServiceNames.length})`);
         } catch (startError) {
           console.error('❌ Async bot creation failed:', startError.message);
@@ -861,6 +862,8 @@ app.post('/api/bots/create', async (req, res) => {
     
     let containerIds = [];
     try {
+      const scheduledContainerIds = buildContainerIds(meetingId, uniqueRequestId, totalBots);
+      schedulePostJoinThrottle(projectDir, scheduledContainerIds);
       const warmResult = await startBotsWithWarmPool(
         projectDir,
         composeFilePath,
@@ -870,7 +873,6 @@ app.post('/api/bots/create', async (req, res) => {
         startStaggerMs
       );
       containerIds = warmResult.containerIds;
-      schedulePostJoinThrottle(projectDir, containerIds);
       console.log(`🔥 Warm assigned: ${warmResult.assignedIds.length}, compose fallback: ${warmResult.fallbackServiceNames.length}`);
     } catch (dockerError) {
       // Docker-compose command failed - log detailed error
