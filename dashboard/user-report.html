@@ -558,6 +558,7 @@
             const { totals, rows } = computeSummary(reportData.byDate || {}, costRates || {});
             const groupedMeetings = groupMeetingsByDate(reportData.meetings || []);
             const resultArea = document.getElementById('resultArea');
+            const hasUsageRows = rows.some((row) => row.total > 0);
 
             const summaryRowsHtml = rows.map((row) => `
                 <tr>
@@ -604,7 +605,7 @@
                         </div>
                     </div>
                 `).join('')
-                : `<div class="report-empty-note">No meetings found for the selected date range.</div>`;
+                : (hasUsageRows ? '' : `<div class="report-empty-note">No meetings found for the selected date range.</div>`);
 
             resultArea.classList.remove('is-empty');
             resultArea.innerHTML = `
