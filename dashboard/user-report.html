@@ -86,7 +86,7 @@
 
         .report-summary-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 12px;
             margin-bottom: 18px;
         }
@@ -152,6 +152,12 @@
             color: #1f2937;
         }
 
+        .report-data-table tfoot td {
+            background: #f7f7f7;
+            font-weight: 700;
+            color: #111827;
+        }
+
         .report-table-wrap {
             overflow-x: auto;
         }
@@ -195,10 +201,6 @@
         }
 
         @media (max-width: 900px) {
-            .report-summary-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
             .report-sheet-header {
                 flex-direction: column;
                 align-items: stretch;
@@ -206,10 +208,6 @@
         }
 
         @media (max-width: 640px) {
-            .report-summary-grid {
-                grid-template-columns: 1fr;
-            }
-
             .report-sheet {
                 padding: 16px;
             }
@@ -559,6 +557,7 @@
             const groupedMeetings = groupMeetingsByDate(reportData.meetings || []);
             const resultArea = document.getElementById('resultArea');
             const hasUsageRows = rows.some((row) => row.total > 0);
+            const totalMembers = totals.normal + totals.pic + totals.webinar;
 
             const summaryRowsHtml = rows.map((row) => `
                 <tr>
@@ -632,6 +631,10 @@
                             <span class="summary-value">${totals.webinar}</span>
                         </div>
                         <div class="summary-card">
+                            <span class="summary-label">Total Members</span>
+                            <span class="summary-value">${totalMembers}</span>
+                        </div>
+                        <div class="summary-card">
                             <span class="summary-label">Total Due</span>
                             <span class="summary-value">${escapeHtml(formatCurrencyValue(totals.amount, currency))}</span>
                         </div>
@@ -698,6 +701,16 @@
                                         </tr>
                                     `}
                                 </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td>Total</td>
+                                        <td>${totals.normal}</td>
+                                        <td>${totals.pic}</td>
+                                        <td>${totals.webinar}</td>
+                                        <td>${totalMembers}</td>
+                                        <td>${escapeHtml(formatCurrencyValue(totals.amount, currency))}</td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
