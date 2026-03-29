@@ -390,31 +390,60 @@ router.get('/reports', async (req, res) => {
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
+    if (start > end) {
+      return res.status(400).json({ error: 'startDate must be before endDate' });
+    }
 
-    const result = await query(
-      `SELECT 
-        DATE(COALESCE(started_at, created_at)) as d,
+    const userResult = await query(
+      `SELECT id, username, email, max_members_limit
+       FROM users
+       WHERE id = $1`,
+      [userId]
+    );
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const meetingsResult = await query(
+      `SELECT
+        id,
+        meeting_id,
+        members_count,
+        name_type,
         meeting_type,
-        SUM(members_count) as total
+        timeout_seconds,
+        created_at,
+        COALESCE(started_at, created_at) AS usage_at
        FROM meetings
        WHERE user_id = $1
          AND DATE(COALESCE(started_at, created_at)) >= $2
          AND DATE(COALESCE(started_at, created_at)) <= $3
-       GROUP BY DATE(COALESCE(started_at, created_at)), meeting_type
-       ORDER BY d ASC`,
+       ORDER BY DATE(COALESCE(started_at, created_at)) ASC, created_at ASC, id ASC`,
       [userId, startDate, endDate]
     );
 
+    const meetings = meetingsResult.rows.map((row) => ({
+      id: row.id,
+      meetingId: row.meeting_id,
+      membersCount: parseInt(row.members_count, 10) || 0,
+      nameType: row.name_type || '',
+      meetingType: row.meeting_type || '',
+      timeoutSeconds: parseInt(row.timeout_seconds, 10) || 0,
+      createdAt: row.created_at,
+      usageAt: row.usage_at
+    }));
+
     const byDate = {};
-    for (const row of result.rows) {
-      const d = toDateKey(row.d);
+    for (const row of meetings) {
+      const d = toDateKey(row.usageAt);
       if (!d) continue;
       if (!byDate[d]) byDate[d] = { normal: 0, pic: 0, webinar: 0 };
-      const t = row.meeting_type;
-      const n = parseInt(row.total) || 0;
-      if (t === 'Normal Member') byDate[d].normal = n;
-      else if (t === 'Profile Pic Member') byDate[d].pic = n;
-      else if (t === 'Webinar') byDate[d].webinar = n;
+      const t = row.meetingType;
+      const n = row.membersCount;
+      if (t === 'Normal Member') byDate[d].normal += n;
+      else if (t === 'Profile Pic Member') byDate[d].pic += n;
+      else if (t === 'Webinar') byDate[d].webinar += n;
       else byDate[d].normal += n;
     }
 
@@ -426,7 +455,20 @@ router.get('/reports', async (req, res) => {
       curr.setDate(curr.getDate() + 1);
     }
 
-    res.json({ success: true, byDate, startDate, endDate, userId });
+    res.json({
+      success: true,
+      byDate,
+      startDate,
+      endDate,
+      userId,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        maxMembersLimit: user.max_members_limit
+      },
+      meetings
+    });
   } catch (error) {
     console.error('Error fetching admin report:', error);
     res.status(500).json({ error: 'Failed to fetch report', message: error.message });

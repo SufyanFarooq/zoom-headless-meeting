@@ -6,10 +6,214 @@
     <title>User Report - Zoom Services Admin</title>
     <link rel="stylesheet" href="styles.css">
     <style>
-        .user-badge { display: inline-block; padding: 5px 12px; background: #2a3a4a; border-radius: 6px; color: #4a9eff; font-weight: 500; margin-left: 6px; font-size: 13px; }
-        .result-area { margin-top: 20px; padding: 20px; background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 6px; min-height: 280px; font-family: monospace; font-size: 13px; color: #4ade80; line-height: 1.6; white-space: pre-wrap; word-break: break-word; box-sizing: border-box; }
-        .result-area:empty::before { content: 'Select date range and click Generate Report'; color: #666; }
-        .report-actions { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+        .user-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            background: #23364d;
+            border-radius: 10px;
+            color: #58a6ff;
+            font-weight: 600;
+            margin-left: 8px;
+            font-size: 13px;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .result-area {
+            margin-top: 20px;
+            min-height: 320px;
+            border: 1px solid #3a3a3a;
+            border-radius: 12px;
+            background: #1b1b1b;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        .result-area.is-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #777;
+            font-size: 14px;
+        }
+
+        .report-sheet {
+            background: #ffffff;
+            color: #111111;
+            border-radius: 10px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .report-sheet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+            padding-bottom: 18px;
+            border-bottom: 2px solid #ececec;
+        }
+
+        .report-sheet-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 6px;
+        }
+
+        .report-sheet-subtitle {
+            margin: 0;
+            color: #555555;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .report-currency-pill {
+            border: 1px solid #d9d9d9;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e3a5f;
+            white-space: nowrap;
+        }
+
+        .report-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .summary-card {
+            background: #f5f7fb;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+
+        .summary-label {
+            display: block;
+            font-size: 12px;
+            color: #5f6b7a;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .summary-value {
+            display: block;
+            font-size: 22px;
+            font-weight: 700;
+            color: #18212f;
+        }
+
+        .report-block {
+            margin-bottom: 18px;
+        }
+
+        .report-block:last-child {
+            margin-bottom: 0;
+        }
+
+        .report-block h3 {
+            margin: 0 0 12px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #121212;
+        }
+
+        .report-meta-table,
+        .report-data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .report-meta-table th,
+        .report-meta-table td,
+        .report-data-table th,
+        .report-data-table td {
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .report-meta-table th,
+        .report-data-table th {
+            background: #f7f7f7;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .report-table-wrap {
+            overflow-x: auto;
+        }
+
+        .report-muted {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .report-day-heading {
+            margin-bottom: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .report-empty-note {
+            padding: 14px 16px;
+            border: 1px dashed #d1d5db;
+            border-radius: 10px;
+            color: #6b7280;
+            background: #fafafa;
+        }
+
+        .loading-state,
+        .error-state {
+            padding: 18px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .loading-state {
+            background: #1f2937;
+            color: #d1d5db;
+        }
+
+        .error-state {
+            background: #3a1d1d;
+            color: #fecaca;
+            border: 1px solid #7f1d1d;
+        }
+
+        @media (max-width: 900px) {
+            .report-summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .report-sheet-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .report-summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .report-sheet {
+                padding: 16px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -47,7 +251,7 @@
                 <button class="btn-success" onclick="generateReport()">Generate Report</button>
                 <button type="button" class="btn-secondary" onclick="copyResult()">📋 Copy</button>
             </div>
-            <div class="result-area" id="resultArea"></div>
+            <div class="result-area is-empty" id="resultArea">Select date range and click Generate Report</div>
         </section>
     </div>
 
@@ -56,6 +260,9 @@
         const params = new URLSearchParams(window.location.search);
         const userId = params.get('userId');
         const userName = params.get('name') || 'User';
+        const CURRENCY_SYMBOLS = { INR: '₹', USD: '$', EUR: '€' };
+        const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        let latestReportText = '';
 
         function getAuthHeaders() {
             const token = localStorage.getItem('authToken');
@@ -64,82 +271,353 @@
 
         function initDates() {
             const today = new Date();
-            const lastMonth = new Date(today);
-            lastMonth.setMonth(lastMonth.getMonth() - 1);
-            const pad = n => String(n).padStart(2, '0');
-            document.getElementById('endDate').value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-            document.getElementById('startDate').value = `${lastMonth.getFullYear()}-${pad(lastMonth.getMonth()+1)}-${pad(lastMonth.getDate())}`;
+            const start = new Date(today);
+            start.setMonth(start.getMonth() - 1);
+            const pad = (n) => String(n).padStart(2, '0');
+            document.getElementById('endDate').value = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+            document.getElementById('startDate').value = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
         }
 
-        const CURRENCY_SYMBOLS = { INR: '₹', USD: '$', EUR: '€' };
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
-        function formatReport(byDate, costRates, symbol) {
-            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-            const dates = Object.keys(byDate || {}).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+        function formatCurrencyValue(value, currency) {
+            const num = Number(value) || 0;
+            const symbol = CURRENCY_SYMBOLS[currency] || '₹';
+            return `${symbol}${num.toFixed(1)}`;
+        }
+
+        function formatDateKey(dateKey) {
+            const [year, month, day] = String(dateKey || '').split('-').map(Number);
+            if (!year || !month || !day) return String(dateKey || '');
+            return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
+        }
+
+        function formatHeadingDate(dateKey) {
+            return escapeHtml(String(dateKey || ''));
+        }
+
+        function formatTime(value) {
+            if (!value) return '—';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '—';
+            return new Intl.DateTimeFormat('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            }).format(date);
+        }
+
+        function formatDuration(timeoutSeconds) {
+            const seconds = Number(timeoutSeconds) || 0;
+            if (seconds <= 0) return '—';
+            return `${Math.round(seconds / 60)} Min.`;
+        }
+
+        function formatNameType(nameType) {
+            if (!nameType) return '—';
+            if (nameType === 'International') return 'Foreign';
+            return nameType;
+        }
+
+        function formatMeetingType(meetingType) {
+            if (meetingType === 'Normal Member') return 'normal';
+            if (meetingType === 'Profile Pic Member') return 'pic';
+            if (meetingType === 'Webinar') return 'webinar';
+            return String(meetingType || '—').toLowerCase();
+        }
+
+        function computeSummary(byDate, costRates) {
+            const totals = { normal: 0, pic: 0, webinar: 0, amount: 0 };
+            const rows = [];
+            for (const dateKey of Object.keys(byDate || {}).sort()) {
+                const day = byDate[dateKey] || {};
+                const normal = Number(day.normal) || 0;
+                const pic = Number(day.pic) || 0;
+                const webinar = Number(day.webinar) || 0;
+                const total = normal + pic + webinar;
+                const amount = (normal * (costRates.normal || 0)) + (pic * (costRates.profile || 0)) + (webinar * (costRates.webinar || 0));
+                totals.normal += normal;
+                totals.pic += pic;
+                totals.webinar += webinar;
+                totals.amount += amount;
+                rows.push({ dateKey, normal, pic, webinar, total, amount });
+            }
+            return { totals, rows };
+        }
+
+        function groupMeetingsByDate(meetings) {
+            const groups = new Map();
+            for (const meeting of meetings || []) {
+                const rawDate = meeting.usageAt || meeting.createdAt;
+                const dateKey = rawDate ? String(rawDate).split('T')[0] : 'unknown';
+                if (!groups.has(dateKey)) groups.set(dateKey, []);
+                groups.get(dateKey).push(meeting);
+            }
+            return Array.from(groups.entries())
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([dateKey, items]) => ({ dateKey, items }));
+        }
+
+        function buildCopyText(reportData, costRates, currency) {
+            const user = reportData.user || {};
+            const { totals, rows } = computeSummary(reportData.byDate || {}, costRates || {});
             const lines = [];
-            let totalDue = 0;
-            const r = costRates || { normal: 0, profile: 0, webinar: 0 };
-            for (const d of dates) {
-                const [, m, day] = d.split('-');
-                const monthName = months[parseInt(m,10)-1];
-                if (!monthName || isNaN(parseInt(day,10))) continue;
-                const { normal = 0, pic = 0, webinar = 0 } = byDate[d];
-                const parts = [];
-                if (normal > 0) parts.push(`Normal:${normal}`);
-                if (pic > 0) parts.push(`Pic:${pic}`);
-                if (webinar > 0) parts.push(`Webinar:${webinar}`);
-                const str = parts.length ? parts.join(',') : '0';
-                const price = (normal * r.normal) + (pic * r.profile) + (webinar * r.webinar);
-                totalDue += price;
-                const dayNum = parseInt(day,10);
-                const sym = symbol || '₹';
-                if (parts.length) {
-                    lines.push(`*${dayNum} ${monthName} - ${str},  = ${sym}${price.toFixed(1)}*`);
-                } else {
-                    lines.push(`*${dayNum} ${monthName} - 0 = ${sym}0*`);
-                }
+
+            lines.push('USER DETAILS');
+            lines.push(`Name: ${user.username || '—'}`);
+            lines.push(`Email: ${user.email || '—'}`);
+            lines.push(`Max Members: ${user.maxMembersLimit ?? '—'}`);
+            lines.push(`Rate per Member (Normal): ${costRates.normal > 0 ? formatCurrencyValue(costRates.normal, currency) : 'Deactivated'}`);
+            lines.push(`Rate per Member (Webinar): ${costRates.webinar > 0 ? formatCurrencyValue(costRates.webinar, currency) : 'Deactivated'}`);
+            lines.push(`Rate per Member (Profile Picture): ${costRates.profile > 0 ? formatCurrencyValue(costRates.profile, currency) : 'Deactivated'}`);
+            lines.push('');
+            lines.push('DAILY SUMMARY');
+
+            for (const row of rows) {
+                lines.push(
+                    `${formatDateKey(row.dateKey)} | Normal: ${row.normal} | Pic: ${row.pic} | Webinar: ${row.webinar} | Total: ${row.total} | Amount: ${formatCurrencyValue(row.amount, currency)}`
+                );
             }
-            if (dates.length > 0) {
-                const [, m, day] = dates[dates.length - 1].split('-');
-                const monthName = months[parseInt(m,10)-1];
-                const sym = symbol || '₹';
-                lines.push(`*Total Due till ${parseInt(day,10)} ${monthName} = ${sym}${totalDue.toFixed(1)}*`);
+
+            lines.push('');
+            lines.push(`Grand Total: ${formatCurrencyValue(totals.amount, currency)}`);
+
+            const grouped = groupMeetingsByDate(reportData.meetings || []);
+            for (const group of grouped) {
+                lines.push('');
+                lines.push(`MEETINGS for ${user.email || user.username || 'user'} on ${group.dateKey}`);
+                lines.push('Sno | CreateTask | meeting_id | members | time | name | meeting_type');
+                group.items.forEach((meeting, index) => {
+                    lines.push(
+                        `${index + 1} | ${formatTime(meeting.createdAt)} | ${meeting.meetingId || '—'} | ${meeting.membersCount || 0} | ${formatDuration(meeting.timeoutSeconds)} | ${formatNameType(meeting.nameType)} | ${formatMeetingType(meeting.meetingType)}`
+                    );
+                });
             }
-            return lines.join('\n') || 'No data for selected range.';
+
+            return lines.join('\n');
+        }
+
+        function renderReport(reportData, costRates, currency) {
+            const user = reportData.user || {};
+            const { totals, rows } = computeSummary(reportData.byDate || {}, costRates || {});
+            const groupedMeetings = groupMeetingsByDate(reportData.meetings || []);
+            const resultArea = document.getElementById('resultArea');
+
+            const summaryRowsHtml = rows.map((row) => `
+                <tr>
+                    <td>${escapeHtml(formatDateKey(row.dateKey))}</td>
+                    <td>${row.normal}</td>
+                    <td>${row.pic}</td>
+                    <td>${row.webinar}</td>
+                    <td>${row.total}</td>
+                    <td>${escapeHtml(formatCurrencyValue(row.amount, currency))}</td>
+                </tr>
+            `).join('');
+
+            const meetingsHtml = groupedMeetings.length
+                ? groupedMeetings.map((group) => `
+                    <div class="report-block">
+                        <div class="report-day-heading">Meetings for ${escapeHtml(user.email || user.username || 'user')} on ${formatHeadingDate(group.dateKey)}</div>
+                        <div class="report-table-wrap">
+                            <table class="report-data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Sno</th>
+                                        <th>CreateTask</th>
+                                        <th>meeting_id</th>
+                                        <th>members</th>
+                                        <th>time</th>
+                                        <th>name</th>
+                                        <th>meeting_type</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${group.items.map((meeting, index) => `
+                                        <tr>
+                                            <td>${index + 1}</td>
+                                            <td>${escapeHtml(formatTime(meeting.createdAt))}</td>
+                                            <td>${escapeHtml(meeting.meetingId || '—')}</td>
+                                            <td>${meeting.membersCount || 0}</td>
+                                            <td>${escapeHtml(formatDuration(meeting.timeoutSeconds))}</td>
+                                            <td>${escapeHtml(formatNameType(meeting.nameType))}</td>
+                                            <td>${escapeHtml(formatMeetingType(meeting.meetingType))}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `).join('')
+                : `<div class="report-empty-note">No meetings found for the selected date range.</div>`;
+
+            resultArea.classList.remove('is-empty');
+            resultArea.innerHTML = `
+                <div class="report-sheet">
+                    <div class="report-sheet-header">
+                        <div>
+                            <h3 class="report-sheet-title">Usage Report</h3>
+                            <p class="report-sheet-subtitle">Report period: ${escapeHtml(formatDateKey(reportData.startDate))} to ${escapeHtml(formatDateKey(reportData.endDate))}</p>
+                        </div>
+                        <div class="report-currency-pill">${escapeHtml(currency)} ${escapeHtml(CURRENCY_SYMBOLS[currency] || '₹')}</div>
+                    </div>
+
+                    <div class="report-summary-grid">
+                        <div class="summary-card">
+                            <span class="summary-label">Normal Members</span>
+                            <span class="summary-value">${totals.normal}</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="summary-label">Profile Pic</span>
+                            <span class="summary-value">${totals.pic}</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="summary-label">Webinar</span>
+                            <span class="summary-value">${totals.webinar}</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="summary-label">Total Due</span>
+                            <span class="summary-value">${escapeHtml(formatCurrencyValue(totals.amount, currency))}</span>
+                        </div>
+                    </div>
+
+                    <div class="report-block">
+                        <h3>User Details</h3>
+                        <div class="report-table-wrap">
+                            <table class="report-meta-table">
+                                <thead>
+                                    <tr>
+                                        <th>Field</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Name</td>
+                                        <td>${escapeHtml(user.username || '—')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Email</td>
+                                        <td>${escapeHtml(user.email || '—')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Max Members</td>
+                                        <td>${escapeHtml(user.maxMembersLimit ?? '—')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rate per Member (Normal)</td>
+                                        <td>${escapeHtml(costRates.normal > 0 ? formatCurrencyValue(costRates.normal, currency) : 'Deactivated')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rate per Member (Webinar)</td>
+                                        <td>${escapeHtml(costRates.webinar > 0 ? formatCurrencyValue(costRates.webinar, currency) : 'Deactivated')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rate per Member (Profile Picture)</td>
+                                        <td>${escapeHtml(costRates.profile > 0 ? formatCurrencyValue(costRates.profile, currency) : 'Deactivated')}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="report-block">
+                        <h3>Daily Summary</h3>
+                        <div class="report-table-wrap">
+                            <table class="report-data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Normal</th>
+                                        <th>Pic</th>
+                                        <th>Webinar</th>
+                                        <th>Total</th>
+                                        <th>Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${summaryRowsHtml || `
+                                        <tr>
+                                            <td colspan="6" class="report-muted">No usage found for the selected date range.</td>
+                                        </tr>
+                                    `}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    ${meetingsHtml}
+                </div>
+            `;
         }
 
         async function generateReport() {
-            if (!userId) { document.getElementById('resultArea').textContent = 'Invalid user'; return; }
+            if (!userId) {
+                document.getElementById('resultArea').className = 'result-area';
+                document.getElementById('resultArea').innerHTML = '<div class="error-state">Invalid user.</div>';
+                return;
+            }
+
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const currency = document.getElementById('currency').value || 'INR';
-            if (!start || !end) { document.getElementById('resultArea').textContent = 'Please select date range'; return; }
+
+            if (!start || !end) {
+                document.getElementById('resultArea').className = 'result-area';
+                document.getElementById('resultArea').innerHTML = '<div class="error-state">Please select date range.</div>';
+                return;
+            }
+
+            const resultArea = document.getElementById('resultArea');
+            resultArea.className = 'result-area';
+            resultArea.innerHTML = '<div class="loading-state">Generating report...</div>';
+
             try {
                 const [reportRes, costRes] = await Promise.all([
-                    fetch(`${API_BASE}/admin/reports?userId=${userId}&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`, { headers: getAuthHeaders() }),
+                    fetch(`${API_BASE}/admin/reports?userId=${encodeURIComponent(userId)}&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`, { headers: getAuthHeaders() }),
                     fetch(`${API_BASE}/cost-settings`, { headers: getAuthHeaders() })
                 ]);
+
                 const reportData = await reportRes.json();
                 const costData = await costRes.json();
-                if (!reportRes.ok) throw new Error(reportData.error || 'Failed');
+
+                if (!reportRes.ok) {
+                    throw new Error(reportData.error || 'Failed to generate report');
+                }
+
                 const settings = costData.settings || {};
                 const costRates = settings[currency] || { normal: 0, profile: 0, webinar: 0 };
-                const symbol = CURRENCY_SYMBOLS[currency] || '₹';
-                document.getElementById('resultArea').textContent = formatReport(reportData.byDate, costRates, symbol);
-            } catch (e) {
-                document.getElementById('resultArea').textContent = 'Error: ' + e.message;
+                latestReportText = buildCopyText(reportData, costRates, currency);
+                renderReport(reportData, costRates, currency);
+            } catch (error) {
+                resultArea.className = 'result-area';
+                resultArea.innerHTML = `<div class="error-state">Error: ${escapeHtml(error.message)}</div>`;
             }
         }
 
         function copyResult() {
-            const el = document.getElementById('resultArea');
-            const text = el.textContent;
-            if (!text) return;
-            navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard')).catch(() => alert('Copy failed'));
+            if (!latestReportText) {
+                alert('Generate report first');
+                return;
+            }
+
+            navigator.clipboard.writeText(latestReportText)
+                .then(() => alert('Copied to clipboard'))
+                .catch(() => alert('Copy failed'));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            if (!localStorage.getItem('authToken')) { window.location.href = 'login.html'; return; }
+            if (!localStorage.getItem('authToken')) {
+                window.location.href = 'login.html';
+                return;
+            }
             document.getElementById('userLabel').textContent = decodeURIComponent(userName);
             initDates();
         });
